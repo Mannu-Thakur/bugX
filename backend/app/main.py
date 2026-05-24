@@ -68,6 +68,7 @@ def create_app() -> FastAPI:
 
     from app.routers.auth import router as auth_router
     from app.routers.users import router as users_router
+    from app.routers.submissions import router as submissions_router
 
     app.include_router(
         health_router,
@@ -83,6 +84,10 @@ def create_app() -> FastAPI:
         users_router,
         prefix=f"{settings.API_V1_PREFIX}/users",
         tags=["users"],
+    )
+    app.include_router(
+        submissions_router,
+        prefix=f"{settings.API_V1_PREFIX}",
     )
 
     return app

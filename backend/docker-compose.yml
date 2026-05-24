@@ -12,3 +12,87 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  judge0-db:
+    image: postgres:16.2
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+      POSTGRES_DB: judge0
+    volumes:
+      - judge0-data:/var/lib/postgresql/data
+
+  judge0-redis:
+    image: redis:7.2.4
+    command:
+      - bash
+      - -c
+      - docker-entrypoint.sh --appendonly no --requirepass "judge0_redis_password"
+    
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+      POSTGRES_DB: judge0
+      POSTGRES_HOST: judge0-db
+      REDIS_PASSWORD: judge0_redis_password
+      REDIS_HOST: judge0-redis
+      JUDGE0_ALLOW_ENABLE_NETWORK: "true"
+      JUDGE0_ENABLE_WAIT_RESULT: "true"
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    ports:
+      - "2358:2358"
+    privileged: true
+    restart: always
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    command: ["./scripts/workers"]
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+      POSTGRES_DB: judge0
+      POSTGRES_HOST: judge0-db
+      REDIS_PASSWORD: judge0_redis_password
+      REDIS_HOST: judge0-redis
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    privileged: true
+    restart: always
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - judge0-server
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
+      REDIS_URL: redis://redis:6379/0
+      JUDGE0_URL: http://judge0-server:2358
+
+  worker:
+    build: .
+    command: python -m app.workers.submission_worker
+    depends_on:
+      - postgres
+      - redis
+      - judge0-server
+      - judge0-workers
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
+      REDIS_URL: redis://redis:6379/0
+      JUDGE0_URL: http://judge0-server:2358
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+
+volumes:
+  judge0-data:
