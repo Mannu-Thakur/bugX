@@ -77,3 +77,28 @@ class SubmissionRepo:
             )
         )
         await session.execute(stmt)
+
+    @staticmethod
+    async def set_score(session: AsyncSession, submission_id: uuid.UUID, score: int) -> None:
+        stmt = (
+            update(Submission)
+            .where(Submission.id == submission_id)
+            .values(score=score, updated_at=datetime.utcnow())
+        )
+        await session.execute(stmt)
+
+    @staticmethod
+    async def get_best_qualifying_submission(session: AsyncSession, user_id: uuid.UUID, problem_id: uuid.UUID) -> Optional[Submission]:
+        stmt = (
+            select(Submission)
+            .where(
+                Submission.user_id == user_id,
+                Submission.problem_id == problem_id,
+                Submission.status == SubmissionStatus.ACCEPTED,
+                Submission.run_samples_only == False
+            )
+            .order_by(Submission.score.desc(), Submission.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()

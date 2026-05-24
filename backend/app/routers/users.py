@@ -25,3 +25,21 @@ async def update_me(
 ) -> Any:
     controller = UserController(db)
     return await controller.update_me(current_user, req)
+
+@router.get("/me/stats")
+async def get_my_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    controller = UserController(db)
+    return await controller.get_my_stats(current_user)
+
+@router.get("/me/submissions")
+async def get_my_submissions(
+    page: int = 1,
+    limit: int = 20,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    controller = UserController(db)
+    return await controller.get_my_submissions(current_user, page, limit)

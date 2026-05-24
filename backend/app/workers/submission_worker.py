@@ -91,6 +91,19 @@ class SubmissionWorker:
                 # We have the lock
                 await self.judge_service.run(session, submission_id)
                 await session.commit()
+                
+                # Fetch fresh submission row for scoring
+                sub = await SubmissionRepo.get_by_id(session, submission_id)
+                if sub and not sub.run_samples_only:
+                    from app.services.scoring_service import ScoringService
+                    scoring_service = ScoringService(self.redis)
+                    try:
+                        await scoring_service.on_submission_complete(session, sub)
+                        await session.commit()
+                    except Exception as scoring_err:
+                        logger.error(f"Scoring failed for submission {submission_id}: {scoring_err}")
+                        await session.rollback()
+                        
                 logger.info(f"Finished processing submission {submission_id}")
 
             except Exception as e:
