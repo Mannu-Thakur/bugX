@@ -1,8 +1,10 @@
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
 
 
+@pytest.mark.asyncio
 async def test_health_returns_dependency_statuses():
     app = create_app()
     transport = ASGITransport(app=app)
@@ -17,6 +19,7 @@ async def test_health_returns_dependency_statuses():
     assert body["redis"] in {"ok", "error"}
 
 
+@pytest.mark.asyncio
 async def test_ip_rate_limit_returns_429_when_exceeded():
     class DenyAllRateLimiter:
         async def check_ip(self, ip_address: str, max_requests: int) -> bool:

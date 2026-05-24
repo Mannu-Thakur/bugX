@@ -12,3 +12,6 @@ redis
 httpx
 pytest
 pytest-asyncio
+pytest-anyio
+anyio
+aiosqlite

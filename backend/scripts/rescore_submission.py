@@ -23,6 +23,7 @@ async def rescore(submission_id_str: str):
     except ValueError:
         logger.error("Invalid UUID format")
         sys.exit(1)
+        return
 
     settings = get_settings()
     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -34,16 +35,19 @@ async def rescore(submission_id_str: str):
             logger.error("Submission not found")
             await redis.aclose()
             sys.exit(1)
+            return
         
         if sub.status != SubmissionStatus.ACCEPTED:
             logger.error("Submission is not ACCEPTED")
             await redis.aclose()
             sys.exit(1)
+            return
             
         if sub.run_samples_only:
             logger.error("Submission is samples only")
             await redis.aclose()
             sys.exit(1)
+            return
             
         logger.info(f"Rescoring submission {submission_id} (current score: {sub.score})")
         
@@ -56,6 +60,7 @@ async def rescore(submission_id_str: str):
             await session.rollback()
             await redis.aclose()
             sys.exit(1)
+            return
             
     await redis.aclose()
 

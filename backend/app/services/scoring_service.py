@@ -11,6 +11,7 @@ from app.services.stats_service import StatsService
 
 logger = logging.getLogger("scoring_service")
 
+
 class ScoringService:
     def __init__(self, redis: Redis):
         self.redis = redis
@@ -55,24 +56,28 @@ class ScoringService:
             runtime_ms=submission.runtime_ms,
             time_limit_ms=problem.time_limit_ms,
             score_base=problem.score_base,
-            bonus_max=problem.runtime_bonus_max
+            bonus_max=problem.runtime_bonus_max,
         )
 
-        # We start a transaction for the stats updates
+        # Run all stat updates in a nested savepoint transaction
         async with session.begin_nested():
+            # 1. Persist score on submission
             await SubmissionRepo.set_score(session, submission.id, score)
 
             if submission.status == SubmissionStatus.ACCEPTED:
                 stats_repo = UserStatsRepo(session)
-                
-                # Check if had prior AC
-                had_prior_ac = await stats_repo.has_prior_ac(submission.user_id, submission.problem_id)
-                
-                await stats_repo.lock_for_update(submission.user_id)
-                
-                if not had_prior_ac:
-                    user_stats = await stats_repo.get_by_user_id(submission.user_id)
-                    if user_stats:
+
+                # Lock the user_stats row for this user — must happen FIRST
+                user_stats = await stats_repo.lock_for_update(submission.user_id)
+
+                if user_stats is not None:
+                    # Check for a PRIOR qualifying AC for this problem (excluding current submission)
+                    had_prior_ac = await stats_repo.has_prior_ac_excluding(
+                        submission.user_id, submission.problem_id, submission.id
+                    )
+
+                    # Increment solve counts only on first AC for this problem
+                    if not had_prior_ac:
                         user_stats.total_solved += 1
                         if problem.difficulty == DifficultyEnum.EASY:
                             user_stats.easy_solved += 1
@@ -80,14 +85,17 @@ class ScoringService:
                             user_stats.medium_solved += 1
                         elif problem.difficulty == DifficultyEnum.HARD:
                             user_stats.hard_solved += 1
-                
-                await stats_repo.recompute_total_score(submission.user_id)
-                await StatsService.update_streak(session, submission.user_id)
 
-            # Update acceptance rate for all full submits
+                    # Recompute total_score idempotently from all qualifying bests
+                    await stats_repo.recompute_total_score(submission.user_id)
+
+                    # Update streak
+                    await StatsService.update_streak_on_locked(user_stats)
+
+            # 2. Update acceptance rate for every full (non-sample) submit
             await StatsService.update_acceptance_rate(session, submission.problem_id)
-        
-        # After transaction commits (handled by outer session), clear leaderboard cache
+
+        # After DB transaction committed, clear leaderboard cache
         try:
             await self.redis.delete("leaderboard:all", "leaderboard:week")
         except Exception as e:

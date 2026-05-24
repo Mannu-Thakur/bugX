@@ -7,6 +7,7 @@ from app.services.user_service import UserService
 
 class UserController:
     def __init__(self, db: AsyncSession):
+        self.db = db
         self.user_service = UserService(db)
 
     async def update_me(self, current_user: User, req: UserUpdate) -> UserProfile:
@@ -15,12 +16,13 @@ class UserController:
 
     async def get_my_stats(self, current_user: User) -> dict:
         from app.repositories.user_stats_repo import UserStatsRepo
-        repo = UserStatsRepo(self.user_service.session)
+        repo = UserStatsRepo(self.db)
         stats = await repo.get_by_user_id(current_user.id)
         if not stats:
             return {
                 "total_solved": 0, "easy_solved": 0, "medium_solved": 0, "hard_solved": 0,
-                "total_score": 0, "current_streak": 0, "best_streak": 0
+                "total_score": 0, "current_streak": 0, "best_streak": 0,
+                "last_active_date": None
             }
         return {
             "total_solved": stats.total_solved,
@@ -38,11 +40,10 @@ class UserController:
         from app.models.submission import Submission
         
         offset = (page - 1) * limit
-        session = self.user_service.session
         
         # count
         count_stmt = select(func.count(Submission.id)).where(Submission.user_id == current_user.id)
-        total = (await session.execute(count_stmt)).scalar() or 0
+        total = (await self.db.execute(count_stmt)).scalar() or 0
         
         # rows
         stmt = (
@@ -52,7 +53,7 @@ class UserController:
             .offset(offset)
             .limit(limit)
         )
-        rows = (await session.execute(stmt)).scalars().all()
+        rows = list((await self.db.execute(stmt)).scalars().all())
         
         return {
             "items": rows,

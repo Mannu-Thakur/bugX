@@ -12,7 +12,7 @@ def get_redis(request: Request) -> Redis:
 
 @router.get("/")
 async def get_leaderboard(
-    period: str = Query("all", regex="^(all|week)$"),
+    period: str = Query("all", pattern="^(all|week)$"),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis)

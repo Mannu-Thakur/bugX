@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from app.models.submission import SubmissionStatus
 
 class SubmissionCreate(BaseModel):
@@ -10,8 +10,9 @@ class SubmissionCreate(BaseModel):
     source_code: str = Field(..., max_length=65536)
     run_samples_only: bool = False
 
-    @validator('language')
-    def validate_language(cls, v):
+    @field_validator('language')
+    @classmethod
+    def validate_language(cls, v: str) -> str:
         allowed = {"python", "javascript"}
         if v.lower() not in allowed:
             raise ValueError(f"Language must be one of {allowed}")
@@ -28,15 +29,14 @@ class SubmissionResponse(BaseModel):
     passed_weight: int
     total_weight: int
     score: int
-    runtime_ms: Optional[int]
-    memory_kb: Optional[int]
-    error_message: Optional[str]
+    runtime_ms: Optional[int] = None
+    memory_kb: Optional[int] = None
+    error_message: Optional[str] = None
     run_samples_only: bool
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class SubmissionResultResponse(BaseModel):
     id: UUID
@@ -50,5 +50,4 @@ class SubmissionResultResponse(BaseModel):
     stdout: Optional[str] = None
     stderr: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

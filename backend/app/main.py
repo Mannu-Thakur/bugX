@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
     from app.routers.users import router as users_router
     from app.routers.submissions import router as submissions_router
     from app.routers.leaderboard import router as leaderboard_router
+    from app.routers.problems import router as problems_router
 
     app.include_router(
         health_router,
@@ -89,6 +90,11 @@ def create_app() -> FastAPI:
     app.include_router(
         submissions_router,
         prefix=f"{settings.API_V1_PREFIX}",
+    )
+    app.include_router(
+        problems_router,
+        prefix=f"{settings.API_V1_PREFIX}/problems",
+        tags=["problems"],
     )
     app.include_router(
         leaderboard_router,
