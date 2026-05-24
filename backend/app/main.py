@@ -66,10 +66,23 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
+    from app.routers.auth import router as auth_router
+    from app.routers.users import router as users_router
+
     app.include_router(
         health_router,
         prefix=settings.API_V1_PREFIX,
         tags=["health"],
+    )
+    app.include_router(
+        auth_router,
+        prefix=f"{settings.API_V1_PREFIX}/auth",
+        tags=["auth"],
+    )
+    app.include_router(
+        users_router,
+        prefix=f"{settings.API_V1_PREFIX}/users",
+        tags=["users"],
     )
 
     return app
