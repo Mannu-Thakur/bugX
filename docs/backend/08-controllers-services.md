@@ -2,6 +2,8 @@
 
 One class per domain. Methods = one HTTP use-case.
 
+**UML class diagram:** [../diagrams/uml-specification.md](../diagrams/uml-specification.md) §2 (application layer).
+
 ---
 
 ## Controllers

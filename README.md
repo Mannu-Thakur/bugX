@@ -14,9 +14,18 @@ LeetCode-inspired coding judge platform — **standalone project** (not related 
 
 ## Documentation
 
-All planning, requirements, and implementation phases live under:
+**Full index:** [docs/README.md](./docs/README.md)
 
-**[docs/backend/README.md](./docs/backend/README.md)**
+| Category | Path |
+|----------|------|
+| **Requirements** | [docs/requirements.md](./docs/requirements.md) |
+| **Stack comparison** (MERN vs FastAPI) | [docs/comparison/mern-vs-fastapi.md](./docs/comparison/mern-vs-fastapi.md) |
+| **Plan analysis** | [docs/analysis/plan-readiness-review.md](./docs/analysis/plan-readiness-review.md) |
+| **Plan fixes log** | [docs/analysis/plan-fixes-applied.md](./docs/analysis/plan-fixes-applied.md) |
+| **UML (class & state diagrams)** | [docs/diagrams/uml-specification.md](./docs/diagrams/uml-specification.md) |
+| **Backend phases** | [docs/backend/README.md](./docs/backend/README.md) |
+
+### Phase & reference docs (15 files in `docs/backend/`)
 
 | Doc | Purpose |
 |-----|---------|
@@ -26,7 +35,7 @@ All planning, requirements, and implementation phases live under:
 | [07-api-routes.md](./docs/backend/07-api-routes.md) | REST API contract |
 | [11-phase-6-frontend.md](./docs/backend/11-phase-6-frontend.md) | Frontend checklist |
 | [12-seed-problems-spec.md](./docs/backend/12-seed-problems-spec.md) | Seed data (5 problems) |
-| [13-plan-verification.md](./docs/backend/13-plan-verification.md) | Plan completeness checklist |
+| [13-plan-verification.md](./docs/backend/13-plan-verification.md) | Plan completeness checklist (44/44) |
 
 ## Repo layout (planned)
 

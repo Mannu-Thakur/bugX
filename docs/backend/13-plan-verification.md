@@ -87,8 +87,17 @@ Use this after any plan edit. **All items must pass** before calling the plan im
 | 39 | Health `judge0` field documented for Phase 4+ | pass |
 | 40 | `scripts/rescore_submission.py` documented for scoring recovery (Phase 5) | pass |
 
+## UML diagrams
+
+| # | Check | Status |
+|---|--------|--------|
+| 41 | Domain class diagram matches schema in `01-database-models` | pass |
+| 42 | Application layer class diagram matches `08-controllers-services` | pass |
+| 43 | Submission + worker state diagrams match Phase 4/5 behavior | pass |
+| 44 | ER diagram consistent with migrations | pass |
+
 ---
 
-**Result:** 40/40 pass — plan is implementation-ready with **0 open issues** as of last edit.
+**Result:** 44/44 pass — plan is implementation-ready with **0 open issues** as of last edit.
 
 When you change behavior, update the relevant phase doc **and** this checklist row.

@@ -31,6 +31,8 @@ Router → Controller → Service → Repository → DB
             Judge0 / Redis
 ```
 
+**UML:** Application layer class diagram and state machines — [../diagrams/uml-specification.md](../diagrams/uml-specification.md).
+
 - **Router:** parse HTTP, auth deps, call controller, return schema
 - **Controller:** one use-case per method; no SQL
 - **Service:** business rules, scoring, queue publish

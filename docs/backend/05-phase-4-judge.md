@@ -2,6 +2,8 @@
 
 **Goal:** Submit code → queue → Judge0 → store results → terminal status. **Does not** update `user_stats`, leaderboard, or `submission.score` (Phase 5).
 
+**UML:** Submission lifecycle & worker state diagrams — [../diagrams/uml-specification.md](../diagrams/uml-specification.md) §3, §5.
+
 ## Flow
 
 ```

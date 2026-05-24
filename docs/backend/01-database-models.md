@@ -2,6 +2,8 @@
 
 Reference schema. Create tables via Alembic migrations in implementation Phases 2–4 (see [README.md](./README.md)).
 
+**UML:** Domain class diagram, ER diagram, and submission state machine — [../diagrams/uml-specification.md](../diagrams/uml-specification.md).
+
 ## ER (text)
 
 ```

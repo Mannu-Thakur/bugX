@@ -2,6 +2,8 @@
 
 LeetCode-inspired coding judge (**xyz_plateform**). **Stack:** FastAPI · PostgreSQL · Redis · Judge0 (Docker) · JWT
 
+**Also see:** [../README.md](../README.md) (docs index) · [../requirements.md](../requirements.md) · [../diagrams/uml-specification.md](../diagrams/uml-specification.md) · [../comparison/mern-vs-fastapi.md](../comparison/mern-vs-fastapi.md) · [../analysis/plan-readiness-review.md](../analysis/plan-readiness-review.md)
+
 ## Reference docs (not build sprints)
 
 | Doc | Purpose |
@@ -125,4 +127,4 @@ backend/
 
 ## Plan status
 
-Last verified against [13-plan-verification.md](./13-plan-verification.md) — all checklist items **pass** before implementation.
+Last verified against [13-plan-verification.md](./13-plan-verification.md) — **44/44** checklist items pass (includes UML diagrams).
