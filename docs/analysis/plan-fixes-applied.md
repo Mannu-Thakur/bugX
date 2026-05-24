@@ -6,8 +6,8 @@ Log of documentation fixes applied to make the plan implementation-ready and to 
 
 | Action | Detail |
 |--------|--------|
-| New repo root | `xyz_plateform/` standalone from todo-list workspace |
-| Removed | `code-judge/` folder from merged workspace |
+| New repo root | `xyz_plateform/` — dedicated Git repository |
+| Removed | Legacy `code-judge/` folder; split from unrelated projects |
 | Rebrand | CodeForge → XYZ Platform |
 | Env names | Postgres user/db `xyz_platform`; admin email `admin@xyz-platform.local` |
 

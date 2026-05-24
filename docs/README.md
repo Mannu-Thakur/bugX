@@ -1,6 +1,6 @@
 # XYZ Platform — Documentation Index
 
-All planning documents for **xyz_plateform**. This repo is **standalone** (not linked to todo-list or other projects).
+All planning documents for **xyz_plateform**.
 
 ## Requirements & decisions
 

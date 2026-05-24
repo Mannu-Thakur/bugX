@@ -1,6 +1,6 @@
 # XYZ Platform
 
-LeetCode-inspired coding judge platform — **standalone project** (not related to other repos in this workspace).
+LeetCode-inspired coding judge platform — standalone repository.
 
 ## Stack
 
