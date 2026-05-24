@@ -15,14 +15,18 @@ def calculate_score(
     status: str,
     passed_weight: int,
     total_weight: int,
-    runtime_ms: int,
+    runtime_ms: int | None,
     time_limit_ms: int,
     score_base: int,
     bonus_max: int,
 ) -> int:
     if status != "ACCEPTED" or passed_weight < total_weight or total_weight == 0:
         return 0
+    if score_base <= 0 or bonus_max < 0 or time_limit_ms <= 0:
+        raise ValueError("Invalid scoring configuration")
     base = score_base
+    if runtime_ms is None:
+        return base
     ratio = min(runtime_ms / time_limit_ms, 1.0)
     bonus = int(bonus_max * (1 - ratio))
     return min(base + bonus, score_base + bonus_max)
@@ -34,6 +38,8 @@ def calculate_score(
 | Qualifying full pass | `score_base` + runtime bonus (0–`bonus_max`) |
 
 `runtime_ms` = max runtime across test runs for that submission.
+
+Admin validation in Phase 3 prevents invalid scoring config (`score_base <= 0`, `runtime_bonus_max < 0`, `time_limit_ms <= 0`). The defensive `ValueError` above is for corrupted/manual data and should be logged by the worker scoring error path.
 
 ## `scoring_service.on_submission_complete(submission)`
 

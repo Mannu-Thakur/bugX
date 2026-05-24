@@ -336,8 +336,13 @@ Mounted at `/api/v1/admin` — all routes require `require_admin`.
 | Field | Rules |
 |-------|--------|
 | `slug` | Unique; `^[a-z0-9]+(?:-[a-z0-9]+)*$`; max 100 |
-| `templates` | ≥1; each `language` ∈ `{python, javascript}`; `arg_style` ∈ `{kwargs, positional, single}` — **`kwargs` only when `language` is `python`**; `javascript` must use `positional` or `single` → else **422** `VALIDATION_ERROR` (no JS kwargs wrapper in v1) |
-| `test_cases` | ≥1 sample (`is_sample=true`) + ≥3 hidden (`is_sample=false`); `order_index` unique per problem |
+| `title` | 1-200 chars |
+| `time_limit_ms` | integer 100-15000; used for Judge0 timeout and scoring bonus |
+| `memory_limit_kb` | integer 16000-256000; must not exceed Judge0 configured max memory |
+| `score_base` | integer 1-10000 |
+| `runtime_bonus_max` | integer 0-10000 |
+| `templates` | ≥1; each `language` ∈ `{python, javascript}`; `function_name` must match `^[A-Za-z_][A-Za-z0-9_]*$`; `template_code` 1-65536 bytes; `arg_style` ∈ `{kwargs, positional, single}` — **`kwargs` only when `language` is `python`**; `javascript` must use `positional` or `single` → else **422** `VALIDATION_ERROR` (no JS kwargs wrapper in v1) |
+| `test_cases` | ≥1 sample (`is_sample=true`) + ≥3 hidden (`is_sample=false`); `input` and `expected_output` must parse as JSON; `order_index` unique per problem; `weight` integer ≥1 |
 | `tag_names` | Creates/links tags via `TagService.get_or_create` |
 
 ### `ProblemUpdate` (all fields optional)
@@ -359,6 +364,8 @@ Mounted at `/api/v1/admin` — all routes require `require_admin`.
 
 Does not replace templates or test cases in v1 — use dedicated routes / new problem for bulk test edits.
 
+Numeric fields on update use the same ranges as `ProblemCreate`. If `tag_names` is present, replace links with the supplied set. Empty `tag_names` is allowed and means no tags.
+
 ### `TestCaseCreate`
 
 ```json
@@ -370,6 +377,13 @@ Does not replace templates or test cases in v1 — use dedicated routes / new pr
   "weight": 1
 }
 ```
+
+| Field | Rules |
+|-------|--------|
+| `input` | Must parse as one JSON value; raw value is passed to Judge0 stdin |
+| `expected_output` | Must parse as one JSON value; compared by `OutputCompareService` |
+| `order_index` | Unique per problem across existing and new rows |
+| `weight` | integer ≥1 |
 
 ### `TagCreate`
 
@@ -406,7 +420,7 @@ Mounted at `/api/v1/health`.
 | `status` | 1+ | `"ok"` if all checked deps are ok; `"degraded"` if any dependency is `error` |
 | `db` | 1+ | `"ok"` \| `"error"` — Postgres `SELECT 1` |
 | `redis` | 1+ | `"ok"` \| `"error"` — Redis `PING` |
-| `judge0` | 4+ | `"ok"` \| `"error"` — HTTP GET `{JUDGE0_URL}/about` (or `/system_info`); omit or `"skipped"` in Phases 1–3 |
+| `judge0` | 4+ | `"ok"` \| `"error"` — HTTP GET `{JUDGE0_URL}/about` plus `{JUDGE0_URL}/workers`; `ok` only when server responds and workers report `available >= 1`; omit or `"skipped"` in Phases 1–3 |
 
 Return **200** with `status: "degraded"` when a non-critical check fails (do not return 503 for dev ergonomics).
 

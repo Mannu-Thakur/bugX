@@ -83,6 +83,7 @@ Single source of truth — do not duplicate elsewhere.
 | Worker concurrency | **One** worker replica in v1; dequeue only processes rows with `status = PENDING` |
 | Worker idempotency | `process_submission` no-ops unless `status == PENDING`; reclaim sets stale `RUNNING` → `PENDING` + reset judge counters; `judge_service.run` deletes prior `submission_results` |
 | Stale `RUNNING` reclaim | Prod: `updated_at` older than 10 minutes; dev optional `RECLAIM_ALL_RUNNING_ON_START=true` |
+| Judge0 compose | Use `judge0-server` + `judge0-workers`; verify `/workers` reports `available >= 1` before testing submissions |
 | `submissions.updated_at` | Set on every status transition (`PENDING`→`RUNNING`→terminal) — required for reclaim |
 | Inactive users | Login → **403**; protected routes use `get_current_active_user` |
 | Submission reads | Owner-only; **404** if not owner (no admin override in v1) |
@@ -125,6 +126,8 @@ backend/
 └── requirements.txt
 ```
 
+Phase 4+ compose uses `backend/Dockerfile` for the `api` and XYZ `worker` images.
+
 ## Plan status
 
-Last verified against [13-plan-verification.md](./13-plan-verification.md) — **44/44** checklist items pass (includes UML diagrams).
+Last verified against [13-plan-verification.md](./13-plan-verification.md) — **50/50** checklist items pass (includes UML diagrams).

@@ -51,6 +51,20 @@ Log of documentation fixes applied to make the plan implementation-ready and to 
 
 `13-plan-verification.md` extended from 33 → **40** items (checks 34–40 for fixes above).
 
+## 7. Final readiness hardening
+
+| Topic | Fix |
+|-------|-----|
+| Judge0 compose | Replaced single `judge0` service guidance with `judge0-server` + `judge0-workers`; added `/workers` availability verification |
+| Judge0 config | Added `backend/judge0.conf.example`; ignored local `backend/judge0.conf` |
+| Admin validation | Added numeric ranges, safe `function_name`, JSON test I/O, `weight >= 1`, and unique `order_index` requirements |
+| Scoring | Added defensive invalid-config guard and `runtime_ms is None` behavior |
+| Frontend prerequisites | Changed startup order so migrations + seed run before `api` / XYZ `worker` start |
+| Dependencies | Added `email-validator` for Pydantic `EmailStr` |
+| Docker | Added `backend/Dockerfile` and documented it before compose `api` / `worker` use `build: .` |
+
+`13-plan-verification.md` extended to **50** items (checks 45–50 for final hardening).
+
 ## Related
 
 - [plan-readiness-review.md](./plan-readiness-review.md)

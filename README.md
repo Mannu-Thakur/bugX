@@ -35,15 +35,15 @@ LeetCode-inspired coding judge platform — standalone repository.
 | [07-api-routes.md](./docs/backend/07-api-routes.md) | REST API contract |
 | [11-phase-6-frontend.md](./docs/backend/11-phase-6-frontend.md) | Frontend checklist |
 | [12-seed-problems-spec.md](./docs/backend/12-seed-problems-spec.md) | Seed data (5 problems) |
-| [13-plan-verification.md](./docs/backend/13-plan-verification.md) | Plan completeness checklist (44/44) |
+| [13-plan-verification.md](./docs/backend/13-plan-verification.md) | Plan completeness checklist (50/50) |
 
-## Repo layout (planned)
+## Repo layout
 
 ```
 xyz_plateform/
-├── docs/backend/          # ← current: full implementation plan
-├── backend/               # Phase 1+: FastAPI app (not scaffolded yet)
-├── frontend/              # Phase 6: React SPA
+├── docs/backend/          # full implementation plan
+├── backend/               # Phase 1 FastAPI scaffold
+├── frontend/              # Created in Phase 6: React SPA
 └── README.md
 ```
 

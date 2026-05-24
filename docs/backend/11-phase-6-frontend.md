@@ -4,9 +4,10 @@
 
 **Prerequisites:** Backend Phases 1–5 deployed locally:
 
-1. `cd backend && docker compose up` — postgres, redis, judge0 stack, `api`, `worker` ([09-env-security.md](./09-env-security.md))
-2. `cd backend && alembic upgrade head` + `python scripts/seed_problems.py` ([12-seed-problems-spec.md](./12-seed-problems-spec.md))
-3. Judge0 healthy per [09-env-security.md](./09-env-security.md#judge0-first-time-bring-up-phase-4)
+1. `cd backend && docker compose up -d postgres redis judge0-db judge0-redis judge0-server judge0-workers`
+2. Verify Judge0 server + workers per [09-env-security.md](./09-env-security.md#judge0-first-time-bring-up-phase-4), especially `/workers` showing `available >= 1`
+3. `alembic upgrade head` + `python scripts/seed_problems.py` ([12-seed-problems-spec.md](./12-seed-problems-spec.md))
+4. `docker compose up -d api worker` — start API and XYZ worker after migrations/seed
 
 ## Stack (locked for v1)
 

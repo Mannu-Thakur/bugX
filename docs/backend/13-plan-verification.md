@@ -84,7 +84,7 @@ Use this after any plan edit. **All items must pass** before calling the plan im
 | 36 | Stale reclaim resets judge counters; re-judge does not duplicate result rows | pass |
 | 37 | Admin rejects `javascript` + `kwargs` (**422**); seed uses positional/single for JS | pass |
 | 38 | Pagination `pages = 0` when `total == 0` | pass |
-| 39 | Health `judge0` field documented for Phase 4+ | pass |
+| 39 | Health `judge0` field documented for Phase 4+ and checks server + worker availability | pass |
 | 40 | `scripts/rescore_submission.py` documented for scoring recovery (Phase 5) | pass |
 
 ## UML diagrams
@@ -96,8 +96,19 @@ Use this after any plan edit. **All items must pass** before calling the plan im
 | 43 | Submission + worker state diagrams match Phase 4/5 behavior | pass |
 | 44 | ER diagram consistent with migrations | pass |
 
+## Final readiness hardening
+
+| # | Check | Status |
+|---|--------|--------|
+| 45 | Judge0 compose includes **server + workers**; `/workers` availability check documented | pass |
+| 46 | Phase 3 admin validation rejects invalid numeric scoring/judge fields | pass |
+| 47 | Test-case validation requires JSON `input` / `expected_output`, `weight >= 1`, and unique `order_index` | pass |
+| 48 | Phase 6 startup order runs migrations + seed before starting `api` / XYZ `worker` | pass |
+| 49 | `email-validator` dependency present for Pydantic `EmailStr` | pass |
+| 50 | `backend/Dockerfile` required/present before compose `api` / `worker` use `build: .` | pass |
+
 ---
 
-**Result:** 44/44 pass — plan is implementation-ready with **0 open issues** as of last edit.
+**Result:** 50/50 pass — plan is implementation-ready with **0 open issues** as of last edit.
 
 When you change behavior, update the relevant phase doc **and** this checklist row.

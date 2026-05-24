@@ -2,7 +2,7 @@
 
 Analysis of whether the phased implementation plan is ready to build (pre-implementation review).
 
-**Verdict:** Implementation-ready after documented fixes (see [plan-fixes-applied.md](./plan-fixes-applied.md)).
+**Verdict:** Implementation-ready after documented fixes and final hardening (see [plan-fixes-applied.md](./plan-fixes-applied.md)).
 
 ## Phase boundaries
 
@@ -33,6 +33,16 @@ Analysis of whether the phased implementation plan is ready to build (pre-implem
 | Low | No Judge0 field on health in Phase 4+ |
 | Low | Scoring recovery path undefined |
 
+## Issues found in final review and fixed
+
+| Severity | Issue |
+|----------|--------|
+| High | Judge0 compose showed only API server, not execution workers |
+| Medium | Admin numeric/test validation could allow zero/negative scoring fields or broken JSON test data |
+| Medium | Phase 6 startup order could start API/worker before migrations and seed |
+| Medium | Missing `email-validator` dependency for Pydantic `EmailStr` |
+| Medium | Compose `api`/`worker` used `build: .` before a `Dockerfile` was specified |
+
 ## Intentional design gaps (not bugs)
 
 - Between Phase 4 and 5: `ACCEPTED` with `score=0`, `solved=true`, `best_score=null` until scoring runs
@@ -52,7 +62,7 @@ Analysis of whether the phased implementation plan is ready to build (pre-implem
 
 ## Verification
 
-Automated checklist: [../backend/13-plan-verification.md](../backend/13-plan-verification.md) — **40/40 pass** after fixes.
+Automated checklist: [../backend/13-plan-verification.md](../backend/13-plan-verification.md) — **50/50 pass** after fixes.
 
 ## Related
 

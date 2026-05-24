@@ -7,7 +7,7 @@
 ## Tasks
 
 - [ ] Init FastAPI project under `backend/` — folder layout from [README.md](./README.md#repo-layout-backend)
-- [ ] `backend/docker-compose.yml`: postgres, redis (judge0 + `api` + `worker` added in Phase 4 — see [09-env-security.md](./09-env-security.md))
+- [ ] `backend/docker-compose.yml`: postgres, redis (`judge0-server`, `judge0-workers`, `api`, and XYZ `worker` added in Phase 4 — see [09-env-security.md](./09-env-security.md))
 - [ ] Alembic init + first empty migration (sync URL — see below)
 - [ ] Config via pydantic-settings (`app/core/config.py`)
 - [ ] DB session dependency (`app/core/database.py`) — async engine from `DATABASE_URL`
@@ -35,6 +35,7 @@ ALEMBIC_DATABASE_URL,      # postgresql+psycopg2://… — Alembic only
 REDIS_URL, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES,
 JUDGE0_URL, CORS_ORIGINS, ENV, API_V1_PREFIX="/api/v1",
 MAX_SUBMISSIONS_PER_MINUTE=10, MAX_REQUESTS_PER_MINUTE_IP=100,
+MAX_SOURCE_BYTES=65536,
 RECLAIM_ALL_RUNNING_ON_START=false   # Phase 4 worker: dev-only stale RUNNING reclaim
 ```
 
@@ -54,7 +55,7 @@ Document both URLs in `.env.example` (see [09-env-security.md](./09-env-security
 | Phase | Add to compose |
 |-------|----------------|
 | **1** | `postgres`, `redis` (below) |
-| **4** | Judge0 stack + `api` + `worker` — [09-env-security.md](./09-env-security.md) |
+| **4** | `judge0-server`, `judge0-workers`, `api`, and XYZ `worker` — [09-env-security.md](./09-env-security.md) |
 | **6** | Frontend is separate `frontend/` (not in backend compose) |
 
 Keep one `docker-compose.yml` at **`backend/docker-compose.yml`** (same directory as `app/`, `alembic/`, `requirements.txt`). Run all compose commands from `backend/`. Extend the file per phase — do not split into multiple compose files.

@@ -118,6 +118,7 @@ After the loop: set terminal `status`, counts, weights, `updated_at`, then bulk-
 | controllers | `submission_controller.py` |
 | routers | `submissions.py` |
 | workers | `submission_worker.py` |
+| docker | `Dockerfile` (required before `api` / `worker` services use `build: .`) |
 
 ## Judge0 client
 
@@ -127,7 +128,11 @@ async def execute(language_id, source_code, stdin, time_limit_ms, memory_limit_k
 }
 ```
 
-Pass `expected_output` to Judge0 only when using compare API; otherwise compare in `output_compare_service` after run (recommended: compare in app for JSON normalization).
+Implementation rule:
+
+1. Submit to `POST {JUDGE0_URL}/submissions?base64_encoded=false&wait=true` for local CE.
+2. If the instance rejects or disables `wait=true`, fall back to create-then-poll by token until `status.id > 2` or a bounded timeout.
+3. Pass `stdin` and resource limits to Judge0; do **not** pass `expected_output` unless intentionally using Judge0 compare mode. v1 compares in `output_compare_service` for JSON normalization.
 
 Language map (config) — **v1 only:**
 
@@ -208,8 +213,10 @@ Per-test Judge0 outcome:
 | Time Limit Exceeded | TIME_LIMIT |
 | Runtime Error (SIGSEGV, etc.) | RUNTIME_ERROR |
 | Compilation Error | COMPILE_ERROR |
-| Memory Limit Exceeded | MEMORY_LIMIT |
+| Memory Limit Exceeded, if returned by image/config | MEMORY_LIMIT |
 | Internal Error / Other | RUNTIME_ERROR + log |
+
+Judge0 CE commonly reports status ids 1-14. If memory exhaustion appears as a runtime/internal error instead of a distinct memory status, keep the app terminal status `RUNTIME_ERROR` and include the Judge0 message in `error_message`.
 
 **Submission terminal status** (after **all** tests in scope have run):
 
@@ -251,11 +258,11 @@ python -m app.workers.submission_worker
 
 ## Health (Phase 4 extension)
 
-Extend `GET /api/v1/health` to include `judge0`: `"ok"` \| `"error"` (HTTP probe to `JUDGE0_URL`, e.g. `/about`). Phases 1–3 omit this field or return `"skipped"` when `JUDGE0_URL` is unset. See [07-api-routes.md](./07-api-routes.md#health).
+Extend `GET /api/v1/health` to include `judge0`: `"ok"` \| `"error"`. Probe `JUDGE0_URL` with `/about` plus `/workers`; return `"ok"` only when the API responds and workers report `available >= 1`. Phases 1–3 omit this field or return `"skipped"` when `JUDGE0_URL` is unset. See [07-api-routes.md](./07-api-routes.md#health).
 
 ## docker-compose
 
-Extend **`backend/docker-compose.yml`** with Judge0 stack + `api` + `worker` from [09-env-security.md](./09-env-security.md). Set `JUDGE0_URL=http://judge0:2358` for API and worker containers. Run `docker compose` from `backend/`.
+Extend **`backend/docker-compose.yml`** with Judge0 stack + `api` + `worker` from [09-env-security.md](./09-env-security.md). Use `judge0-server` + `judge0-workers`; set `JUDGE0_URL=http://judge0-server:2358` for API and XYZ worker containers. Run `docker compose` from `backend/`.
 
 ## Judge0 CE (v1 expectations)
 
@@ -264,6 +271,7 @@ Extend **`backend/docker-compose.yml`** with Judge0 stack + `api` + `worker` fro
 | Concurrency | One Judge0 request per test sequentially in v1; CE may queue under load — expect slower runs, not wrong caps |
 | Timeouts | Use `problem.time_limit_ms + 500` per call; map Judge0 TLE to `TIME_LIMIT` |
 | Unavailable | If Judge0 HTTP fails → submission `RUNTIME_ERROR`, `error_message = "Judge unavailable"`; log for ops |
+| Workers | Verify `GET {JUDGE0_URL}/workers` shows `available >= 1`; `/about` alone is not enough |
 | Language IDs | Python **71**, JavaScript **63** (Node); verify against `GET {JUDGE0_URL}/languages` after compose up |
 | Resources | Judge0 CE needs ~2 GB RAM for compose stack; document in README for contributors |
 
@@ -276,6 +284,7 @@ Extend **`backend/docker-compose.yml`** with Judge0 stack + `api` + `worker` fro
 - Wrong answer → `WRONG_ANSWER` + sample failure in `/results`
 - TLE → `TIME_LIMIT`
 - Worker process running; queue drains `PENDING` → terminal
+- Judge0 server and Judge0 workers are running; `/workers` reports at least one available worker
 - Stale `RUNNING` rows reclaimed on worker restart
 - Queue uses JSON `{"submission_id": "..."}` payloads
 - Worker does **not** import `ScoringService` until Phase 5

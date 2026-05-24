@@ -109,8 +109,12 @@ Use `ProblemCreate` body from [07-api-routes.md](./07-api-routes.md#problemcreat
 **Template validation (`ProblemService` / admin controller):**
 
 - Each `language` ∈ `{python, javascript}`
+- `function_name` must match `^[A-Za-z_][A-Za-z0-9_]*$` before wrapper injection
+- `template_code` must be non-empty and ≤ 64 KB
 - If `language == "javascript"` and `arg_style == "kwargs"` → **422** `VALIDATION_ERROR` (v1 has no JS kwargs wrapper)
 - If `language == "python"`, `arg_style` ∈ `{kwargs, positional, single}`
+- `time_limit_ms` 100-15000, `memory_limit_kb` 16000-256000, `score_base >= 1`, `runtime_bonus_max >= 0`
+- Each `test_cases.input` and `test_cases.expected_output` must parse as JSON; `order_index` must be unique per problem; `weight >= 1`
 
 1. Insert problem
 2. Insert templates (≥1 language) with `function_name` + `arg_style`
@@ -154,6 +158,7 @@ Public `POST /auth/register` always creates `role=USER`. First **ADMIN** only vi
 - Detail hides hidden tests; invalid Bearer on detail → 401
 - Admin CRUD matches `ProblemCreate` / `ProblemUpdate` schemas
 - Admin create rejects `javascript` + `kwargs` with **422**
+- Admin create rejects invalid JSON tests, duplicate `order_index`, unsafe `function_name`, and zero/negative scoring fields
 - Admin delete unpublishes only
 - Seed idempotent (admin + 5 problems)
 - Authenticated detail returns stub `user_status` in Phase 3 only

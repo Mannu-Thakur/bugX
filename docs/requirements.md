@@ -34,6 +34,7 @@ Product requirements for the LeetCode-inspired coding judge. Implementation deta
 - Problem detail: markdown description, templates (python, javascript), sample tests only
 - Optional auth on detail: live `user_status` when logged in (Phase 4+)
 - Admin: create problem with templates + test cases (≥1 sample, ≥3 hidden)
+- Admin validation prevents invalid scoring/judge data: positive time/memory/score fields, JSON test I/O, unique `order_index`, safe `function_name`
 - Admin: unpublish only (no hard delete)
 
 ### 3.3 Submissions & judge
@@ -66,7 +67,7 @@ Product requirements for the LeetCode-inspired coding judge. Implementation deta
 | Security | bcrypt passwords, JWT from env, user code only in Judge0 sandbox |
 | Performance | Sequential Judge0 calls v1; leaderboard cache TTL 60s |
 | Reliability | Stale `RUNNING` reclaim; idempotent judge via delete+reinsert results |
-| Ops | Single worker replica v1; `scripts/rescore_submission.py` for scoring recovery |
+| Ops | Single XYZ worker replica v1; Judge0 server + Judge0 workers required; `scripts/rescore_submission.py` for scoring recovery |
 | Data | PostgreSQL relational schema; Alembic migrations per phase |
 
 ## 5. Data requirements
@@ -81,7 +82,7 @@ Full REST contract: [backend/07-api-routes.md](./backend/07-api-routes.md)
 
 ## 7. Verification
 
-Plan completeness: [backend/13-plan-verification.md](./backend/13-plan-verification.md) (40/40 checks).
+Plan completeness: [backend/13-plan-verification.md](./backend/13-plan-verification.md) (50/50 checks).
 
 ## 8. Related documents
 

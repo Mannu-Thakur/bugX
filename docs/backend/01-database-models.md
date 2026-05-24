@@ -67,6 +67,11 @@ problems 1──* problem_templates (starter code per lang)
 | acceptance_rate | FLOAT NULL | cached % — see Phase 5 formula |
 | created_at | TIMESTAMPTZ | |
 
+**Validation / DB checks:**
+
+- `time_limit_ms > 0`, `memory_limit_kb > 0`, `score_base > 0`, `runtime_bonus_max >= 0`
+- `slug` format and unique constraint are enforced at API + DB level
+
 ---
 
 ## `problem_templates`
@@ -97,6 +102,8 @@ UNIQUE(problem_id, language)
 | is_sample | BOOL | shown to user |
 | order_index | INT | |
 | weight | INT | default 1 — used in scoring denominator |
+
+**Validation / DB checks:** `weight >= 1`; `order_index` unique per problem; `input` and `expected_output` must be valid JSON strings at API/seed time.
 
 ---
 
@@ -220,6 +227,8 @@ CREATE INDEX idx_submissions_qualifying ON submissions(user_id, problem_id)
   WHERE status = 'ACCEPTED' AND run_samples_only = false;
 CREATE INDEX idx_problems_difficulty ON problems(difficulty) WHERE is_published;
 CREATE INDEX idx_test_cases_problem ON test_cases(problem_id);
+CREATE UNIQUE INDEX uq_test_cases_problem_order
+  ON test_cases(problem_id, order_index);
 CREATE UNIQUE INDEX uq_submission_results_submission_test
   ON submission_results(submission_id, test_case_id);
 ```

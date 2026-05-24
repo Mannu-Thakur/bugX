@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: xyz_platform
+      POSTGRES_PASSWORD: xyz_platform
+      POSTGRES_DB: xyz_platform
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

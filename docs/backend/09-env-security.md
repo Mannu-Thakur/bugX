@@ -44,41 +44,55 @@ SEED_ADMIN_PASSWORD=Admin12345
 
 ## Judge0 docker-compose (v1)
 
-Add to **`backend/docker-compose.yml`** after postgres/redis (Phase 4). Run `docker compose` from the `backend/` directory. Minimal CE layout:
+Add to **`backend/docker-compose.yml`** after postgres/redis (Phase 4). Run `docker compose` from the `backend/` directory.
+
+Use the official CE shape: a Judge0 **server** container plus a Judge0 **workers** container. `/about` only proves the API server is up; `/workers` must show at least one available worker before XYZ submissions can execute.
+
+Create `backend/judge0.conf` from `backend/judge0.conf.example`, set real `POSTGRES_PASSWORD` and `REDIS_PASSWORD`, and keep `backend/judge0.conf` uncommitted.
 
 ```yaml
   judge0-db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: judge0
-      POSTGRES_DB: judge0
+    image: postgres:16.2
+    env_file: judge0.conf
     volumes:
-      - judge0-db:/var/lib/postgresql/data
+      - judge0-data:/var/lib/postgresql/data
 
   judge0-redis:
-    image: redis:7-alpine
+    image: redis:7.2.4
+    command:
+      - bash
+      - -c
+      - docker-entrypoint.sh --appendonly no --requirepass "$$REDIS_PASSWORD"
+    env_file: judge0.conf
 
-  judge0:
+  judge0-server:
     image: judge0/judge0:1.13.1
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
     depends_on:
       - judge0-db
       - judge0-redis
     ports:
       - "2358:2358"
-    environment:
-      REDIS_HOST: judge0-redis
-      POSTGRES_HOST: judge0-db
-      POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: judge0
-      POSTGRES_DB: judge0
-    # Full env list: https://github.com/judge0/judge0/blob/master/docker-compose.yml
+    privileged: true
+    restart: always
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    command: ["./scripts/workers"]
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    privileged: true
+    restart: always
 
 volumes:
-  judge0-db:
+  judge0-data:
 ```
 
-- API/worker use `JUDGE0_URL=http://judge0:2358` when running inside compose
+- API/worker use `JUDGE0_URL=http://judge0-server:2358` when running inside compose
 - Host dev: `JUDGE0_URL=http://localhost:2358`
 
 ## Judge0 first-time bring-up (Phase 4)
@@ -86,21 +100,23 @@ volumes:
 Run once when adding Judge0 to the stack:
 
 1. **Start sidecars first:** `docker compose up -d judge0-db judge0-redis` — wait until postgres accepts connections (~10–30s).
-2. **Start Judge0:** `docker compose up -d judge0` — API on port **2358**.
+2. **Start Judge0 server + workers:** `docker compose up -d judge0-server judge0-workers` — API on port **2358**.
 3. **Health:** `curl -s http://localhost:2358/about` (or `/system_info` depending on image) returns JSON without connection refused.
-4. **Languages:** `curl -s http://localhost:2358/languages` — confirm entries with id **71** (Python 3) and **63** (JavaScript / Node). If IDs differ, update `config.py` / Phase 4 language map to match **your** CE image.
-5. **Smoke execute (optional):** submit a trivial Python snippet via Judge0 API; expect `status.id` accepted.
-6. **App wiring:** API + worker containers use `JUDGE0_URL=http://judge0:2358` (service name). Host-only uvicorn uses `http://localhost:2358`.
+4. **Workers:** `curl -s http://localhost:2358/workers` — confirm `available >= 1`. If `available` is 0, XYZ submissions will remain queued or time out even though `/about` works.
+5. **Languages:** `curl -s http://localhost:2358/languages` — confirm entries with id **71** (Python 3) and **63** (JavaScript / Node). If IDs differ, update `config.py` / Phase 4 language map to match **your** CE image.
+6. **Smoke execute:** submit a trivial Python snippet via Judge0 API and poll/get result; expect `status.id == 3` (Accepted).
+7. **App wiring:** API + XYZ worker containers use `JUDGE0_URL=http://judge0-server:2358` (service name). Host-only uvicorn uses `http://localhost:2358`.
 
 | Symptom | Likely fix |
 |---------|------------|
-| Connection refused on 2358 | Judge0 container not up; check `docker compose ps` and logs |
+| Connection refused on 2358 | `judge0-server` not up; check `docker compose ps` and logs |
+| `/about` works but submissions never finish | `judge0-workers` missing/down; check `/workers` for `available >= 1` |
 | Judge0 exits / OOM | Allocate ≥2 GB RAM to Docker; reduce parallel compose services |
 | Submissions `RUNTIME_ERROR` "Judge unavailable" | Wrong URL (host vs compose network), or Judge0 still starting |
 | Wrong language id | Re-verify `/languages`; do not assume 71/63 on custom images |
 | Port 2358 in use | Change host port mapping or stop conflicting service |
 
-After Judge0 is healthy, start **`worker`** (see [Submission worker](#submission-worker-v1)) before testing submits.
+After Judge0 server and Judge0 workers are healthy, start the **XYZ Platform `worker`** (see [Submission worker](#submission-worker-v1)) before testing submits. This is separate from `judge0-workers`.
 
 ## Judge0 CE limits (v1)
 
@@ -109,11 +125,13 @@ After Judge0 is healthy, start **`worker`** (see [Submission worker](#submission
 | RAM | Allocate ~2 GB+ for Judge0 + its postgres/redis sidecars on dev machines |
 | Sequential tests | Worker runs one Judge0 call per test case in v1 (simple, slower) |
 | HTTP errors | Map to submission `RUNTIME_ERROR`; do not leave row in `RUNNING` |
-| Verify languages | After `docker compose up`, `GET /languages` and confirm IDs **71** (Python) and **63** (JavaScript) |
+| Verify execution | After `docker compose up`, `GET /workers` must show `available >= 1`, then `GET /languages` must confirm IDs **71** (Python) and **63** (JavaScript) |
 
 ## Submission worker (v1)
 
 Add after Judge0 (Phase 4). Without this service, submissions remain `PENDING`.
+
+Create `backend/Dockerfile` before adding these services; both `api` and `worker` use `build: .`.
 
 ```yaml
   api:
@@ -124,10 +142,11 @@ Add after Judge0 (Phase 4). Without this service, submissions remain `PENDING`.
     depends_on:
       - postgres
       - redis
+      - judge0-server
     environment:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
-      JUDGE0_URL: http://judge0:2358
+      JUDGE0_URL: http://judge0-server:2358
 
   worker:
     build: .
@@ -135,11 +154,12 @@ Add after Judge0 (Phase 4). Without this service, submissions remain `PENDING`.
     depends_on:
       - postgres
       - redis
-      - judge0
+      - judge0-server
+      - judge0-workers
     environment:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
-      JUDGE0_URL: http://judge0:2358
+      JUDGE0_URL: http://judge0-server:2358
     restart: unless-stopped
     deploy:
       replicas: 1   # v1: single worker; no distributed job lock
@@ -200,6 +220,6 @@ Add after Judge0 (Phase 4). Without this service, submissions remain `PENDING`.
 
 ```
 fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg psycopg2-binary alembic
-pydantic-settings python-jose[cryptography] passlib[bcrypt]
+pydantic-settings email-validator python-jose[cryptography] passlib[bcrypt]
 redis httpx pytest pytest-asyncio
 ```
