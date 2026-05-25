@@ -6,6 +6,7 @@ import { PasswordInput } from '../../shared/ui/input/PasswordInput';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { useAuth } from './useAuth';
+import type { ApiError } from '../../shared/lib/api';
 
 export const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -63,11 +64,13 @@ export const RegisterPage: React.FC = () => {
     try {
       await register({ username, email, password });
       navigate('/problems', { replace: true });
-    } catch (err: any) {
-      if (err.code === 'VALIDATION_ERROR' && err.detail) {
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.code === 'VALIDATION_ERROR' && apiErr.detail) {
         const fieldErrors: typeof errors = {};
-        if (Array.isArray(err.detail)) {
-          err.detail.forEach((d: any) => {
+        if (Array.isArray(apiErr.detail)) {
+          const detailList = apiErr.detail as Array<{ loc?: (string | number)[]; msg: string; type: string }>;
+          detailList.forEach((d) => {
             const field = d.loc ? d.loc[d.loc.length - 1] : '';
             if (field === 'username') fieldErrors.username = d.msg;
             if (field === 'email') fieldErrors.email = d.msg;
@@ -76,7 +79,7 @@ export const RegisterPage: React.FC = () => {
         }
         setErrors(fieldErrors);
       } else {
-        toast.error(err.message || 'Registration failed. Try a different username/email.');
+        toast.error(apiErr.message || 'Registration failed. Try a different username/email.');
       }
     } finally {
       setLoading(false);

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
 import { User, Link } from 'lucide-react';
 import { useAuth } from '../useAuth';
@@ -59,7 +60,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         avatarUrl: avatarUrl || null,
       });
       onClose();
-    } catch (err) {
+    } catch {
       // Handled by updateProfile toast
     } finally {
       setLoading(false);

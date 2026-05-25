@@ -1,18 +1,19 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, setToken, clearToken, getToken } from '../../shared/lib/api';
-import type { User } from '../../shared/lib/api';
+import type { User, ApiError } from '../../shared/lib/api';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (body: any) => Promise<void>;
-  register: (body: any) => Promise<void>;
+  login: (body: Record<string, unknown>) => Promise<void>;
+  register: (body: Record<string, unknown>) => Promise<void>;
   logout: () => void;
   updateProfile: (body: { username?: string; avatarUrl?: string | null }) => Promise<void>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -40,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const me = await api.users.getMe();
         setUser(me);
-      } catch (err) {
+      } catch {
         // Token was invalid/expired
         clearToken();
         setUser(null);
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [queryClient, toast]);
 
-  const login = async (body: any) => {
+  const login = async (body: Record<string, unknown>) => {
     setLoading(true);
     try {
       const data = await api.auth.login(body);
@@ -74,15 +75,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data.user);
       queryClient.invalidateQueries({ queryKey: ['me'] });
       toast.success(`Welcome back, ${data.user.username}!`);
-    } catch (err: any) {
-      toast.error(err.message || 'Login failed.');
-      throw err;
+    } catch (err) {
+      const apiErr = err as ApiError;
+      toast.error(apiErr.message || 'Login failed.');
+      throw apiErr;
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (body: any) => {
+  const register = async (body: Record<string, unknown>) => {
     setLoading(true);
     try {
       const data = await api.auth.register(body);
@@ -90,9 +92,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data.user);
       queryClient.invalidateQueries({ queryKey: ['me'] });
       toast.success(`Account created! Welcome, ${data.user.username}.`);
-    } catch (err: any) {
-      toast.error(err.message || 'Registration failed.');
-      throw err;
+    } catch (err) {
+      const apiErr = err as ApiError;
+      toast.error(apiErr.message || 'Registration failed.');
+      throw apiErr;
     } finally {
       setLoading(false);
     }
@@ -104,9 +107,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(updatedUser);
       queryClient.invalidateQueries({ queryKey: ['me'] });
       toast.success('Profile updated successfully.');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update profile.');
-      throw err;
+    } catch (err) {
+      const apiErr = err as ApiError;
+      toast.error(apiErr.message || 'Failed to update profile.');
+      throw apiErr;
     }
   };
 

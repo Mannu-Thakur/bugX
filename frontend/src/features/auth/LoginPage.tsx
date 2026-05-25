@@ -6,6 +6,7 @@ import { PasswordInput } from '../../shared/ui/input/PasswordInput';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { useAuth } from './useAuth';
+import type { ApiError } from '../../shared/lib/api';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login } = useAuth();
 
-  const from = (location.state as any)?.from?.pathname || '/problems';
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/problems';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,11 +47,13 @@ export const LoginPage: React.FC = () => {
     try {
       await login({ email, password });
       navigate(from, { replace: true });
-    } catch (err: any) {
-      if (err.code === 'VALIDATION_ERROR' && err.detail) {
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.code === 'VALIDATION_ERROR' && apiErr.detail) {
         const fieldErrors: typeof errors = {};
-        if (Array.isArray(err.detail)) {
-          err.detail.forEach((d: any) => {
+        if (Array.isArray(apiErr.detail)) {
+          const detailList = apiErr.detail as Array<{ loc?: (string | number)[]; msg: string; type: string }>;
+          detailList.forEach((d) => {
             const field = d.loc ? d.loc[d.loc.length - 1] : '';
             if (field === 'email') fieldErrors.email = d.msg;
             if (field === 'password') fieldErrors.password = d.msg;
@@ -58,7 +61,7 @@ export const LoginPage: React.FC = () => {
         }
         setErrors(fieldErrors);
       } else {
-        toast.error(err.message || 'Login failed. Please check credentials.');
+        toast.error(apiErr.message || 'Login failed. Please check credentials.');
       }
     } finally {
       setLoading(false);
