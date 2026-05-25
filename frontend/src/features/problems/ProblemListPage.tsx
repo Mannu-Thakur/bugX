@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search, RotateCcw, WifiOff } from 'lucide-react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
 import type { ProblemListItem } from '../../shared/lib/api';
+import { MOCK_PROBLEMS, MOCK_TAGS } from '../../shared/lib/mockData';
 import { useDebounce } from '../../shared/hooks/useDebounce';
 import { DataTable } from '../../shared/ui/table/DataTable';
 import type { Column } from '../../shared/ui/table/DataTable';
@@ -77,23 +78,45 @@ export const ProblemListPage: React.FC = () => {
   };
 
   // Queries
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['problems', 'list', { page, limit, difficulty, tag, search: searchParam, sort }],
-    queryFn: () =>
-      api.problems.list({
-        page,
-        limit,
-        difficulty: difficulty === 'ALL' ? undefined : difficulty,
-        tag: tag === 'ALL' ? undefined : tag,
-        search: searchParam || undefined,
-        sort: sort || undefined,
-      }),
+    queryFn: async () => {
+      try {
+        return await api.problems.list({
+          page,
+          limit,
+          difficulty: difficulty === 'ALL' ? undefined : difficulty,
+          tag: tag === 'ALL' ? undefined : tag,
+          search: searchParam || undefined,
+          sort: sort || undefined,
+        });
+      } catch {
+        let filtered = [...MOCK_PROBLEMS];
+        if (difficulty !== 'ALL') filtered = filtered.filter(p => p.difficulty === difficulty);
+        if (tag !== 'ALL') filtered = filtered.filter(p => p.tags.some(t => t.name === tag));
+        if (searchParam) {
+          const q = searchParam.toLowerCase();
+          filtered = filtered.filter(p => p.title.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q));
+        }
+        return { items: filtered, total: filtered.length, page: 1, limit: 20, pages: Math.max(1, Math.ceil(filtered.length / 20)) };
+      }
+    },
+    retry: 0,
   });
 
   const { data: tagsData } = useQuery({
     queryKey: ['tags', 'list'],
-    queryFn: () => api.tags.list(),
+    queryFn: async () => {
+      try {
+        return await api.tags.list();
+      } catch {
+        return MOCK_TAGS;
+      }
+    },
+    retry: 0,
   });
+
+  const usingMockData = data ? data.items.some(p => p.id.startsWith('prob-')) : false;
 
   // Table columns definition
   const columns: Column<ProblemListItem>[] = [
@@ -265,32 +288,26 @@ export const ProblemListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Error State */}
-      {isError && (
-        <div className="bg-red-950/20 border border-red-500/20 text-red-200 p-4 rounded-lg flex flex-col items-center justify-center text-center gap-2 py-8">
-          <span className="text-2xl">⚠️</span>
-          <h3 className="font-semibold text-lg">Failed to load problems</h3>
-          <p className="text-sm text-red-400 max-w-md">
-            {error instanceof Error ? error.message : 'An error occurred while connecting to the API.'}
-          </p>
-          <Button variant="outline" className="mt-2 border-red-500/30 text-red-300 hover:bg-red-950/50" onClick={() => handleResetFilters()}>
-            Try clearing filters
-          </Button>
+      {/* Offline Mode Banner */}
+      {usingMockData && (
+        <div className="bg-amber-950/20 border border-amber-500/20 text-amber-200 p-3 rounded-lg flex items-center gap-3 text-sm">
+          <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
+          <div>
+            <span className="font-semibold">Offline Mode</span> — Backend is unreachable. Showing sample demo data. Start PostgreSQL & Redis to see real problems.
+          </div>
         </div>
       )}
 
       {/* Problems Data Table */}
-      {!isError && (
-        <DataTable 
-          columns={columns} 
-          data={data?.items || []} 
-          loading={isLoading}
-          emptyMessage="No problems found matching the filters."
-        />
-      )}
+      <DataTable 
+        columns={columns} 
+        data={data?.items || []} 
+        loading={isLoading}
+        emptyMessage="No problems found matching the filters."
+      />
 
       {/* Pagination Controls */}
-      {data && data.pages > 1 && !isError && (
+      {data && data.pages > 1 && (
         <div className="flex justify-between items-center bg-dark-panel p-4 rounded-lg border border-dark-border select-none">
           <div className="text-xs text-gray-500">
             Showing page {data.page} of {data.pages}

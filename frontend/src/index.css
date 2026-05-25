@@ -2,83 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────
+   CSS Custom Properties  –  Dark (default) theme
+───────────────────────────────────────────────── */
+:root {
+  --color-bg:     #0a0a0c;
+  --color-panel:  #151518;
+  --color-border: #232329;
+  --color-input:  #1d1d22;
+  --color-hover:  #2a2a32;
+  --color-text:   #e5e7eb;   /* gray-200 */
+  --color-muted:  #9ca3af;   /* gray-400 */
+  --color-subtle: #6b7280;   /* gray-500 */
+}
+
+/* ─────────────────────────────────────────────────
+   Light theme overrides  –  toggled by .light on <html>
+───────────────────────────────────────────────── */
+html.light {
+  --color-bg:     #f8fafc;   /* slate-50 */
+  --color-panel:  #ffffff;
+  --color-border: #e2e8f0;   /* slate-200 */
+  --color-input:  #f1f5f9;   /* slate-100 */
+  --color-hover:  #e2e8f0;
+  --color-text:   #1e293b;   /* slate-800 */
+  --color-muted:  #475569;   /* slate-600 */
+  --color-subtle: #64748b;   /* slate-500 */
+}
+
+/* ─────────────────────────────────────────────────
+   Light mode  –  remap Tailwind gray utility classes
+   (nested selectors require Tailwind v3 + PostCSS)
+───────────────────────────────────────────────── */
+html.light .text-gray-50,
+html.light .text-gray-100  { color: #0f172a !important; }
+html.light .text-gray-200  { color: #1e293b !important; }
+html.light .text-gray-300  { color: #334155 !important; }
+html.light .text-gray-400  { color: #475569 !important; }
+html.light .text-gray-500  { color: #64748b !important; }
+html.light .text-gray-600  { color: #94a3b8 !important; }
+html.light .text-gray-700  { color: #cbd5e1 !important; }
+
+html.light .hover\:text-gray-200:hover { color: #1e293b !important; }
+html.light .hover\:text-gray-100:hover { color: #0f172a !important; }
+html.light .hover\:text-white:hover    { color: #0f172a !important; }
+html.light .hover\:text-gray-300:hover { color: #334155 !important; }
+
+html.light ::placeholder { color: #94a3b8 !important; }
+
+/* scrollbar tints */
+html.light ::-webkit-scrollbar-track { background: var(--color-bg); }
+html.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+/* ─────────────────────────────────────────────────
+   Base layer
+───────────────────────────────────────────────── */
 @layer base {
+  html {
+    /* Smooth theme transitions */
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
   body {
-    @apply bg-dark-bg text-gray-200 antialiased font-sans select-none overflow-x-hidden;
-    background-image: 
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    @apply antialiased font-sans select-none overflow-x-hidden;
+    background-image:
       radial-gradient(circle at 10% 20%, rgba(21, 21, 24, 0.3) 0%, transparent 60%),
       radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.03) 0%, transparent 50%);
     background-attachment: fixed;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
-  /* Custom dark scrollbars */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  html.light body {
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(241, 245, 249, 0.6) 0%, transparent 60%),
+      radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
   }
-  
-  ::-webkit-scrollbar-track {
-    @apply bg-dark-bg;
-  }
-  
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--color-bg); }
   ::-webkit-scrollbar-thumb {
-    @apply bg-dark-border rounded-sm hover:bg-dark-hover transition-colors duration-150;
+    background: var(--color-border);
+    border-radius: 4px;
   }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-hover); }
 
-  /* Monospace overrides for editor elements */
-  pre, code, kbd, samp {
-    @apply font-mono;
-  }
+  pre, code, kbd, samp { @apply font-mono; }
 
-  /* Clean up default button/input outlines */
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    @apply outline-none ring-2 ring-blue-500/50 ring-offset-2 ring-offset-dark-bg;
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px rgba(59, 130, 246, 0.5);
   }
 }
 
-/* Animations */
+/* ─────────────────────────────────────────────────
+   Animations
+───────────────────────────────────────────────── */
 @keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes zoom-in {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
 
-.animate-slide-in-right {
-  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-fade-in {
-  animation: fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-zoom-in {
-  animation: zoom-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+.animate-slide-in-right { animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-fade-in        { animation: fade-in         0.2s  cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-zoom-in        { animation: zoom-in          0.2s  cubic-bezier(0.16, 1, 0.3, 1) forwards; }

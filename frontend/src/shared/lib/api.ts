@@ -427,7 +427,7 @@ export const api = {
 
   tags: {
     list: () =>
-      request<Tag[]>('/tags', {
+      request<Tag[]>('/problems/tags', {
         method: 'GET',
       }),
 

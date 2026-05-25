@@ -4,6 +4,7 @@ import { ProblemListPage } from '../features/problems/ProblemListPage';
 import { ProblemDetailPage } from '../features/problems/ProblemDetailPage';
 import { LeaderboardPage } from '../features/leaderboard/LeaderboardPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
+import { SettingsPage } from '../features/settings/SettingsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -51,6 +52,14 @@ export const router = createBrowserRouter([
           <ProfilePage />
         </PageShell>
       </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/settings',
+    element: (
+      <PageShell>
+        <SettingsPage />
+      </PageShell>
     ),
   },
   {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut, User } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut, User, Sun, Moon, Settings } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -10,10 +10,33 @@ import { ENV } from '../../config/env';
 
 export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<'loading' | 'online' | 'offline'>('loading');
+  const [healthStatus, setHealthStatus] = useState<'loading' | 'online' | 'degraded' | 'offline'>('loading');
   const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   const { user, logout } = useAuth();
+
+  // Dark/Light Theme state
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return 'dark'; // default theme is dark
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   // Live health check check on backend
   useEffect(() => {
@@ -21,7 +44,12 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
       try {
         const res = await fetch(`${ENV.API_URL}/health`);
         if (res.ok) {
-          setHealthStatus('online');
+          const data = await res.json();
+          if (data.status === 'degraded') {
+            setHealthStatus('degraded');
+          } else {
+            setHealthStatus('online');
+          }
         } else {
           setHealthStatus('offline');
         }
@@ -36,6 +64,7 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
     { to: '/problems', label: 'Problems', icon: <Terminal className="w-4 h-4" /> },
     { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
     ...(user ? [{ to: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> }] : []),
+    { to: '/settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
@@ -80,6 +109,21 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
 
             {/* Right-side Auth & Actions */}
             <div className="hidden md:flex items-center gap-4">
+              
+              {/* Theme Toggle Button */}
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-dark-border/40 select-none cursor-pointer"
+                aria-label="Toggle theme"
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400 animate-pulse" />
+                ) : (
+                  <Moon className="w-4 h-4 text-blue-500" />
+                )}
+              </button>
+
               {user ? (
                 <div className="flex items-center gap-4">
                   {user.role === 'ADMIN' && (
@@ -113,8 +157,19 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
               )}
             </div>
 
-            {/* Mobile Hamburger Button */}
-            <div className="flex items-center md:hidden">
+            {/* Mobile Actions */}
+            <div className="flex items-center gap-2 md:hidden">
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-dark-border/40 select-none cursor-pointer"
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-blue-500" />
+                )}
+              </button>
               <IconButton
                 icon={mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 aria-label="Toggle mobile navigation menu"
@@ -243,6 +298,13 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
                 <Database className="w-3 h-3 text-emerald-500" />
                 <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                 <span className="text-[10px] uppercase font-bold tracking-wider">online</span>
+              </div>
+            )}
+            {healthStatus === 'degraded' && (
+              <div className="flex items-center gap-1.5 text-amber-400 text-xs" title="Database, Redis, or Judge0 is offline. Submissions will fail.">
+                <Database className="w-3 h-3 text-amber-500 animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] uppercase font-bold tracking-wider font-semibold">degraded (offline DB)</span>
               </div>
             )}
             {healthStatus === 'offline' && (

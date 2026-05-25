@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Award, Sparkles } from 'lucide-react';
+import { Award, Sparkles, WifiOff } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
 import type { LeaderboardEntry } from '../../shared/lib/api';
+import { MOCK_LEADERBOARD } from '../../shared/lib/mockData';
 import { useAuth } from '../auth/useAuth';
 import { DataTable } from '../../shared/ui/table/DataTable';
 import type { Column } from '../../shared/ui/table/DataTable';
@@ -19,11 +20,20 @@ export const LeaderboardPage: React.FC = () => {
     toast.info(`Switched view to ${mode === 'ALL' ? 'All-Time' : 'Weekly'} leaderboard.`);
   };
 
-  const { data: entries = [], isLoading, isError, error } = useQuery<LeaderboardEntry[]>({
+  const { data: entries = [], isLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ['leaderboard', period.toLowerCase()],
-    queryFn: () => api.leaderboard.get(period === 'WEEK' ? 'week' : 'all'),
+    queryFn: async () => {
+      try {
+        return await api.leaderboard.get(period === 'WEEK' ? 'week' : 'all');
+      } catch {
+        return MOCK_LEADERBOARD;
+      }
+    },
     staleTime: 30000, // Cache for 30s before considering stale
+    retry: 0,
   });
+
+  const usingMockData = entries.length > 0 && entries[0].username === 'alice_dev';
 
   const columns: Column<LeaderboardEntry>[] = [
     {
@@ -215,26 +225,23 @@ export const LeaderboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Error Fallback display */}
-      {isError && (
-        <div className="bg-red-950/20 border border-red-500/20 text-red-200 p-4 rounded-lg flex flex-col items-center justify-center text-center gap-2 py-8 select-none">
-          <span className="text-2xl">⚠️</span>
-          <h3 className="font-semibold text-lg">Failed to load leaderboard</h3>
-          <p className="text-sm text-red-400 max-w-md">
-            {error instanceof Error ? error.message : 'An error occurred while connecting to the API.'}
-          </p>
+      {/* Offline Mode Banner */}
+      {usingMockData && (
+        <div className="bg-amber-950/20 border border-amber-500/20 text-amber-200 p-3 rounded-lg flex items-center gap-3 text-sm">
+          <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
+          <div>
+            <span className="font-semibold">Offline Mode</span> — Backend is unreachable. Showing sample demo data. Start PostgreSQL & Redis to see real problems.
+          </div>
         </div>
       )}
 
       {/* Ranks Table */}
-      {!isError && (
-        <DataTable 
-          columns={columns} 
-          data={entries} 
-          loading={isLoading}
-          emptyMessage="No ranks recorded yet. Be the first to solve a problem!"
-        />
-      )}
+      <DataTable 
+        columns={columns} 
+        data={entries} 
+        loading={isLoading}
+        emptyMessage="No ranks recorded yet. Be the first to solve a problem!"
+      />
 
     </div>
   );

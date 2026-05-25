@@ -9,11 +9,11 @@ export default {
       colors: {
         // Leetcode-like theme tokens
         dark: {
-          bg: '#0a0a0c',        // Deeper editor/app background
-          panel: '#151518',     // Card / Sidebar background
-          border: '#232329',    // Restrained border
-          input: '#1d1d22',     // Custom input box background
-          hover: '#2a2a32',     // Hover state for panels/list items
+          bg: 'var(--color-bg)',
+          panel: 'var(--color-panel)',
+          border: 'var(--color-border)',
+          input: 'var(--color-input)',
+          hover: 'var(--color-hover)',
         },
         difficulty: {
           easy: '#10b981',      // Emerald Green
