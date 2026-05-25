@@ -63,6 +63,7 @@ class SubmissionController:
             source_code=payload.source_code,
             run_samples_only=payload.run_samples_only
         )
+        await session.commit()
         
         # Enqueue in Redis
         queue_payload = json.dumps({"submission_id": str(submission.id)})

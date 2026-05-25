@@ -185,7 +185,7 @@ Profile:
 
 Leaderboard:
 
-- `getLeaderboard(period, limit): Promise<LeaderboardEntry[]>`
+- `getLeaderboard(period, limit): Promise<LeaderboardEntry[]>` → calls `GET /leaderboard/` (trailing slash required — the FastAPI route is mounted at `/leaderboard/`; omitting it may cause a 307 redirect or 404 depending on server config)
 
 Admin:
 
@@ -287,3 +287,9 @@ Errors:
 
 - handle `EMAIL_TAKEN`, `USERNAME_TAKEN`, `VALIDATION_ERROR`, `RATE_LIMIT`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `INTERNAL_ERROR`,
 - degrade gracefully when backend returns a plain `detail` string.
+
+> **NOTE — 429 rate-limit `code` field (fixed in backend):**
+> The IP-level rate limit middleware returns `{ code: "RATE_LIMIT" }`.
+> Previously the per-user submission rate limit raised a plain `HTTPException(429)` that mapped to `code: "FORBIDDEN"` through `http_exception_handler`.
+> **This bug was fixed** — `http_exception_handler` now maps 429 to `code: "RATE_LIMIT"` consistently.
+> **Frontend rule:** Still detect rate limits by HTTP status 429 first; treat `code === "RATE_LIMIT"` as confirmation. This keeps the client resilient to any future regression.

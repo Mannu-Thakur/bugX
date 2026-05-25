@@ -55,8 +55,11 @@ class UserController:
         )
         rows = list((await self.db.execute(stmt)).scalars().all())
         
+        from app.schemas.submission import SubmissionResponse
+        items = [SubmissionResponse.model_validate(row) for row in rows]
+        
         return {
-            "items": rows,
+            "items": items,
             "total": total,
             "page": page,
             "limit": limit,

@@ -49,6 +49,7 @@ Acceptance:
 - no route depends on missing backend data,
 - UI is responsive at desktop and mobile widths,
 - lint/typecheck pass.
+- **CORS note:** Vite dev server must bind to port 5173. If it starts on a different port, update `CORS_ORIGINS` in `backend/.env` before testing any API calls.
 
 ## Phase 2 - Auth And Session
 
@@ -104,6 +105,7 @@ Current backend note:
 
 - problem list is mounted under `/api/v1/problems`.
 - tag list currently lives under `/api/v1/problems/tags`, not canonical `/api/v1/tags`.
+- **`ProblemListItem` does NOT include `user_status`.** The list API does not compute per-user solved state. The solved-status icon column must be omitted (or shown only when user_status data is available from a separate source) until the backend adds this field to the list response.
 
 Deliverables:
 
@@ -143,6 +145,8 @@ Backend dependency:
 Current backend note:
 
 - problem detail currently returns templates as an array and sample tests as `sample_test_cases`; normalize before rendering.
+- **`BestSubmissionResponse` does NOT include `source_code`.** The current schema only returns `id, status, score, runtime_ms, passed_count, total_count, created_at`. The `BestSolutionPanel` component must display metadata only (score, runtime, date) and not attempt to show code until the backend adds the field.
+- **Rate-limit 429 code (fixed):** The per-user rate limit now returns `code: "RATE_LIMIT"` consistently via the patched `http_exception_handler`. Frontend should still key on HTTP status 429 first.
 
 Deliverables:
 
@@ -206,6 +210,7 @@ Acceptance:
 - history pagination works,
 - heatmap does not claim data that the backend does not provide,
 - analytics components are reusable outside profile.
+- **Backend note:** The `GET /users/me/submissions` route returns raw `Submission` ORM rows without a declared `response_model`. The shape matches `SubmissionResponse` but includes only `problem_id` (UUID), no slug or title. Submission rows also contain `source_code` in the ORM model — the frontend should ignore that field and never display it. Link problem titles only when the API provides them.
 
 ## Phase 6 - Leaderboard
 

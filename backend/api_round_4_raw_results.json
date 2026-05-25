@@ -1,0 +1,1350 @@
+[
+  {
+    "name": "R4-01 GET tags",
+    "method": "GET",
+    "path": "/problems/tags",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": []
+  },
+  {
+    "name": "R4-02 create tag admin",
+    "method": "POST",
+    "path": "/problems/tags",
+    "expected": 201,
+    "actual": 201,
+    "passed": true,
+    "body": {
+      "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+      "name": "Arrays1779691457"
+    }
+  },
+  {
+    "name": "R4-03 duplicate tag",
+    "method": "POST",
+    "path": "/problems/tags",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": "TAG_EXISTS",
+      "code": "ERROR"
+    }
+  },
+  {
+    "name": "R4-04 create tag no token",
+    "method": "POST",
+    "path": "/problems/tags",
+    "expected": 401,
+    "actual": 401,
+    "passed": true,
+    "body": {
+      "detail": "Could not validate credentials",
+      "code": "UNAUTHORIZED"
+    }
+  },
+  {
+    "name": "R4-05 create tag normal user",
+    "method": "POST",
+    "path": "/problems/tags",
+    "expected": 403,
+    "actual": 403,
+    "passed": true,
+    "body": {
+      "detail": "Not enough privileges",
+      "code": "FORBIDDEN"
+    }
+  },
+  {
+    "name": "R4-06 create tag blank",
+    "method": "POST",
+    "path": "/problems/tags?name=",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "query",
+            "name"
+          ],
+          "msg": "String should have at least 1 character",
+          "input": "",
+          "ctx": {
+            "min_length": 1
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-07 create tag too long",
+    "method": "POST",
+    "path": "/problems/tags",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_long",
+          "loc": [
+            "query",
+            "name"
+          ],
+          "msg": "String should have at most 50 characters",
+          "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "ctx": {
+            "max_length": 50
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-08 create problem admin",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 201,
+    "actual": 201,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Integers",
+      "description": "Return the sum of two integers.",
+      "difficulty": "EASY",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        },
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": null
+    }
+  },
+  {
+    "name": "R4-09 create no token",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 401,
+    "actual": 401,
+    "passed": true,
+    "body": {
+      "detail": "Could not validate credentials",
+      "code": "UNAUTHORIZED"
+    }
+  },
+  {
+    "name": "R4-10 create normal user",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 403,
+    "actual": 403,
+    "passed": true,
+    "body": {
+      "detail": "Not enough privileges",
+      "code": "FORBIDDEN"
+    }
+  },
+  {
+    "name": "R4-11 duplicate slug",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": "SLUG_TAKEN",
+      "code": "ERROR"
+    }
+  },
+  {
+    "name": "R4-12 invalid slug",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "slug"
+          ],
+          "msg": "String should match pattern '^[a-z0-9-]+$'",
+          "input": "INVALID_SLUG_1779691457",
+          "ctx": {
+            "pattern": "^[a-z0-9-]+$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-13 invalid difficulty",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "difficulty"
+          ],
+          "msg": "String should match pattern '^(EASY|MEDIUM|HARD)$'",
+          "input": "BEGINNER",
+          "ctx": {
+            "pattern": "^(EASY|MEDIUM|HARD)$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-14 invalid tag id",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": "INVALID_TAG_ID",
+      "code": "ERROR"
+    }
+  },
+  {
+    "name": "R4-15 empty templates",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "too_short",
+          "loc": [
+            "body",
+            "templates"
+          ],
+          "msg": "List should have at least 1 item after validation, not 0",
+          "input": [],
+          "ctx": {
+            "field_type": "List",
+            "min_length": 1,
+            "actual_length": 0
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-16 unsupported language java",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "templates",
+            0,
+            "language"
+          ],
+          "msg": "String should match pattern '^(python|javascript)$'",
+          "input": "java",
+          "ctx": {
+            "pattern": "^(python|javascript)$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-17 JS kwargs",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "templates"
+          ],
+          "msg": "Value error, javascript templates cannot use arg_style='kwargs'",
+          "input": [
+            {
+              "language": "javascript",
+              "template_code": "function f(){}",
+              "function_name": "f",
+              "arg_style": "kwargs"
+            }
+          ],
+          "ctx": {
+            "error": "javascript templates cannot use arg_style='kwargs'"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-18 no sample case",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "test_cases"
+          ],
+          "msg": "Value error, At least 1 sample test case required",
+          "input": [
+            {
+              "input": "[1,2]",
+              "expected_output": "3",
+              "is_sample": false,
+              "order_index": 0,
+              "weight": 1
+            },
+            {
+              "input": "[0,0]",
+              "expected_output": "0",
+              "is_sample": false,
+              "order_index": 1,
+              "weight": 1
+            },
+            {
+              "input": "[-4,9]",
+              "expected_output": "5",
+              "is_sample": false,
+              "order_index": 2,
+              "weight": 2
+            },
+            {
+              "input": "[100,23]",
+              "expected_output": "123",
+              "is_sample": false,
+              "order_index": 3,
+              "weight": 3
+            }
+          ],
+          "ctx": {
+            "error": "At least 1 sample test case required"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-19 fewer than 3 hidden",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "test_cases"
+          ],
+          "msg": "Value error, At least 3 hidden test cases required",
+          "input": [
+            {
+              "input": "[1,2]",
+              "expected_output": "3",
+              "is_sample": true,
+              "order_index": 0,
+              "weight": 1
+            },
+            {
+              "input": "[0,0]",
+              "expected_output": "0",
+              "is_sample": false,
+              "order_index": 1,
+              "weight": 1
+            },
+            {
+              "input": "[-4,9]",
+              "expected_output": "5",
+              "is_sample": false,
+              "order_index": 2,
+              "weight": 2
+            }
+          ],
+          "ctx": {
+            "error": "At least 3 hidden test cases required"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-20 duplicate order_index",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "test_cases"
+          ],
+          "msg": "Value error, order_index must be unique across all test cases",
+          "input": [
+            {
+              "input": "[1,2]",
+              "expected_output": "3",
+              "is_sample": true,
+              "order_index": 0,
+              "weight": 1
+            },
+            {
+              "input": "[0,0]",
+              "expected_output": "0",
+              "is_sample": false,
+              "order_index": 0,
+              "weight": 1
+            },
+            {
+              "input": "[-4,9]",
+              "expected_output": "5",
+              "is_sample": false,
+              "order_index": 2,
+              "weight": 2
+            },
+            {
+              "input": "[100,23]",
+              "expected_output": "123",
+              "is_sample": false,
+              "order_index": 3,
+              "weight": 3
+            }
+          ],
+          "ctx": {
+            "error": "order_index must be unique across all test cases"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-21 weight=0",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "body",
+            "test_cases",
+            0,
+            "weight"
+          ],
+          "msg": "Input should be greater than or equal to 1",
+          "input": 0,
+          "ctx": {
+            "ge": 1
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-22 time_limit=0",
+    "method": "POST",
+    "path": "/problems",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than",
+          "loc": [
+            "body",
+            "time_limit_ms"
+          ],
+          "msg": "Input should be greater than 0",
+          "input": 0,
+          "ctx": {
+            "gt": 0
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-23 list before publish",
+    "method": "GET",
+    "path": "/problems",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "limit": 20,
+      "pages": 0
+    }
+  },
+  {
+    "name": "R4-24 get unpublished no auth",
+    "method": "GET",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 404,
+    "actual": 404,
+    "passed": true,
+    "body": {
+      "detail": "Problem not found",
+      "code": "NOT_FOUND"
+    }
+  },
+  {
+    "name": "R4-25 get unpublished admin",
+    "method": "GET",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Integers",
+      "description": "Return the sum of two integers.",
+      "difficulty": "EASY",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": {
+        "solved": false,
+        "best_score": null
+      }
+    }
+  },
+  {
+    "name": "R4-26 publish problem",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Integers",
+      "description": "Return the sum of two integers.",
+      "difficulty": "EASY",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": null
+    }
+  },
+  {
+    "name": "R4-27 get published no auth",
+    "method": "GET",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Integers",
+      "description": "Return the sum of two integers.",
+      "difficulty": "EASY",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": null
+    }
+  },
+  {
+    "name": "R4-28 get published user token",
+    "method": "GET",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Integers",
+      "description": "Return the sum of two integers.",
+      "difficulty": "EASY",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": {
+        "solved": false,
+        "best_score": null
+      }
+    }
+  },
+  {
+    "name": "R4-29 update title/difficulty",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Updated",
+      "description": "Return the sum of two integers.",
+      "difficulty": "MEDIUM",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [
+        {
+          "id": "8dd326e0-186e-473b-ad5c-4259cc9a62c0",
+          "name": "Arrays1779691457"
+        }
+      ],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": null
+    }
+  },
+  {
+    "name": "R4-30 clear tags",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+      "slug": "r4-1779691457-add-two",
+      "title": "Add Two Updated",
+      "description": "Return the sum of two integers.",
+      "difficulty": "MEDIUM",
+      "time_limit_ms": 2000,
+      "memory_limit_kb": 262144,
+      "score_base": 100,
+      "runtime_bonus_max": 20,
+      "expected_complexity": "O(1)",
+      "acceptance_rate": null,
+      "tags": [],
+      "templates": [
+        {
+          "id": "7aa818a2-6d8e-4edd-983b-ff8cc3bf9c14",
+          "language": "javascript",
+          "template_code": "function addTwo(a,b){\n  return null;\n}",
+          "function_name": "addTwo",
+          "arg_style": "positional"
+        },
+        {
+          "id": "3127e4a1-d86b-453a-b4a0-ebf2b6364028",
+          "language": "python",
+          "template_code": "def add_two(a, b):\n    pass",
+          "function_name": "add_two",
+          "arg_style": "positional"
+        }
+      ],
+      "sample_test_cases": [
+        {
+          "id": "7549baa0-d1ec-4a11-a8d1-84babd6ae315",
+          "is_sample": true,
+          "order_index": 0,
+          "weight": 1,
+          "input": "[1, 2]",
+          "expected_output": "3"
+        }
+      ],
+      "user_status": null
+    }
+  },
+  {
+    "name": "R4-31 update invalid tag",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": "INVALID_TAG_ID",
+      "code": "ERROR"
+    }
+  },
+  {
+    "name": "R4-32 update missing slug",
+    "method": "PATCH",
+    "path": "/problems/missing",
+    "expected": 404,
+    "actual": 404,
+    "passed": true,
+    "body": {
+      "detail": "Problem not found",
+      "code": "NOT_FOUND"
+    }
+  },
+  {
+    "name": "R4-33 update normal user",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 403,
+    "actual": 403,
+    "passed": true,
+    "body": {
+      "detail": "Not enough privileges",
+      "code": "FORBIDDEN"
+    }
+  },
+  {
+    "name": "R4-34 update no token",
+    "method": "PATCH",
+    "path": "/problems/r4-1779691457-add-two",
+    "expected": 401,
+    "actual": 401,
+    "passed": true,
+    "body": {
+      "detail": "Could not validate credentials",
+      "code": "UNAUTHORIZED"
+    }
+  },
+  {
+    "name": "R4-35 list default",
+    "method": "GET",
+    "path": "/problems",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        },
+        {
+          "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+          "slug": "r4-1779691457-add-two",
+          "title": "Add Two Updated",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [],
+          "score_base": 100
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-36 pagination limit=1",
+    "method": "GET",
+    "path": "/problems?limit=1",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "limit": 1,
+      "pages": 2
+    }
+  },
+  {
+    "name": "R4-37 filter EASY",
+    "method": "GET",
+    "path": "/problems?difficulty=EASY",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "limit": 20,
+      "pages": 0
+    }
+  },
+  {
+    "name": "R4-38 invalid difficulty lowercase",
+    "method": "GET",
+    "path": "/problems?difficulty=easy",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "query",
+            "difficulty"
+          ],
+          "msg": "String should match pattern '^(EASY|MEDIUM|HARD)$'",
+          "input": "easy",
+          "ctx": {
+            "pattern": "^(EASY|MEDIUM|HARD)$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-39 tag filter exact",
+    "method": "GET",
+    "path": "/problems?tag=...",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-40 tag case mismatch",
+    "method": "GET",
+    "path": "/problems?tag=lowercase",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [],
+      "total": 0,
+      "page": 1,
+      "limit": 20,
+      "pages": 0
+    }
+  },
+  {
+    "name": "R4-41 search title",
+    "method": "GET",
+    "path": "/problems?search=Add",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+          "slug": "r4-1779691457-add-two",
+          "title": "Add Two Updated",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [],
+          "score_base": 100
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-42 search slug",
+    "method": "GET",
+    "path": "/problems?search=r4-1779691457",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        },
+        {
+          "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+          "slug": "r4-1779691457-add-two",
+          "title": "Add Two Updated",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [],
+          "score_base": 100
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-43 sort by title",
+    "method": "GET",
+    "path": "/problems?sort=title",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        },
+        {
+          "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+          "slug": "r4-1779691457-add-two",
+          "title": "Add Two Updated",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [],
+          "score_base": 100
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-44 sort by acceptance",
+    "method": "GET",
+    "path": "/problems?sort=acceptance",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": {
+      "items": [
+        {
+          "id": "fefdcd10-0c2a-4cd4-8ea5-b5ded2372852",
+          "slug": "r4-1779691457-medium-prob",
+          "title": "A Medium Problem",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [
+            {
+              "id": "ae74a2d4-3753-4b4b-ae1f-e28b3ae7cd9a",
+              "name": "MathFilter1779691457"
+            }
+          ],
+          "score_base": 100
+        },
+        {
+          "id": "29bc833b-165b-44b8-819e-9e989e63fc54",
+          "slug": "r4-1779691457-add-two",
+          "title": "Add Two Updated",
+          "difficulty": "MEDIUM",
+          "acceptance_rate": null,
+          "tags": [],
+          "score_base": 100
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "limit": 20,
+      "pages": 1
+    }
+  },
+  {
+    "name": "R4-45 invalid sort",
+    "method": "GET",
+    "path": "/problems?sort=created_at",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "query",
+            "sort"
+          ],
+          "msg": "String should match pattern '^(title|acceptance)$'",
+          "input": "created_at",
+          "ctx": {
+            "pattern": "^(title|acceptance)$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-46 invalid page=0",
+    "method": "GET",
+    "path": "/problems?page=0",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "query",
+            "page"
+          ],
+          "msg": "Input should be greater than or equal to 1",
+          "input": "0",
+          "ctx": {
+            "ge": 1
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-47a invalid limit=0",
+    "method": "GET",
+    "path": "/problems?limit=0",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "query",
+            "limit"
+          ],
+          "msg": "Input should be greater than or equal to 1",
+          "input": "0",
+          "ctx": {
+            "ge": 1
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R4-47b invalid limit=101",
+    "method": "GET",
+    "path": "/problems?limit=101",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "query",
+            "limit"
+          ],
+          "msg": "Input should be less than or equal to 100",
+          "input": "101",
+          "ctx": {
+            "le": 100
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  }
+]

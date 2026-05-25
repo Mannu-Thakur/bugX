@@ -1,0 +1,187 @@
+[
+  {
+    "name": "R6-01 leaderboard all-time",
+    "method": "GET",
+    "path": "/leaderboard/",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": [
+      {
+        "username": "bob_1779691684",
+        "total_score": 250,
+        "total_solved": 3,
+        "rank": 1
+      },
+      {
+        "username": "alice_1779691684",
+        "total_score": 150,
+        "total_solved": 2,
+        "rank": 2
+      },
+      {
+        "username": "charlie_1779691684",
+        "total_score": 50,
+        "total_solved": 1,
+        "rank": 3
+      }
+    ]
+  },
+  {
+    "name": "R6-02 leaderboard all-time cache hit",
+    "method": "GET",
+    "path": "/leaderboard/",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": [
+      {
+        "username": "fake_cached_user",
+        "total_score": 9999,
+        "total_solved": 99,
+        "rank": 1
+      }
+    ]
+  },
+  {
+    "name": "R6-03 leaderboard weekly",
+    "method": "GET",
+    "path": "/leaderboard/?period=week",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": [
+      {
+        "username": "bob_1779691684",
+        "weekly_score": 250,
+        "weekly_solved": 1,
+        "rank": 1
+      },
+      {
+        "username": "alice_1779691684",
+        "weekly_score": 150,
+        "weekly_solved": 1,
+        "rank": 2
+      },
+      {
+        "username": "charlie_1779691684",
+        "weekly_score": 50,
+        "weekly_solved": 1,
+        "rank": 3
+      }
+    ]
+  },
+  {
+    "name": "R6-04 weekly cache hit",
+    "method": "GET",
+    "path": "/leaderboard/?period=week",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": [
+      {
+        "username": "fake_weekly_user",
+        "weekly_score": 888,
+        "weekly_solved": 8,
+        "rank": 1
+      }
+    ]
+  },
+  {
+    "name": "R6-05 invalid period",
+    "method": "GET",
+    "path": "/leaderboard?period=month",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "query",
+            "period"
+          ],
+          "msg": "String should match pattern '^(all|week)$'",
+          "input": "month",
+          "ctx": {
+            "pattern": "^(all|week)$"
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R6-06 invalid limit=0",
+    "method": "GET",
+    "path": "/leaderboard?limit=0",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "query",
+            "limit"
+          ],
+          "msg": "Input should be greater than or equal to 1",
+          "input": "0",
+          "ctx": {
+            "ge": 1
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R6-07 invalid limit=101",
+    "method": "GET",
+    "path": "/leaderboard?limit=101",
+    "expected": 422,
+    "actual": 422,
+    "passed": true,
+    "body": {
+      "detail": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "query",
+            "limit"
+          ],
+          "msg": "Input should be less than or equal to 100",
+          "input": "101",
+          "ctx": {
+            "le": 100
+          }
+        }
+      ],
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  {
+    "name": "R6-08 valid limit=2",
+    "method": "GET",
+    "path": "/leaderboard/?limit=2",
+    "expected": 200,
+    "actual": 200,
+    "passed": true,
+    "body": [
+      {
+        "username": "bob_1779691684",
+        "total_score": 250,
+        "total_solved": 3,
+        "rank": 1
+      },
+      {
+        "username": "alice_1779691684",
+        "total_score": 150,
+        "total_solved": 2,
+        "rank": 2
+      }
+    ]
+  }
+]

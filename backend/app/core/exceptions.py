@@ -1,3 +1,4 @@
+from typing import Any
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -24,9 +25,16 @@ async def http_exception_handler(
     request: Request,
     exc: HTTPException,
 ) -> JSONResponse:
-    code = "UNAUTHORIZED" if exc.status_code == 401 else "FORBIDDEN"
-    if exc.status_code == 404:
+    if exc.status_code == 401:
+        code = "UNAUTHORIZED"
+    elif exc.status_code == 403:
+        code = "FORBIDDEN"
+    elif exc.status_code == 404:
         code = "NOT_FOUND"
+    elif exc.status_code == 429:
+        code = "RATE_LIMIT"
+    else:
+        code = "ERROR"
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -34,13 +42,33 @@ async def http_exception_handler(
     )
 
 
+
+def _sanitize_error_item(item: Any) -> Any:
+    if isinstance(item, dict):
+        return {k: _sanitize_error_item(v) for k, v in item.items()}
+    elif isinstance(item, list):
+        return [_sanitize_error_item(i) for i in item]
+    elif isinstance(item, tuple):
+        return tuple(_sanitize_error_item(i) for i in item)
+    elif isinstance(item, Exception):
+        return str(item)
+    else:
+        # Try to JSON serialize it, if it fails, convert to string
+        import json
+        try:
+            json.dumps(item)
+            return item
+        except Exception:
+            return str(item)
+
 async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    sanitized_details = _sanitize_error_item(exc.errors())
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "code": "VALIDATION_ERROR"},
+        content={"detail": sanitized_details, "code": "VALIDATION_ERROR"},
     )
 
 

@@ -90,7 +90,7 @@ class ScoringService:
                     await stats_repo.recompute_total_score(submission.user_id)
 
                     # Update streak
-                    await StatsService.update_streak_on_locked(user_stats)
+                    StatsService.update_streak_on_locked(user_stats)
 
             # 2. Update acceptance rate for every full (non-sample) submit
             await StatsService.update_acceptance_rate(session, submission.problem_id)

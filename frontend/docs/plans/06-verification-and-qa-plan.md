@@ -43,7 +43,8 @@ http://localhost:5173
 - Tailwind styles load,
 - base components render all key states,
 - mobile nav/layout works,
-- lint/typecheck/build pass.
+- lint/typecheck/build pass,
+- dev server is running on port 5173 (if on another port, update `CORS_ORIGINS` in `backend/.env`).
 
 ### Phase 2
 
@@ -88,7 +89,8 @@ http://localhost:5173
 - submission history paginates,
 - status badges match submission statuses,
 - activity heatmap is honest about data availability,
-- date and runtime formatting are consistent.
+- date and runtime formatting are consistent,
+- submission rows do not attempt to display `source_code` or link to problems by slug (backend only provides `problem_id` UUID).
 
 ### Phase 6
 
@@ -178,6 +180,10 @@ Then verify:
 | Heatmap data not fully available | Render no-data or limited-derived state; do not overclaim. |
 | Monaco bundle size | Lazy-load solve page/editor route. |
 | Token expiry during polling | Clear session on 401 and stop active polls. |
+| **429 error code inconsistency (fixed)** | `http_exception_handler` now maps 429 to `code: "RATE_LIMIT"` for both controller and middleware paths. Frontend should still key on HTTP status 429 first as defense against regression. |
+| `ProblemListItem` has no `user_status` | Omit solved-status icon from list until backend adds the field. |
+| `BestSubmissionResponse` has no `source_code` | Show metadata panel only (score, runtime, date); no code viewer until field is added. |
+| `/me/submissions` missing `response_model` | Serialization works in practice but `source_code` is on the model; ignore it in the frontend. |
 
 ## Definition Of Done For Frontend
 
