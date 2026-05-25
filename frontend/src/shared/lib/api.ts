@@ -64,7 +64,7 @@ export interface ProblemDetail {
   memory_limit_kb: number;
   tags: Tag[];
   templates: { language: string; source_code: string }[];
-  sample_test_cases: { id: string; input_data: string; expected_output: string; is_sample: boolean }[];
+  sample_test_cases: { id: string; input: string | null; expected_output: string | null; is_sample: boolean }[];
   is_published: boolean;
   created_at: string;
   user_status: { solved: boolean; best_score: number | null } | null;
@@ -77,6 +77,54 @@ export interface ProblemListParams {
   tag?: string;
   search?: string;
   sort?: string;
+}
+
+export interface SubmissionCreatePayload {
+  problem_id: string;
+  language: string;
+  source_code: string;
+  run_samples_only?: boolean;
+}
+
+export interface SubmissionResponse {
+  id: string;
+  user_id: string;
+  problem_id: string;
+  language: string;
+  status: SubmissionStatus;
+  passed_count: number;
+  total_count: number;
+  passed_weight: number;
+  total_weight: number;
+  score: number;
+  runtime_ms: number | null;
+  memory_kb: number | null;
+  error_message: string | null;
+  run_samples_only: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubmissionResultResponse {
+  id: string;
+  test_case_id: string;
+  passed: boolean;
+  runtime_ms: number;
+  memory_kb: number;
+  test_case_input: string | null;
+  expected_output: string | null;
+  stdout: string | null;
+  stderr: string | null;
+}
+
+export interface BestSubmissionResponse {
+  id: string;
+  status: string;
+  score: number;
+  runtime_ms: number | null;
+  passed_count: number;
+  total_count: number;
+  created_at: string;
 }
 
 export interface ApiError {
@@ -245,6 +293,29 @@ export const api = {
 
     get: (slug: string) =>
       request<ProblemDetail>(`/problems/${slug}`, {
+        method: 'GET',
+      }),
+
+    getBestSubmission: (slug: string) =>
+      request<BestSubmissionResponse>(`/problems/${slug}/submissions/best`, {
+        method: 'GET',
+      }),
+  },
+
+  submissions: {
+    create: (body: SubmissionCreatePayload) =>
+      request<{ id: string; status: SubmissionStatus }>('/submissions', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    get: (id: string) =>
+      request<SubmissionResponse>(`/submissions/${id}`, {
+        method: 'GET',
+      }),
+
+    getResults: (id: string) =>
+      request<SubmissionResultResponse[]>(`/submissions/${id}/results`, {
         method: 'GET',
       }),
   },
