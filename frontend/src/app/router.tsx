@@ -3,10 +3,11 @@ import { PageShell } from '../shared/ui/layout/PageShell';
 import { ProblemListPage } from '../features/problems/ProblemListPage';
 import { ProblemDetailPage } from '../features/problems/ProblemDetailPage';
 import { LeaderboardPage } from '../features/leaderboard/LeaderboardPage';
+import { ProfilePage } from '../features/profile/ProfilePage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
-import { AnonymousRoute, AdminRoute } from '../features/auth/ProtectedRoute';
+import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -39,6 +40,16 @@ export const router = createBrowserRouter([
       <PageShell>
         <LeaderboardPage />
       </PageShell>
+    ),
+  },
+  {
+    path: '/profile',
+    element: (
+      <ProtectedRoute>
+        <PageShell>
+          <ProfilePage />
+        </PageShell>
+      </ProtectedRoute>
     ),
   },
   {

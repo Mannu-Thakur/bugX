@@ -34,6 +34,30 @@ export interface User {
   createdAt: string;
 }
 
+export interface UserStats {
+  total_solved: number;
+  easy_solved: number;
+  medium_solved: number;
+  hard_solved: number;
+  total_score: number;
+  current_streak: number;
+  best_streak: number;
+  last_active_date: string | null;
+}
+
+export interface SubmissionSummary {
+  id: string;
+  problem_id: string;
+  problem_slug?: string | null;
+  problem_title?: string | null;
+  language: string;
+  status: string;
+  score: number;
+  runtime_ms: number | null;
+  run_samples_only: boolean;
+  created_at: string;
+}
+
 export interface Tag {
   id: string;
   name: string;
@@ -281,6 +305,16 @@ export const api = {
       request<User>('/users/me', {
         method: 'PATCH',
         body: JSON.stringify(body),
+      }),
+
+    getStats: () =>
+      request<UserStats>('/users/me/stats', {
+        method: 'GET',
+      }),
+
+    getSubmissions: (page = 1, limit = 20) =>
+      request<Paginated<SubmissionSummary>>(`/users/me/submissions?page=${page}&limit=${limit}`, {
+        method: 'GET',
       }),
   },
 

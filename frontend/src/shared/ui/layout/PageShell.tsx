@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut, User } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -35,6 +35,7 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
   const navLinks = [
     { to: '/problems', label: 'Problems', icon: <Terminal className="w-4 h-4" /> },
     { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
+    ...(user ? [{ to: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> }] : []),
   ];
 
   return (
