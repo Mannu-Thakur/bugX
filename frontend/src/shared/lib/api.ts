@@ -110,6 +110,49 @@ export interface ProblemListParams {
   sort?: string;
 }
 
+export interface TemplateCreatePayload {
+  language: string;
+  template_code: string;
+  function_name: string;
+  arg_style: string;
+}
+
+export interface TestCaseCreatePayload {
+  input: string;
+  expected_output: string;
+  is_sample?: boolean;
+  order_index: number;
+  weight?: number;
+}
+
+export interface ProblemCreatePayload {
+  slug: string;
+  title: string;
+  description: string;
+  difficulty: Difficulty;
+  time_limit_ms?: number;
+  memory_limit_kb?: number;
+  score_base?: number;
+  runtime_bonus_max?: number;
+  expected_complexity?: string | null;
+  tag_ids?: string[];
+  templates: TemplateCreatePayload[];
+  test_cases: TestCaseCreatePayload[];
+}
+
+export interface ProblemUpdatePayload {
+  title?: string;
+  description?: string;
+  difficulty?: Difficulty;
+  time_limit_ms?: number;
+  memory_limit_kb?: number;
+  score_base?: number;
+  runtime_bonus_max?: number;
+  expected_complexity?: string | null;
+  is_published?: boolean;
+  tag_ids?: string[];
+}
+
 export interface SubmissionCreatePayload {
   problem_id: string;
   language: string;
@@ -350,6 +393,18 @@ export const api = {
       request<BestSubmissionResponse>(`/problems/${slug}/submissions/best`, {
         method: 'GET',
       }),
+
+    create: (body: ProblemCreatePayload) =>
+      request<ProblemDetail>('/problems', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    update: (slug: string, body: ProblemUpdatePayload) =>
+      request<ProblemDetail>(`/problems/${slug}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
   },
 
   submissions: {
@@ -374,6 +429,12 @@ export const api = {
     list: () =>
       request<Tag[]>('/tags', {
         method: 'GET',
+      }),
+
+    create: (name: string) =>
+      request<Tag>('/problems/tags', {
+        method: 'POST',
+        params: { name },
       }),
   },
 

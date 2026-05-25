@@ -8,6 +8,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
+import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
 
 export const router = createBrowserRouter([
   {
@@ -72,16 +73,13 @@ export const router = createBrowserRouter([
       </AnonymousRoute>
     ),
   },
-  // Example admin placeholder structure for Phase 7
+  // Phase 7: Admin Problem Management
   {
     path: '/admin/*',
     element: (
       <AdminRoute>
         <PageShell>
-          <div className="flex flex-col gap-4 p-6 bg-dark-panel border border-dark-border rounded-lg shadow">
-            <h1 className="text-xl font-bold text-amber-400">Admin Control Panel</h1>
-            <p className="text-sm text-gray-400">Welcome to the administration page. Problem creation & management will be implemented in Phase 7.</p>
-          </div>
+          <AdminDashboardPage />
         </PageShell>
       </AdminRoute>
     ),
@@ -95,3 +93,4 @@ export const router = createBrowserRouter([
     ),
   },
 ]);
+
