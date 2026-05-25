@@ -45,6 +45,13 @@ export interface UserStats {
   last_active_date: string | null;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  username: string;
+  score: number;
+  solved: number;
+}
+
 export interface SubmissionSummary {
   id: string;
   problem_id: string;
@@ -280,6 +287,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 // Endpoint Client
+interface RawLeaderboardEntry {
+  rank: number;
+  username: string;
+  total_score?: number;
+  total_solved?: number;
+  weekly_score?: number;
+  weekly_solved?: number;
+}
+
 export const api = {
   auth: {
     register: (body: Record<string, unknown>) => 
@@ -359,5 +375,20 @@ export const api = {
       request<Tag[]>('/tags', {
         method: 'GET',
       }),
+  },
+
+  leaderboard: {
+    get: (period: 'all' | 'week', limit = 50) =>
+      request<RawLeaderboardEntry[]>('/leaderboard/', {
+        method: 'GET',
+        params: { period, limit },
+      }).then((data) =>
+        data.map((item) => ({
+          rank: item.rank,
+          username: item.username,
+          score: period === 'week' ? (item.weekly_score ?? 0) : (item.total_score ?? 0),
+          solved: period === 'week' ? (item.weekly_solved ?? 0) : (item.total_solved ?? 0),
+        }))
+      ),
   },
 };

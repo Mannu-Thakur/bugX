@@ -1,46 +1,31 @@
 import React, { useState } from 'react';
 import { Award, Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../shared/lib/api';
+import type { LeaderboardEntry } from '../../shared/lib/api';
+import { useAuth } from '../auth/useAuth';
 import { DataTable } from '../../shared/ui/table/DataTable';
 import type { Column } from '../../shared/ui/table/DataTable';
 import { Badge } from '../../shared/ui/badge/Badge';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 
-interface RankUser {
-  rank: number;
-  username: string;
-  score: number;
-  solvedCount: number;
-  streak: number;
-}
-
-const mockAllTime: RankUser[] = [
-  { rank: 1, username: 'compilers_god', score: 2850, solvedCount: 154, streak: 45 },
-  { rank: 2, username: 'binary_wizard', score: 2420, solvedCount: 130, streak: 12 },
-  { rank: 3, username: 'coder_mannu', score: 2100, solvedCount: 110, streak: 23 },
-  { rank: 4, username: 'stack_overflow_expert', score: 1850, solvedCount: 95, streak: 5 },
-  { rank: 5, username: 'lambda_hero', score: 1620, solvedCount: 88, streak: 0 },
-];
-
-const mockWeekly: RankUser[] = [
-  { rank: 1, username: 'coder_mannu', score: 850, solvedCount: 22, streak: 23 },
-  { rank: 2, username: 'compilers_god', score: 620, solvedCount: 18, streak: 45 },
-  { rank: 3, username: 'lambda_hero', score: 450, solvedCount: 12, streak: 0 },
-  { rank: 4, username: 'binary_wizard', score: 320, solvedCount: 9, streak: 12 },
-  { rank: 5, username: 'stack_overflow_expert', score: 100, solvedCount: 3, streak: 5 },
-];
-
 export const LeaderboardPage: React.FC = () => {
   const [period, setPeriod] = useState<'ALL' | 'WEEK'>('ALL');
   const toast = useToast();
+  const { user } = useAuth();
 
   const handlePeriodChange = (mode: 'ALL' | 'WEEK') => {
     setPeriod(mode);
     toast.info(`Switched view to ${mode === 'ALL' ? 'All-Time' : 'Weekly'} leaderboard.`);
   };
 
-  const currentData = period === 'ALL' ? mockAllTime : mockWeekly;
+  const { data: entries = [], isLoading, isError, error } = useQuery<LeaderboardEntry[]>({
+    queryKey: ['leaderboard', period.toLowerCase()],
+    queryFn: () => api.leaderboard.get(period === 'WEEK' ? 'week' : 'all'),
+    staleTime: 30000, // Cache for 30s before considering stale
+  });
 
-  const columns: Column<RankUser>[] = [
+  const columns: Column<LeaderboardEntry>[] = [
     {
       key: 'rank',
       header: 'Rank',
@@ -55,32 +40,25 @@ export const LeaderboardPage: React.FC = () => {
     {
       key: 'username',
       header: 'Coder',
-      className: 'w-[40%] font-semibold text-gray-200',
-      render: (u) => (
-        <span className={u.username === 'coder_mannu' ? 'text-blue-400 font-bold flex items-center gap-1.5' : ''}>
-          {u.username}
-          {u.username === 'coder_mannu' && (
-            <span className="text-[9px] px-1 py-0.2 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 font-normal">
-              You
-            </span>
-          )}
-        </span>
-      )
+      className: 'w-[50%] font-semibold text-gray-200',
+      render: (u) => {
+        const isSelf = user && user.username === u.username;
+        return (
+          <span className={isSelf ? 'text-blue-400 font-bold flex items-center gap-1.5' : ''}>
+            {u.username}
+            {isSelf && (
+              <span className="text-[9px] px-1 py-0.2 bg-blue-500/10 border border-blue-500/30 rounded text-blue-300 font-normal">
+                You
+              </span>
+            )}
+          </span>
+        );
+      }
     },
     {
-      key: 'solvedCount',
+      key: 'solved',
       header: 'Solved',
-      className: 'w-[15%] font-mono text-gray-400',
-    },
-    {
-      key: 'streak',
-      header: 'Active Streak',
-      className: 'w-[15%] font-mono',
-      render: (u) => (
-        <span className={u.streak > 0 ? 'text-amber-500' : 'text-gray-600'}>
-          {u.streak > 0 ? `🔥 ${u.streak} days` : '0 days'}
-        </span>
-      )
+      className: 'w-[20%] font-mono text-gray-400',
     },
     {
       key: 'score',
@@ -89,6 +67,10 @@ export const LeaderboardPage: React.FC = () => {
       render: (u) => `${u.score} pts`
     }
   ];
+
+  const firstPlace = entries[0];
+  const secondPlace = entries[1];
+  const thirdPlace = entries[2];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -135,44 +117,124 @@ export const LeaderboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Podium Display mock for top 3 users */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2 select-none">
-        {/* 2nd Place Podium */}
-        <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
-          <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#2 Rank</div>
-          <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥈</div>
-          <div>
-            <h4 className="font-semibold text-gray-200">{period === 'ALL' ? 'binary_wizard' : 'compilers_god'}</h4>
-            <p className="text-xs text-gray-500 mt-0.5">{period === 'ALL' ? '130 solved' : '18 solved'}</p>
+      {/* Podium Display or Podium Skeletons */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2 animate-pulse select-none">
+          {/* 2nd Place Skeleton */}
+          <div className="bg-dark-panel border border-dark-border/40 p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
+            <div className="w-12 h-12 rounded-full bg-dark-hover"></div>
+            <div className="w-24 h-4 bg-dark-hover rounded"></div>
+            <div className="w-16 h-3 bg-dark-hover rounded"></div>
+            <div className="w-16 h-5 bg-dark-hover rounded-full"></div>
           </div>
-          <Badge>{period === 'ALL' ? '2420 pts' : '620 pts'}</Badge>
+          {/* 1st Place Skeleton */}
+          <div className="bg-dark-panel border border-dark-border/40 p-6 h-48 rounded-lg flex flex-col items-center justify-center gap-2.5">
+            <div className="w-14 h-14 rounded-full bg-dark-hover"></div>
+            <div className="w-28 h-4 bg-dark-hover rounded"></div>
+            <div className="w-20 h-3 bg-dark-hover rounded"></div>
+            <div className="w-20 h-5 bg-dark-hover rounded-full"></div>
+          </div>
+          {/* 3rd Place Skeleton */}
+          <div className="bg-dark-panel border border-dark-border/40 p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
+            <div className="w-12 h-12 rounded-full bg-dark-hover"></div>
+            <div className="w-24 h-4 bg-dark-hover rounded"></div>
+            <div className="w-16 h-3 bg-dark-hover rounded"></div>
+            <div className="w-16 h-5 bg-dark-hover rounded-full"></div>
+          </div>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2 select-none">
+          {/* 2nd Place Podium */}
+          <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
+            <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#2 Rank</div>
+            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥈</div>
+            {secondPlace ? (
+              <>
+                <div>
+                  <h4 className="font-semibold text-gray-200 truncate max-w-[150px]">{secondPlace.username}</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">{secondPlace.solved} solved</p>
+                </div>
+                <Badge>{secondPlace.score} pts</Badge>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h4 className="font-semibold text-gray-600">—</h4>
+                  <p className="text-xs text-gray-600 mt-0.5">0 solved</p>
+                </div>
+                <Badge variant="default">—</Badge>
+              </>
+            )}
+          </div>
 
-        {/* 1st Place Podium */}
-        <div className="bg-blue-950/20 border border-blue-500/20 p-6 rounded-lg flex flex-col items-center justify-center text-center gap-2.5 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-glow-primary">
-          <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-blue-400">#1 Champion</div>
-          <div className="w-14 h-14 rounded-full bg-blue-600/10 flex items-center justify-center text-2xl shadow-lg border border-blue-500/30 text-amber-400">🏆</div>
-          <div>
-            <h4 className="font-bold text-gray-100 text-base">{period === 'ALL' ? 'compilers_god' : 'coder_mannu'}</h4>
-            <p className="text-xs text-blue-300 font-medium mt-0.5">{period === 'ALL' ? '154 solved' : '22 solved'}</p>
+          {/* 1st Place Podium */}
+          <div className="bg-blue-950/20 border border-blue-500/20 p-6 rounded-lg flex flex-col items-center justify-center text-center gap-2.5 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-glow-primary">
+            <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-blue-400">#1 Champion</div>
+            <div className="w-14 h-14 rounded-full bg-blue-600/10 flex items-center justify-center text-2xl shadow-lg border border-blue-500/30 text-amber-400">🏆</div>
+            {firstPlace ? (
+              <>
+                <div>
+                  <h4 className="font-bold text-gray-100 text-base truncate max-w-[160px]">{firstPlace.username}</h4>
+                  <p className="text-xs text-blue-300 font-medium mt-0.5">{firstPlace.solved} solved</p>
+                </div>
+                <Badge variant="warning">{firstPlace.score} pts</Badge>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h4 className="font-bold text-gray-600 text-base">—</h4>
+                  <p className="text-xs text-gray-600 mt-0.5">0 solved</p>
+                </div>
+                <Badge variant="default">—</Badge>
+              </>
+            )}
           </div>
-          <Badge variant="warning">{period === 'ALL' ? '2850 pts' : '850 pts'}</Badge>
-        </div>
 
-        {/* 3rd Place Podium */}
-        <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
-          <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#3 Rank</div>
-          <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥉</div>
-          <div>
-            <h4 className="font-semibold text-gray-200">{period === 'ALL' ? 'coder_mannu' : 'lambda_hero'}</h4>
-            <p className="text-xs text-gray-500 mt-0.5">{period === 'ALL' ? '110 solved' : '12 solved'}</p>
+          {/* 3rd Place Podium */}
+          <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
+            <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#3 Rank</div>
+            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥉</div>
+            {thirdPlace ? (
+              <>
+                <div>
+                  <h4 className="font-semibold text-gray-200 truncate max-w-[150px]">{thirdPlace.username}</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">{thirdPlace.solved} solved</p>
+                </div>
+                <Badge>{thirdPlace.score} pts</Badge>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h4 className="font-semibold text-gray-600">—</h4>
+                  <p className="text-xs text-gray-600 mt-0.5">0 solved</p>
+                </div>
+                <Badge variant="default">—</Badge>
+              </>
+            )}
           </div>
-          <Badge>{period === 'ALL' ? '2100 pts' : '450 pts'}</Badge>
         </div>
-      </div>
+      )}
+
+      {/* Error Fallback display */}
+      {isError && (
+        <div className="bg-red-950/20 border border-red-500/20 text-red-200 p-4 rounded-lg flex flex-col items-center justify-center text-center gap-2 py-8 select-none">
+          <span className="text-2xl">⚠️</span>
+          <h3 className="font-semibold text-lg">Failed to load leaderboard</h3>
+          <p className="text-sm text-red-400 max-w-md">
+            {error instanceof Error ? error.message : 'An error occurred while connecting to the API.'}
+          </p>
+        </div>
+      )}
 
       {/* Ranks Table */}
-      <DataTable columns={columns} data={currentData} />
+      {!isError && (
+        <DataTable 
+          columns={columns} 
+          data={entries} 
+          loading={isLoading}
+          emptyMessage="No ranks recorded yet. Be the first to solve a problem!"
+        />
+      )}
 
     </div>
   );
