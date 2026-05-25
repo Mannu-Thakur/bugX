@@ -76,6 +76,33 @@ async def get_best_submission(
     controller = ProblemController(db)
     return await controller.get_best_submission(slug, current_user)
 
+from pydantic import BaseModel
+
+class ProblemImportRequest(BaseModel):
+    url_or_slug: str
+
+@router.post("/import", response_model=ProblemDetail, status_code=status.HTTP_201_CREATED)
+async def import_problem(
+    req: ProblemImportRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    from app.services.leetcode_importer import LeetCodeImporter
+    try:
+        problem = await LeetCodeImporter.import_problem(db, req.url_or_slug)
+        await db.commit()
+        
+        # Retrieve using controller to guarantee exact response format
+        controller = ProblemController(db)
+        return await controller.get_problem(problem.slug, current_user)
+    except Exception as e:
+        await db.rollback()
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to import problem: {str(e)}"
+        )
+
 # ── Admin routes ────────────────────────────────────────────────────────────
 
 @router.post("", response_model=ProblemDetail, status_code=status.HTTP_201_CREATED)

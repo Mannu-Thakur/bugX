@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Clock, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../shared/lib/api';
+import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
 import { Badge } from '../../shared/ui/badge/Badge';
 import { Button } from '../../shared/ui/button/Button';
 import { useAuth } from '../auth/useAuth';
@@ -47,8 +48,18 @@ export const ProblemDetailPage: React.FC = () => {
   // Fetch Problem details
   const { data: problem, isLoading, isError, error } = useQuery({
     queryKey: ['problems', 'detail', slug],
-    queryFn: () => api.problems.get(slug || ''),
+    queryFn: async () => {
+      try {
+        return await api.problems.get(slug || '');
+      } catch {
+        // Offline fallback
+        const mock = MOCK_PROBLEM_DETAILS[slug || ''];
+        if (mock) return mock;
+        throw new Error('Problem not found');
+      }
+    },
     enabled: !!slug,
+    retry: 0,
   });
 
   // Fetch best submission

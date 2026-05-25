@@ -5,7 +5,8 @@ import { cn } from '../../../shared/lib/cn';
 
 interface Template {
   language: string;
-  source_code: string;
+  source_code?: string;
+  template_code?: string;
 }
 
 interface CodeEditorProps {
@@ -30,10 +31,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   // Find template for current language
   const getStarterCode = (lang: 'python' | 'javascript') => {
     const found = templates.find(t => t.language === lang);
-    if (found) return found.source_code;
-    return lang === 'python'
+    const defaultCode = lang === 'python'
       ? '# Write your python code here\n'
       : '// Write your javascript code here\n';
+    if (found) return found.source_code || found.template_code || defaultCode;
+    return defaultCode;
   };
 
   const getSavedCode = (lang: 'python' | 'javascript') => {

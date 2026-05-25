@@ -24,6 +24,16 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.rate_limit_service = RateLimitService(settings.REDIS_URL)
+        
+        # Auto-seed the database if empty on startup
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.services.seeder_service import seed_problems
+            async with AsyncSessionLocal() as session:
+                await seed_problems(session)
+        except Exception as e:
+            print(f"Startup database seeding error: {e}")
+            
         yield
         await app.state.rate_limit_service.close()
 

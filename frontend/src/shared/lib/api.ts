@@ -305,10 +305,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(url, {
-    ...rest,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...rest,
+      headers,
+    });
+  } catch (err: any) {
+    const networkError: ApiError = {
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: 'Backend Core: offline? The backend server is unreachable. Please verify it is running.',
+      detail: err?.message || String(err),
+    };
+    throw networkError;
+  }
 
   if (!response.ok) {
     const error = await normalizeError(response);
@@ -404,6 +415,12 @@ export const api = {
       request<ProblemDetail>(`/problems/${slug}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
+      }),
+
+    import: (urlOrSlug: string) =>
+      request<ProblemDetail>('/problems/import', {
+        method: 'POST',
+        body: JSON.stringify({ url_or_slug: urlOrSlug }),
       }),
   },
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, RotateCcw, WifiOff } from 'lucide-react';
-import { useSearchParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
 import type { ProblemListItem } from '../../shared/lib/api';
 import { MOCK_PROBLEMS, MOCK_TAGS } from '../../shared/lib/mockData';
@@ -18,6 +18,46 @@ import { useToast } from '../../shared/ui/toast/ToastProvider';
 export const ProblemListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Importer states
+  const [importInput, setImportInput] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importStep, setImportStep] = useState('');
+
+  const handleImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const slugOrUrl = importInput.trim();
+    if (!slugOrUrl) {
+      toast.error("Please enter a LeetCode URL or slug.");
+      return;
+    }
+
+    setImporting(true);
+    setImportStep("Connecting to LeetCode GraphQL...");
+
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      setImportStep("Parsing problem schema & starter templates...");
+      await new Promise(r => setTimeout(r, 600));
+      setImportStep("Synthesizing test cases & validating workspace...");
+
+      const problem = await api.problems.import(slugOrUrl);
+
+      setImportStep("Success! Synchronizing workspace...");
+      await new Promise(r => setTimeout(r, 450));
+
+      toast.success(`Successfully imported "${problem.title}"! Redirecting...`);
+      queryClient.invalidateQueries({ queryKey: ['problems'] });
+      navigate(`/problems/${problem.slug}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to import problem. Make sure the backend is active.");
+    } finally {
+      setImporting(false);
+      setImportStep('');
+    }
+  };
 
   // Read URL parameters
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -216,6 +256,60 @@ export const ProblemListPage: React.FC = () => {
               <span className="block text-xs text-gray-500 uppercase font-semibold">Pages</span>
               <span className="text-lg font-bold text-gray-200">{data.pages}</span>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dynamic LeetCode Importer */}
+      <div className="bg-gradient-to-r from-blue-950/20 via-[#121218] to-purple-950/20 border border-dark-border p-5 rounded-xl shadow-lg relative overflow-hidden select-none">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              Dynamic LeetCode Importer
+            </h3>
+            <p className="text-xs text-gray-400 max-w-lg leading-relaxed">
+              Enter any LeetCode URL or title slug (e.g. <i>valid-parentheses</i>) to dynamically fetch problem details, templates, and test cases directly into your sandbox.
+            </p>
+          </div>
+          
+          <form onSubmit={handleImport} className="flex-1 max-w-md w-full flex gap-2">
+            <Input 
+              placeholder="https://leetcode.com/problems/..." 
+              value={importInput}
+              onChange={(e) => setImportInput(e.target.value)}
+              disabled={importing}
+              className="flex-1 bg-dark-bg/60 border-dark-border"
+            />
+            <Button 
+              type="submit" 
+              disabled={importing || !importInput.trim()}
+              className="bg-blue-600 hover:bg-blue-500 text-white shrink-0 shadow-lg shadow-blue-500/10 active:scale-95 transition-all text-xs font-bold px-4 h-9 flex items-center justify-center gap-1.5"
+            >
+              {importing ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span className="text-base font-normal">⚡</span>
+              )}
+              {importing ? 'Importing...' : 'Import & Solve'}
+            </Button>
+          </form>
+        </div>
+
+        {/* Step Loader Feedbacks */}
+        {importing && (
+          <div className="mt-4 pt-4 border-t border-dark-border/40 flex items-center justify-between text-xs animate-pulse">
+            <div className="flex items-center gap-2 text-blue-400 font-semibold">
+              <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
+              {importStep}
+            </div>
+            <span className="text-gray-500 font-medium">Readying Monaco workspace...</span>
           </div>
         )}
       </div>

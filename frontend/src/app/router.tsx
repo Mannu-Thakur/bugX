@@ -10,6 +10,8 @@ import { RegisterPage } from '../features/auth/RegisterPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
+import { BattleLobbyPage } from '../features/battle/BattleLobbyPage';
+import { BattleArenaPage } from '../features/battle/BattleArenaPage';
 
 export const router = createBrowserRouter([
   {
@@ -91,6 +93,20 @@ export const router = createBrowserRouter([
           <AdminDashboardPage />
         </PageShell>
       </AdminRoute>
+    ),
+  },
+  {
+    path: '/battle',
+    element: (
+      <PageShell>
+        <BattleLobbyPage />
+      </PageShell>
+    ),
+  },
+  {
+    path: '/battle/arena',
+    element: (
+      <BattleArenaPage />
     ),
   },
   {
