@@ -64,10 +64,30 @@ class SubmissionController:
             run_samples_only=payload.run_samples_only
         )
         await session.commit()
-        
+
         # Enqueue in Redis
         queue_payload = json.dumps({"submission_id": str(submission.id)})
-        await redis_client.lpush("submission_queue", queue_payload)
+        try:
+            await redis_client.lpush("submission_queue", queue_payload)
+        except Exception as queue_err:
+            # Redis is offline/unreachable! Run JudgeService synchronously as fallback.
+            print(f"[Redis Fallback] Redis lpush failed: {queue_err}. Running submission synchronously.")
+            try:
+                from app.services.judge0_client import Judge0Client
+                from app.services.judge_service import JudgeService
+                from app.models.submission import SubmissionStatus
+                
+                # Set initial status to RUNNING to mimic worker
+                submission.status = SubmissionStatus.RUNNING
+                await session.flush()
+                
+                judge_client = Judge0Client(settings.JUDGE0_URL)
+                judge_service = JudgeService(judge_client)
+                await judge_service.run(session, submission.id)
+                await session.commit()
+            except Exception as run_err:
+                print(f"[Redis Fallback] Synchronous judge run failed: {run_err}")
+                await session.rollback()
         
         return {"id": submission.id, "status": submission.status}
 
