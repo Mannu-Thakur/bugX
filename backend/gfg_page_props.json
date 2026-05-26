@@ -1,0 +1,1674 @@
+{
+  "headerData": [
+    {
+      "title": "Courses",
+      "children": [
+        {
+          "title": "DSA / Placements",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/dsa-placements"
+        },
+        {
+          "title": "GATE Prep",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/gate/"
+        },
+        {
+          "title": "Data Analytics / Data Science",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/data-analytics-data-science"
+        },
+        {
+          "title": "Development",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/development-testing"
+        },
+        {
+          "title": "Cloud / DevOps",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/cloud-devops"
+        },
+        {
+          "title": "Programming Languages",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses/category/programming-languages"
+        },
+        {
+          "title": "All Courses",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/courses"
+        }
+      ],
+      "link": "https://practice.geeksforgeeks.org/courses/?ref=ghm"
+    },
+    {
+      "title": "Tutorials",
+      "children": [
+        {
+          "title": "Python",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/python/python-programming-language-tutorial/"
+        },
+        {
+          "title": "Java",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/java/java/"
+        },
+        {
+          "title": "DSA",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/learn-data-structures-and-algorithms-dsa-tutorial/"
+        },
+        {
+          "title": "ML & Data Science",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/ai-ml-and-data-science-tutorial-learn-ai-ml-and-data-science/"
+        },
+        {
+          "title": "Interview Corner",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/interview-corner/"
+        },
+        {
+          "title": "Programming Languages",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/programming-language-tutorials/"
+        },
+        {
+          "title": "Web Development",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/web-technology/"
+        },
+        {
+          "title": "GATE",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/gate-exam-tutorial/"
+        },
+        {
+          "title": "CS Subjects",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/articles-on-computer-science-subjects-gq/"
+        },
+        {
+          "title": "DevOps",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/devops/devops-tutorial/"
+        },
+        {
+          "title": "School Learning",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/geeksforgeeks-school/"
+        },
+        {
+          "title": "Software and Tools",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/websites-apps/software-and-tools-a-to-z-list/"
+        }
+      ],
+      "link": ""
+    },
+    {
+      "title": "Practice",
+      "children": [
+        {
+          "title": "Practice Coding Problems",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/geeksforgeeks-practice-best-online-coding-platform/"
+        },
+        {
+          "title": "Problem of the Day",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/problem-of-the-day"
+        },
+        {
+          "title": "Free AI Agent Workshop",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/event/build-ai-agents-that-actually-verify-their-own-work"
+        },
+        {
+          "title": "Connect 1:1 with Experts",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/connect/explore"
+        }
+      ],
+      "link": ""
+    },
+    {
+      "title": "Jobs",
+      "children": [
+        {
+          "title": "Apply Now!",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/jobs"
+        },
+        {
+          "title": "Post Jobs",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/gfg-hiring-solutions-for-recruiters/"
+        },
+        {
+          "title": "Jobs Updates",
+          "children": [],
+          "link": "https://www.geeksforgeeks.org/community/profile/hire1/"
+        }
+      ],
+      "link": "https://www.geeksforgeeks.org/jobs?utm_source=gfg&utm_medium=gfg_header&utm_campaign=gfgcontest_header"
+    }
+  ],
+  "canonicalUrlWithQueryParams": "https://www.geeksforgeeks.org/problems/second-largest3735/1",
+  "canonicalUrlWithOutQueryParams": "https://www.geeksforgeeks.org/problems/second-largest3735/1",
+  "cdnCountryCode": "IN",
+  "lightWeightHeader": false,
+  "showNotificationHeader": true,
+  "showTranslateHeader": true,
+  "showSearchHeader": true,
+  "isProblemPreview": false,
+  "modifiedCanonical": "https://www.geeksforgeeks.org/problems/second-largest3735/1",
+  "initialState": {
+    "user": {
+      "userVal": "",
+      "userError": false,
+      "responsemsg": "",
+      "responsetype": "error",
+      "recaptchaError": false,
+      "recaptchaValue": "",
+      "loading": false,
+      "recpatchSiteKey": "6LexF0sUAAAAADiQjz9BMiSrqplrItl-tWYDSfWa",
+      "userData": null,
+      "rememberMe": true,
+      "theme": "light",
+      "gfgLogo": "https://media.geeksforgeeks.org/gfg-gg-logo.svg"
+    },
+    "myCoursesApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "myCoursesApi"
+      }
+    },
+    "usersApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "usersApi"
+      }
+    },
+    "jobsApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "jobsApi"
+      }
+    },
+    "eventsApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "eventsApi"
+      }
+    },
+    "listingPageApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "listingPageApi"
+      }
+    },
+    "explorePageApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "explorePageApi"
+      }
+    },
+    "coursesDashboardAPI": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "coursesDashboardAPI"
+      }
+    },
+    "contestApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "contestApi"
+      }
+    },
+    "registrationCntApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "registrationCntApi"
+      }
+    },
+    "recurringEventApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "recurringEventApi"
+      }
+    },
+    "problemApi": {
+      "queries": {
+        "getProblemDetails({\"isProblemPublic\":true,\"probResource\":\"second-largest3735\",\"problemBatchSlug\":null,\"problemTrackSlug\":null})": {
+          "status": "fulfilled",
+          "endpointName": "getProblemDetails",
+          "requestId": "oYSJTKl8m0a7qnbwdKuFZ",
+          "originalArgs": {
+            "probResource": "second-largest3735",
+            "isProblemPublic": true,
+            "problemBatchSlug": null,
+            "problemTrackSlug": null
+          },
+          "startedTimeStamp": 1779819495928,
+          "data": {
+            "id": 703089,
+            "problem_name": "Second Largest",
+            "problem_type": 1,
+            "problem_type_text": "Function",
+            "publish": 1,
+            "publish_date": "2024-08-27 15:34:10",
+            "slug": "second-largest3735",
+            "problem_level": 0,
+            "problem_level_text": "Easy",
+            "difficulty": "Easy",
+            "marks": 2,
+            "is_sample_input_modified": 1,
+            "custom_input_format": "<p><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; background-color: #ffffff;\">The custom input should contain a single line.&nbsp;</span><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; background-color: #ffffff;\">The line contains space-separated integers of array </span><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; font-weight: bolder; background-color: #ffffff;\">arr.</span></p>\n<p><span style=\"font-size: 18px;\"><strong>Example</strong>:</span></p>\n<pre><span style=\"font-size: 18px;\">12 35 1 10 34 1\n</span></pre>",
+            "multiple_testcase": 1,
+            "content_type": 1,
+            "visibility_type": 1,
+            "visibility_text": "public",
+            "is_contest_problem": 0,
+            "contest_slug": null,
+            "can_add_interview_link": false,
+            "can_edit_all_submissions_link": true,
+            "has_all_submissions_button": false,
+            "all_submissions": 1527537,
+            "accuracy": "26.72%",
+            "is_user_login": 0,
+            "is_private_tag_visible": false,
+            "problem_category": 0,
+            "related_courses": {},
+            "tags": {
+              "company_tags": [
+                "SAP Labs",
+                "Rockstand"
+              ],
+              "topic_tags": [
+                "Arrays",
+                "Searching",
+                "Data Structures",
+                "Algorithms"
+              ]
+            },
+            "problem_question": "<p><span style=\"font-size: 18px;\">Given an array of <strong>positive</strong> integers <strong>arr[]</strong>, return the <strong>second largest</strong> element from the array. </span><span style=\"font-size: 18px;\">If the second largest element doesn't exist then return <strong>-1.</strong></span></p>\n<p><span style=\"font-size: 18px;\">Note: The second largest element should not be equal to the largest element.</span></p>\n<p><span style=\"font-size: 18px;\"><strong>Examples:</strong></span></p>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [12, 35, 1, 10, 34, 1]\n<strong>Output:</strong> 34\n<strong>Explanation: </strong>The largest element of the array is 35 and the second largest element is 34.</span></pre>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [10, 5, 10]\n<strong>Output:</strong> 5\n<strong>Explanation: </strong>The largest element of the array is 10 and the second largest element is 5.</span></pre>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [10, 10, 10]\n<strong>Output:</strong> -1\n<strong>Explanation: </strong>The largest element of the array is 10 and the second largest element does not exist.</span></pre>\n<p><span style=\"font-size: 18px;\"><strong>Constraints:</strong><br />2 &le; arr.size() &le; 10<sup>5</sup><br />1 &le; arr[i]<sub>&nbsp;</sub>&le; 10<sup>5</sup></span></p>",
+            "contributor": "",
+            "test_cases": "12 35 1 10 34 1",
+            "article_existence": 1,
+            "article_list": [
+              "https://www.geeksforgeeks.org/find-second-largest-element-array/"
+            ],
+            "can_edit_history": false,
+            "can_edit_problem": false,
+            "can_edit_problem_read_only": false,
+            "author": "rajatjha",
+            "has_problem_solutions": true,
+            "has_hints": true,
+            "has_editorial": true,
+            "can_view_hints": true,
+            "track": "",
+            "batch": "",
+            "has_doubt_assistance": false,
+            "extra": {
+              "problem_languages": {
+                "c": "C (gcc 5.4)",
+                "cpp": "C++ (17)",
+                "java": "Java (21)",
+                "python3": "Python3",
+                "csharp": "C#",
+                "javascript": "Javascript (Node v22)"
+              },
+              "default_lang": null,
+              "default_code": null,
+              "initial_user_func": {
+                "c": {
+                  "initial_code": "// Initial Template for C\n#include <limits.h>\n#include <stdbool.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    char ts[1001];\n    fgets(ts, sizeof(ts), stdin);\n    int t = atoi(ts);\n\n    while (t--) {\n        char *line = NULL;\n        size_t len = 0;\n        getline(&line, &len, stdin); // Removed ssize_t\n\n        int *nums = (int *)malloc(1000000 * sizeof(int));\n        int n = 0;\n        char *token = strtok(line, \" \");\n        while (token != NULL) {\n            nums[n++] = atoi(token);\n            token = strtok(NULL, \" \");\n        }\n\n        // Call user-defined function\n        int result = getSecondLargest(nums, n);\n        printf(\"%d\\n\", result);\n        printf(\"%s\\n\", \"~\");\n        free(nums);\n        free(line);\n    }\n\n    return 0;\n}\n",
+                  "user_code": "int getSecondLargest(int *arr, int n) {\n    // code here\n    \n}\n",
+                  "created_at_timestamp": 1744260242,
+                  "updated_at_timestamp": 1764858795
+                },
+                "cpp": {
+                  "initial_code": "#include <bits/stdc++.h>\n\nusing namespace std;\n\n//Position this line where user code will be pasted.\n\nint main() {\n    int t;\n    cin >> t;\n    cin.ignore();\n    while (t--) {\n        vector<int> arr;\n        string input;\n        getline(cin, input);\n        stringstream ss(input);\n        int number;\n        while (ss >> number) {\n            arr.push_back(number);\n        }\n        Solution ob;\n        int ans = ob.getSecondLargest(arr);\n        cout << ans << endl;\n        cout << \"~\" << endl;\n    }\n    return 0;\n}\n",
+                  "user_code": "class Solution {\n  public:\n    int getSecondLargest(vector<int> &arr) {\n        // code here\n        \n    }\n};",
+                  "created_at_timestamp": 1618051464,
+                  "updated_at_timestamp": 1772106564
+                },
+                "java": {
+                  "initial_code": "// Initial Template for Java\nimport java.io.*;\nimport java.util.*;\nimport java.util.stream.Collectors;\n\npublic class Main {\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int t = Integer.parseInt(sc.nextLine());\n        while (t-- > 0) {\n            String[] arr1Str = sc.nextLine().split(\" \");\n            int[] arr = Arrays.stream(arr1Str).mapToInt(Integer::parseInt).toArray();\n            Solution ob = new Solution();\n            int ans = ob.getSecondLargest(arr);\n            System.out.println(ans);\n\n            System.out.println(\"~\");\n        }\n    }\n}\n",
+                  "user_code": "class Solution {\n    public int getSecondLargest(int[] arr) {\n        // code here\n        \n    }\n}",
+                  "created_at_timestamp": 1618051464,
+                  "updated_at_timestamp": 1777266950
+                },
+                "python3": {
+                  "initial_code": "# Initial Template for Python 3\n\nif __name__ == \"__main__\":\n    t = int(input())\n    for _ in range(t):\n        arr = list(map(int, input().split()))\n        ob = Solution()\n        ans = ob.getSecondLargest(arr)\n        print(ans)\n        print(\"~\")",
+                  "user_code": "class Solution:\n    def getSecondLargest(self, arr):\n        # Code Here",
+                  "created_at_timestamp": 1618051464,
+                  "updated_at_timestamp": 1777266950
+                },
+                "csharp": {
+                  "initial_code": "// Initial Template for C#\nusing System;\n\n// Position this line where user code will be pasted.\n\nclass Program {\n    static void Main() {\n        int t = int.Parse(Console.ReadLine().Trim()); // Trim in case of extra spaces\n\n        for (int i = 0; i < t; i++) {\n            string input =\n                Console.ReadLine().Trim(); // Trim to clean leading/trailing whitespace\n            string[] tokens =\n                input.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);\n            int[] arr = new int[tokens.Length];\n\n            for (int j = 0; j < tokens.Length; j++) {\n                arr[j] = int.Parse(tokens[j].Trim()); // Trim each token for safety\n            }\n\n            Solution ob = new Solution();\n            int ans = ob.GetSecondLargest(arr);\n            Console.WriteLine(ans);\n            Console.WriteLine(\"~\");\n        }\n    }\n}\n",
+                  "user_code": "class Solution {\n    public int GetSecondLargest(int[] arr) {\n        // code here\n        \n    }\n}",
+                  "created_at_timestamp": 1744178835,
+                  "updated_at_timestamp": 1777266950
+                },
+                "javascript": {
+                  "initial_code": "// Initial Template for javascript\n\nlet inputString = '';\nlet currentLine = 0;\n\nprocess.stdin.on('data', inputStdin => { inputString += inputStdin; });\n\nprocess.stdin.on('end', _ => {\n    inputString = inputString.trim().split(\"\\n\").map(string => string.trim());\n    main();\n});\n\nfunction readLine() { return inputString[currentLine++]; }\n\nfunction main() {\n    let t = parseInt(readLine());\n    for (let i = 0; i < t; i++) {\n        const arr = readLine().split(' ').map(x => parseInt(x));\n        let obj = new Solution();\n        let ans = obj.getSecondLargest(arr);\n        console.log(ans);\n        console.log(\"~\");\n    }\n}\n\n// } Driver Code Ends\n",
+                  "user_code": "class Solution {\n    getSecondLargest(arr) {\n        // code here\n        \n    }\n}",
+                  "created_at_timestamp": 1618051464,
+                  "updated_at_timestamp": 1777266950
+                }
+              },
+              "input": "12 35 1 10 34 1",
+              "input_format": {
+                "arguments": "arr[] =  ",
+                "datatype": "INTEGER_ARRAY"
+              },
+              "is_mtc_enabled": true
+            },
+            "course_default_lang": null,
+            "interview_links": [],
+            "user_has_access_to_doubt_assistance": false,
+            "editorial_type": "post",
+            "associated_func_pid": null,
+            "can_view_author_solution": false,
+            "show_editorial_tab": true,
+            "is_todays_potd": false,
+            "visualizer_type": null,
+            "input_format": {
+              "arguments": "arr[] =  ",
+              "datatype": "INTEGER_ARRAY"
+            }
+          },
+          "fulfilledTimeStamp": 1779819495940
+        }
+      },
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {
+        "getProblemDetails({\"isProblemPublic\":true,\"probResource\":\"second-largest3735\",\"problemBatchSlug\":null,\"problemTrackSlug\":null})": {
+          "oYSJTKl8m0a7qnbwdKuFZ": {}
+        }
+      },
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "problemApi"
+      }
+    },
+    "batchApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "batchApi"
+      }
+    },
+    "trackApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "trackApi"
+      }
+    },
+    "ideApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "ideApi"
+      }
+    },
+    "generalApi": {
+      "queries": {
+        "getAuthHeaderData({\"params\":null})": {
+          "status": "fulfilled",
+          "endpointName": "getAuthHeaderData",
+          "requestId": "9a7wQXHJUhFF4R50yBIud",
+          "originalArgs": {
+            "params": null
+          },
+          "startedTimeStamp": 1779819495919,
+          "data": [
+            {
+              "title": "Courses",
+              "children": [
+                {
+                  "title": "DSA / Placements",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/dsa-placements"
+                },
+                {
+                  "title": "GATE Prep",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/gate/"
+                },
+                {
+                  "title": "Data Analytics / Data Science",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/data-analytics-data-science"
+                },
+                {
+                  "title": "Development",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/development-testing"
+                },
+                {
+                  "title": "Cloud / DevOps",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/cloud-devops"
+                },
+                {
+                  "title": "Programming Languages",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses/category/programming-languages"
+                },
+                {
+                  "title": "All Courses",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/courses"
+                }
+              ],
+              "link": "https://practice.geeksforgeeks.org/courses/?ref=ghm"
+            },
+            {
+              "title": "Tutorials",
+              "children": [
+                {
+                  "title": "Python",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/python/python-programming-language-tutorial/"
+                },
+                {
+                  "title": "Java",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/java/java/"
+                },
+                {
+                  "title": "DSA",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/learn-data-structures-and-algorithms-dsa-tutorial/"
+                },
+                {
+                  "title": "ML & Data Science",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/ai-ml-and-data-science-tutorial-learn-ai-ml-and-data-science/"
+                },
+                {
+                  "title": "Interview Corner",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/interview-corner/"
+                },
+                {
+                  "title": "Programming Languages",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/programming-language-tutorials/"
+                },
+                {
+                  "title": "Web Development",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/web-technology/"
+                },
+                {
+                  "title": "GATE",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/gate-exam-tutorial/"
+                },
+                {
+                  "title": "CS Subjects",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/articles-on-computer-science-subjects-gq/"
+                },
+                {
+                  "title": "DevOps",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/devops/devops-tutorial/"
+                },
+                {
+                  "title": "School Learning",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/geeksforgeeks-school/"
+                },
+                {
+                  "title": "Software and Tools",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/websites-apps/software-and-tools-a-to-z-list/"
+                }
+              ],
+              "link": ""
+            },
+            {
+              "title": "Practice",
+              "children": [
+                {
+                  "title": "Practice Coding Problems",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/geeksforgeeks-practice-best-online-coding-platform/"
+                },
+                {
+                  "title": "Problem of the Day",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/problem-of-the-day"
+                },
+                {
+                  "title": "Free AI Agent Workshop",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/event/build-ai-agents-that-actually-verify-their-own-work"
+                },
+                {
+                  "title": "Connect 1:1 with Experts",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/connect/explore"
+                }
+              ],
+              "link": ""
+            },
+            {
+              "title": "Jobs",
+              "children": [
+                {
+                  "title": "Apply Now!",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/jobs"
+                },
+                {
+                  "title": "Post Jobs",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/gfg-hiring-solutions-for-recruiters/"
+                },
+                {
+                  "title": "Jobs Updates",
+                  "children": [],
+                  "link": "https://www.geeksforgeeks.org/community/profile/hire1/"
+                }
+              ],
+              "link": "https://www.geeksforgeeks.org/jobs?utm_source=gfg&utm_medium=gfg_header&utm_campaign=gfgcontest_header"
+            }
+          ],
+          "fulfilledTimeStamp": 1779819495928
+        },
+        "getPromotionalEventsApi({\"cdnCountryCode\":\"IN\",\"pageSource\":\"problems\"})": {
+          "status": "fulfilled",
+          "endpointName": "getPromotionalEventsApi",
+          "requestId": "8DRYECW_KlHpylfRBBmlN",
+          "originalArgs": {
+            "pageSource": "problems",
+            "cdnCountryCode": "IN"
+          },
+          "startedTimeStamp": 1779819495940,
+          "data": {
+            "upcoming_events": {
+              "problem-submission_banners": [
+                {
+                  "promotional_banner_id": 65,
+                  "page_source": 2,
+                  "page_element": "problem-submission_banners",
+                  "display_order": 1,
+                  "title": "",
+                  "description": "<p><span style=\"color: rgb(0, 0, 0); font-size: 14pt;\" data-mce-style=\"color: #000000; font-size: 14pt;\">Discuss your problem approach and connect with your peers. Explore connect now!</span></p>",
+                  "short_description": "",
+                  "button_text": "",
+                  "click_id": "problems_submission_banner",
+                  "icon_url": "https://media.geeksforgeeks.org/img-practice/external-1657081738.svg",
+                  "dark_mode_icon_url": "https://media.geeksforgeeks.org/img-practice/external-1657081738.svg",
+                  "redirect_url": "https://www.geeksforgeeks.org/connect/explore",
+                  "background_color": "#FCFF78",
+                  "dark_mode_background_color": "#FCFF78",
+                  "button_background_color": null,
+                  "is_default": 1,
+                  "start_date": null,
+                  "end_date": null,
+                  "country": 2
+                }
+              ]
+            }
+          },
+          "fulfilledTimeStamp": 1779819495950
+        }
+      },
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {
+        "getAuthHeaderData({\"params\":null})": {
+          "9a7wQXHJUhFF4R50yBIud": {}
+        },
+        "getPromotionalEventsApi({\"cdnCountryCode\":\"IN\",\"pageSource\":\"problems\"})": {
+          "8DRYECW_KlHpylfRBBmlN": {}
+        }
+      },
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "generalApi"
+      }
+    },
+    "allFeedbacksApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "allFeedbacksApi"
+      }
+    },
+    "dashboardBaseApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "dashboardBaseApi"
+      }
+    },
+    "addEditCourseFeaturesApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "addEditCourseFeaturesApi"
+      }
+    },
+    "filtersApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "filtersApi"
+      }
+    },
+    "paymentTransactionHistoryApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "paymentTransactionHistoryApi"
+      }
+    },
+    "classAllApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "classAllApi"
+      }
+    },
+    "sidebarApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "sidebarApi"
+      }
+    },
+    "addEditJobsApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "addEditJobsApi"
+      }
+    },
+    "addEditProblemApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "addEditProblemApi"
+      }
+    },
+    "hackathonApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "hackathonApi"
+      }
+    },
+    "hackathonNewApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "hackathonNewApi"
+      }
+    },
+    "problemData": {
+      "isProblemPublic": true,
+      "problemUserScore": 0,
+      "problemAttempted": {
+        "solvedProblemId": null,
+        "status": -1
+      },
+      "problemUserScoreUpdated": false,
+      "probResource": "second-largest3735",
+      "problemBatchSlug": null,
+      "problemTrackSlug": null,
+      "hasViewedSubmission": false,
+      "allData": {
+        "probData": {
+          "id": 703089,
+          "problem_name": "Second Largest",
+          "problem_type": 1,
+          "problem_type_text": "Function",
+          "publish": 1,
+          "publish_date": "2024-08-27 15:34:10",
+          "slug": "second-largest3735",
+          "problem_level": 0,
+          "problem_level_text": "Easy",
+          "difficulty": "Easy",
+          "marks": 2,
+          "is_sample_input_modified": 1,
+          "custom_input_format": "<p><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; background-color: #ffffff;\">The custom input should contain a single line.&nbsp;</span><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; background-color: #ffffff;\">The line contains space-separated integers of array </span><span style=\"box-sizing: border-box; font-family: 'Source Sans 3'; color: #1e2229; font-size: 18.6667px; font-weight: bolder; background-color: #ffffff;\">arr.</span></p>\n<p><span style=\"font-size: 18px;\"><strong>Example</strong>:</span></p>\n<pre><span style=\"font-size: 18px;\">12 35 1 10 34 1\n</span></pre>",
+          "multiple_testcase": 1,
+          "content_type": 1,
+          "visibility_type": 1,
+          "visibility_text": "public",
+          "is_contest_problem": 0,
+          "contest_slug": null,
+          "can_add_interview_link": false,
+          "can_edit_all_submissions_link": true,
+          "has_all_submissions_button": false,
+          "all_submissions": 1527537,
+          "accuracy": "26.72%",
+          "is_user_login": 0,
+          "is_private_tag_visible": false,
+          "problem_category": 0,
+          "related_courses": {},
+          "tags": {
+            "company_tags": [
+              "SAP Labs",
+              "Rockstand"
+            ],
+            "topic_tags": [
+              "Arrays",
+              "Searching",
+              "Data Structures",
+              "Algorithms"
+            ]
+          },
+          "problem_question": "<p><span style=\"font-size: 18px;\">Given an array of <strong>positive</strong> integers <strong>arr[]</strong>, return the <strong>second largest</strong> element from the array. </span><span style=\"font-size: 18px;\">If the second largest element doesn't exist then return <strong>-1.</strong></span></p>\n<p><span style=\"font-size: 18px;\">Note: The second largest element should not be equal to the largest element.</span></p>\n<p><span style=\"font-size: 18px;\"><strong>Examples:</strong></span></p>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [12, 35, 1, 10, 34, 1]\n<strong>Output:</strong> 34\n<strong>Explanation: </strong>The largest element of the array is 35 and the second largest element is 34.</span></pre>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [10, 5, 10]\n<strong>Output:</strong> 5\n<strong>Explanation: </strong>The largest element of the array is 10 and the second largest element is 5.</span></pre>\n<pre><span style=\"font-size: 18px;\"><strong>Input:</strong> arr[] = [10, 10, 10]\n<strong>Output:</strong> -1\n<strong>Explanation: </strong>The largest element of the array is 10 and the second largest element does not exist.</span></pre>\n<p><span style=\"font-size: 18px;\"><strong>Constraints:</strong><br />2 &le; arr.size() &le; 10<sup>5</sup><br />1 &le; arr[i]<sub>&nbsp;</sub>&le; 10<sup>5</sup></span></p>",
+          "contributor": "",
+          "test_cases": "12 35 1 10 34 1",
+          "article_existence": 1,
+          "article_list": [
+            "https://www.geeksforgeeks.org/find-second-largest-element-array/"
+          ],
+          "can_edit_history": false,
+          "can_edit_problem": false,
+          "can_edit_problem_read_only": false,
+          "author": "rajatjha",
+          "has_problem_solutions": true,
+          "has_hints": true,
+          "has_editorial": true,
+          "can_view_hints": true,
+          "track": "",
+          "batch": "",
+          "has_doubt_assistance": false,
+          "extra": {
+            "problem_languages": {
+              "c": "C (gcc 5.4)",
+              "cpp": "C++ (17)",
+              "java": "Java (21)",
+              "python3": "Python3",
+              "csharp": "C#",
+              "javascript": "Javascript (Node v22)"
+            },
+            "default_lang": null,
+            "default_code": null,
+            "initial_user_func": {
+              "c": {
+                "initial_code": "// Initial Template for C\n#include <limits.h>\n#include <stdbool.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main() {\n    char ts[1001];\n    fgets(ts, sizeof(ts), stdin);\n    int t = atoi(ts);\n\n    while (t--) {\n        char *line = NULL;\n        size_t len = 0;\n        getline(&line, &len, stdin); // Removed ssize_t\n\n        int *nums = (int *)malloc(1000000 * sizeof(int));\n        int n = 0;\n        char *token = strtok(line, \" \");\n        while (token != NULL) {\n            nums[n++] = atoi(token);\n            token = strtok(NULL, \" \");\n        }\n\n        // Call user-defined function\n        int result = getSecondLargest(nums, n);\n        printf(\"%d\\n\", result);\n        printf(\"%s\\n\", \"~\");\n        free(nums);\n        free(line);\n    }\n\n    return 0;\n}\n",
+                "user_code": "int getSecondLargest(int *arr, int n) {\n    // code here\n    \n}\n",
+                "created_at_timestamp": 1744260242,
+                "updated_at_timestamp": 1764858795
+              },
+              "cpp": {
+                "initial_code": "#include <bits/stdc++.h>\n\nusing namespace std;\n\n//Position this line where user code will be pasted.\n\nint main() {\n    int t;\n    cin >> t;\n    cin.ignore();\n    while (t--) {\n        vector<int> arr;\n        string input;\n        getline(cin, input);\n        stringstream ss(input);\n        int number;\n        while (ss >> number) {\n            arr.push_back(number);\n        }\n        Solution ob;\n        int ans = ob.getSecondLargest(arr);\n        cout << ans << endl;\n        cout << \"~\" << endl;\n    }\n    return 0;\n}\n",
+                "user_code": "class Solution {\n  public:\n    int getSecondLargest(vector<int> &arr) {\n        // code here\n        \n    }\n};",
+                "created_at_timestamp": 1618051464,
+                "updated_at_timestamp": 1772106564
+              },
+              "java": {
+                "initial_code": "// Initial Template for Java\nimport java.io.*;\nimport java.util.*;\nimport java.util.stream.Collectors;\n\npublic class Main {\n\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        int t = Integer.parseInt(sc.nextLine());\n        while (t-- > 0) {\n            String[] arr1Str = sc.nextLine().split(\" \");\n            int[] arr = Arrays.stream(arr1Str).mapToInt(Integer::parseInt).toArray();\n            Solution ob = new Solution();\n            int ans = ob.getSecondLargest(arr);\n            System.out.println(ans);\n\n            System.out.println(\"~\");\n        }\n    }\n}\n",
+                "user_code": "class Solution {\n    public int getSecondLargest(int[] arr) {\n        // code here\n        \n    }\n}",
+                "created_at_timestamp": 1618051464,
+                "updated_at_timestamp": 1777266950
+              },
+              "python3": {
+                "initial_code": "# Initial Template for Python 3\n\nif __name__ == \"__main__\":\n    t = int(input())\n    for _ in range(t):\n        arr = list(map(int, input().split()))\n        ob = Solution()\n        ans = ob.getSecondLargest(arr)\n        print(ans)\n        print(\"~\")",
+                "user_code": "class Solution:\n    def getSecondLargest(self, arr):\n        # Code Here",
+                "created_at_timestamp": 1618051464,
+                "updated_at_timestamp": 1777266950
+              },
+              "csharp": {
+                "initial_code": "// Initial Template for C#\nusing System;\n\n// Position this line where user code will be pasted.\n\nclass Program {\n    static void Main() {\n        int t = int.Parse(Console.ReadLine().Trim()); // Trim in case of extra spaces\n\n        for (int i = 0; i < t; i++) {\n            string input =\n                Console.ReadLine().Trim(); // Trim to clean leading/trailing whitespace\n            string[] tokens =\n                input.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);\n            int[] arr = new int[tokens.Length];\n\n            for (int j = 0; j < tokens.Length; j++) {\n                arr[j] = int.Parse(tokens[j].Trim()); // Trim each token for safety\n            }\n\n            Solution ob = new Solution();\n            int ans = ob.GetSecondLargest(arr);\n            Console.WriteLine(ans);\n            Console.WriteLine(\"~\");\n        }\n    }\n}\n",
+                "user_code": "class Solution {\n    public int GetSecondLargest(int[] arr) {\n        // code here\n        \n    }\n}",
+                "created_at_timestamp": 1744178835,
+                "updated_at_timestamp": 1777266950
+              },
+              "javascript": {
+                "initial_code": "// Initial Template for javascript\n\nlet inputString = '';\nlet currentLine = 0;\n\nprocess.stdin.on('data', inputStdin => { inputString += inputStdin; });\n\nprocess.stdin.on('end', _ => {\n    inputString = inputString.trim().split(\"\\n\").map(string => string.trim());\n    main();\n});\n\nfunction readLine() { return inputString[currentLine++]; }\n\nfunction main() {\n    let t = parseInt(readLine());\n    for (let i = 0; i < t; i++) {\n        const arr = readLine().split(' ').map(x => parseInt(x));\n        let obj = new Solution();\n        let ans = obj.getSecondLargest(arr);\n        console.log(ans);\n        console.log(\"~\");\n    }\n}\n\n// } Driver Code Ends\n",
+                "user_code": "class Solution {\n    getSecondLargest(arr) {\n        // code here\n        \n    }\n}",
+                "created_at_timestamp": 1618051464,
+                "updated_at_timestamp": 1777266950
+              }
+            },
+            "input": "12 35 1 10 34 1",
+            "input_format": {
+              "arguments": "arr[] =  ",
+              "datatype": "INTEGER_ARRAY"
+            },
+            "is_mtc_enabled": true
+          },
+          "course_default_lang": null,
+          "interview_links": [],
+          "user_has_access_to_doubt_assistance": false,
+          "editorial_type": "post",
+          "associated_func_pid": null,
+          "can_view_author_solution": false,
+          "show_editorial_tab": true,
+          "is_todays_potd": false,
+          "visualizer_type": null,
+          "input_format": {
+            "arguments": "arr[] =  ",
+            "datatype": "INTEGER_ARRAY"
+          }
+        },
+        "metaData": {}
+      },
+      "isProblemDemo": false,
+      "hasMovedToEditor": false,
+      "nextProblemData": null,
+      "nextProblemClickId": "",
+      "userEntityId": "",
+      "yogiBotPremiumTourType": null,
+      "isMtcEnabled": false,
+      "isSampleInputModified": false,
+      "isSeparateInputAvailable": false,
+      "totalResultApiCallCount": 0
+    },
+    "allUserSprint": {
+      "sprintData": []
+    },
+    "generalData": {
+      "tinyMceScriptLoaded": null
+    },
+    "batchTrackData": {
+      "batchId": null,
+      "trackId": null,
+      "userBatchScore": 0,
+      "userBatchScoreUpdated": false,
+      "userBatchProgress": -1,
+      "userSubmittedProblemIds": [],
+      "userTrackProgress": {},
+      "userVideosData": {},
+      "liveClassesVideosData": {},
+      "courseSlug": "",
+      "courseFeeType": "",
+      "isBatchAccessPermissionApiExecuted": false,
+      "userPaidAccess": false,
+      "isBatchRated": null,
+      "notesDetails": {
+        "notes_list": [],
+        "last_evaluated_key": null
+      },
+      "entityNotesIdDetails": {},
+      "enableAddNotesButton": false,
+      "isNotesModalOpen": false,
+      "isBatchModerationOn": false,
+      "isWindowShrinkMonitorOn": false,
+      "isKnownExtensionDetectionOn": false,
+      "canEditBatchTrack": false,
+      "isProblemComponentMounted": false,
+      "courseDefaultLang": null,
+      "chaptersData": null,
+      "trackNavigation": null,
+      "isDemoUser": false
+    },
+    "rewardAPI": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "rewardAPI"
+      }
+    },
+    "contestData": {
+      "isContestEndedForUser": null,
+      "isContestEnded": true,
+      "fixedContestLiveButUserEnded": false,
+      "someErrorOccured": false,
+      "quizStatusCount": {},
+      "problemsStatusCount": {},
+      "showFinishTestModal": false,
+      "disableCopyPaste": false,
+      "isProctoredTerminated": false,
+      "proctoredContest": false,
+      "isWindowShrinkMonitorOn": false,
+      "isKnownExtensionDetectionOn": false,
+      "showFeedbackTestModal": false,
+      "isAutoEnd": false,
+      "showCalculator": false,
+      "quiz": {
+        "showQuizAnswers": false,
+        "activeIndex": {
+          "question": 0,
+          "section": 0
+        },
+        "userResponses": null,
+        "revealButtonText": "Check Submission",
+        "displayCorrectAnswer": false,
+        "submitButtonText": null,
+        "submissionsStatus": null
+      },
+      "problems": {
+        "submissionType": "mySubmissions",
+        "submissions": null,
+        "openedProblemId": null,
+        "userCodingResponse": {}
+      },
+      "leaderboard": {
+        "currentPage": 1,
+        "leaderboardType": "current"
+      }
+    },
+    "couponData": {
+      "activeTab": "General Settings",
+      "formValues": {
+        "General Settings": {
+          "coupon_code": "",
+          "coupon_id": "",
+          "valid_till": null,
+          "valid_from": null,
+          "usage_details": null,
+          "coupon_type": null,
+          "discount_details": {
+            "up_to": -1
+          },
+          "coupon_desc": null,
+          "coupon_college_domain": null
+        },
+        "Discount Rules": {
+          "customer_rules": {},
+          "purchase_rules": {},
+          "product_rules": {}
+        },
+        "Assign Publish": {
+          "created_type": null,
+          "publish_status": null,
+          "assignee_commission": null,
+          "created_by_team": null,
+          "assign_to": null,
+          "assignee_type": null,
+          "purpose_created": null
+        },
+        "Create Copies": {
+          "copy_count": 0
+        },
+        "Influencer details": {
+          "user_name": "",
+          "email": "",
+          "contact_number": null,
+          "onboarding": null,
+          "subject": "",
+          "email_body": ""
+        }
+      },
+      "selectedEntities": {
+        "entitled_cust": [],
+        "entitled_prod": [],
+        "prerequisite_prod": []
+      }
+    },
+    "problemOfTheDayAPI": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "problemOfTheDayAPI"
+      }
+    },
+    "addEditCourseData": {
+      "activeTab": "Course Intro",
+      "activeTabIndex": 0,
+      "formValues": {
+        "courseIntro": {
+          "course_name": "",
+          "course_short_name": "",
+          "course_slug": "",
+          "short_description": "",
+          "course_highlights": "",
+          "course_for_kids": 0,
+          "course_type": 1,
+          "listing_type": 0,
+          "course_fee_type": 1,
+          "auto_registration": 0,
+          "course_default_lang": null,
+          "best_suited_for": "",
+          "default_testimonial": {
+            "name": "",
+            "achievements": "",
+            "content": ""
+          },
+          "course_publish_date": null,
+          "expiry_date": null,
+          "redirection_url": null,
+          "has_doubt_assistance": 1,
+          "free_doubt_support_expiry_date": 6,
+          "doubt_support_expiry_date": 6,
+          "course_image_text": "",
+          "show_kapture_chat_box": 0,
+          "show_placement_assistance_banner": 0,
+          "doubt_assistance_price": 1499,
+          "what_you_will_learn": "",
+          "course_email_content": "",
+          "intro_video_link": "",
+          "broucher_link": "",
+          "warning_message": "",
+          "show_mentor_rating": 0,
+          "linked_offline_course": null,
+          "level": null,
+          "seats_left": null,
+          "course_duration": null,
+          "urgency_start_time": null,
+          "urgency_end_time": null,
+          "doubt_assistance_banner": 0,
+          "syllabus_pdf": 0,
+          "email_content_redirection_link": "",
+          "course_redirection_slug": "",
+          "payment_deep_link": "",
+          "course_expiry_days": 365,
+          "show_all_live_classes": false,
+          "skills": [],
+          "is_payment_qrcode_generated": 0,
+          "live_classes_batches": [],
+          "has_scheduler": false,
+          "scheduler_batches": [],
+          "notes_batches": [],
+          "show_notes_tab": false,
+          "what_you_get": [],
+          "key_highlights": ""
+        },
+        "courseBanners": [
+          {
+            "title": "Old Thumbnail Banner",
+            "banner_type": "thumbnail-old",
+            "banner_key": "thumbnail_old",
+            "image_url": "thumbnail_old_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Facebook Banner",
+            "banner_type": "social",
+            "banner_key": "social",
+            "image_url": "social_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Mobile Banner",
+            "banner_type": "mobile",
+            "banner_key": "mobile",
+            "image_url": "mobile_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Thumbnail Banner",
+            "banner_type": "thumbnail",
+            "banner_key": "thumbnail",
+            "image_url": "thumbnail_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Payment Checkout Image",
+            "banner_type": "payment-checkout-image",
+            "banner_key": "payment_checkout_image",
+            "image_url": "payment_checkout_image_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Course Video Thumbnail Image",
+            "banner_type": "course-video-thumbnail-image",
+            "banner_key": "course_video_thumbnail_image",
+            "image_url": "course_video_thumbnail_image_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "Course Overview Image",
+            "banner_type": "course-overview-image",
+            "banner_key": "course_overview_image",
+            "image_url": "course_overview_image_image_url",
+            "exists": false,
+            "file": null
+          },
+          {
+            "title": "What will you learn image",
+            "banner_type": "course-what-will-you-learn",
+            "banner_key": "course_what_will_you_learn",
+            "image_url": "course_what_will_you_learn_image_url",
+            "exists": false,
+            "file": null
+          }
+        ],
+        "upgradableCourses": [],
+        "electiveCourses": [],
+        "courseBenefits": [],
+        "courseContent": [],
+        "faqs": [],
+        "courseFaqs": [],
+        "schemaKeywords": [],
+        "emailContent": [],
+        "optLanguages": [],
+        "courseJourneyPhases": []
+      },
+      "isEdit": false,
+      "errorObj": null,
+      "showConfirmationModal": false,
+      "deleteContext": null
+    },
+    "jobPortalData": {
+      "activeTab": "dashboard",
+      "jobDetails": {
+        "organization": {
+          "name": "",
+          "website": "",
+          "logo": "",
+          "about": ""
+        },
+        "designation": {
+          "text": "",
+          "id": ""
+        },
+        "location_type": "",
+        "location": [],
+        "employment_type": "",
+        "job_type_id": "",
+        "description": "",
+        "salary": {
+          "min": "",
+          "max": "",
+          "salary_type": 2
+        },
+        "experience": {
+          "min": "",
+          "max": ""
+        },
+        "last_apply_date": "",
+        "publish_date": "",
+        "skill_sets": []
+      },
+      "activeModal": {
+        "type": null,
+        "data": {}
+      },
+      "productDetails": {},
+      "hasSignedLegalContract": null
+    },
+    "jobPortalApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "jobPortalApi"
+      }
+    },
+    "collegeAdminData": {
+      "canAccessPage": null
+    },
+    "geekOlympics": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "geekOlympics"
+      }
+    },
+    "summerTrainingEvent": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "summerTrainingEvent"
+      }
+    },
+    "dsaToDevelopmentApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "dsaToDevelopmentApi"
+      }
+    },
+    "dsaToDevelopmentData": {
+      "hasRegistered": null,
+      "currentQuestion": null,
+      "hasCompletedSurvey": null,
+      "hasAttemptedSurvey": null,
+      "batchId": null,
+      "applicationStatus": null,
+      "submittedLastQuestion": false,
+      "isIndianUser": null
+    },
+    "organizationDashboardApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "organizationDashboardApi"
+      }
+    },
+    "organizationDashboardData": {
+      "organizationName": null,
+      "organizationSlug": null,
+      "organizationType": null,
+      "organizationId": null,
+      "currentDate": null,
+      "routeSpecificErrors": {
+        "my-courses": null,
+        "course-management": null,
+        "student-repository": null,
+        "aggregated-report": null
+      },
+      "pageError": null
+    },
+    "hierarchyFilter": {
+      "activeFilters": null
+    },
+    "userInfo": {
+      "userCountry": "IN",
+      "mobileDevice": false,
+      "currentDateTime": "2026-05-26T18:18:15.914Z"
+    },
+    "myCoursesData": {
+      "is_user_organization_deal": false
+    },
+    "aggregatedReportData": {
+      "page": 1,
+      "batches": null,
+      "contests": null,
+      "institutes": [],
+      "degrees": [],
+      "branches": [],
+      "sections": [],
+      "search": "",
+      "sortBy": "-avg_score",
+      "batchesOptions": [],
+      "contestOptions": [],
+      "batchContestOptionsMap": {},
+      "institutesOptions": null,
+      "degreesOptions": null,
+      "instituteMapping": {},
+      "topperOptions": [],
+      "sectionOptions": null,
+      "branchOptions": null,
+      "universityDetailsState": {
+        "status": "idle",
+        "error": null
+      },
+      "clickedOnRedirection": false
+    },
+    "leaderboardApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "leaderboardApi"
+      }
+    },
+    "premiumApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "premiumApi"
+      }
+    },
+    "termsOfServiceApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "termsOfServiceApi"
+      }
+    },
+    "ivsApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "ivsApi"
+      }
+    },
+    "publicEventMeetApi": {
+      "queries": {},
+      "mutations": {},
+      "provided": {},
+      "subscriptions": {},
+      "config": {
+        "online": true,
+        "focused": true,
+        "middlewareRegistered": true,
+        "refetchOnFocus": false,
+        "refetchOnReconnect": false,
+        "refetchOnMountOrArgChange": false,
+        "keepUnusedDataFor": 60,
+        "reducerPath": "publicEventMeetApi"
+      }
+    }
+  }
+}
