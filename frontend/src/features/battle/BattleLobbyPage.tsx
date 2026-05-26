@@ -277,7 +277,7 @@ export const BattleLobbyPage: React.FC = () => {
                   value={player1Name}
                   onChange={e => setPlayer1Name(e.target.value)}
                   maxLength={20}
-                  className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                  className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-gray-600 shadow-inner"
                   placeholder="Your display name"
                 />
               </div>
@@ -305,7 +305,7 @@ export const BattleLobbyPage: React.FC = () => {
                   value={player2Name}
                   onChange={e => setPlayer2Name(e.target.value)}
                   maxLength={20}
-                  className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-red-500/50 focus:ring-4 focus:ring-red-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                  className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-red-500/50 focus:ring-4 focus:ring-red-500/10 transition-all placeholder:text-gray-600 shadow-inner"
                   placeholder="Opponent display name"
                 />
               </div>
@@ -361,7 +361,7 @@ export const BattleLobbyPage: React.FC = () => {
                 value={timeLimit}
                 onChange={e => setTimeLimit(Number(e.target.value))}
                 onBlur={() => setTimeLimit(prev => Math.max(1, Math.min(240, Number(prev) || 15)))}
-                className="w-full bg-dark-bg/80 border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-amber-400 font-extrabold focus:outline-none focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-inner"
+                className="w-full bg-dark-input border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-amber-400 font-extrabold focus:outline-none focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-inner"
               />
               <span className="absolute right-2.5 text-[9px] uppercase text-gray-500 font-bold select-none">
                 min
@@ -423,7 +423,7 @@ export const BattleLobbyPage: React.FC = () => {
               type="text"
               readOnly
               value={inviteUrl}
-              className="flex-1 bg-dark-bg/80 border border-dark-border rounded-xl px-3 py-2 text-xs text-gray-300 font-mono focus:outline-none shadow-inner"
+              className="flex-1 bg-dark-input border border-dark-border rounded-xl px-3 py-2 text-xs text-gray-300 font-mono focus:outline-none shadow-inner"
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
             <button
@@ -570,7 +570,7 @@ export const BattleLobbyPage: React.FC = () => {
                     type="text"
                     value={customProblem.title}
                     onChange={e => setCustomProblem(p => ({ ...p, title: e.target.value }))}
-                    className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                    className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all placeholder:text-gray-600 shadow-inner"
                     placeholder="e.g. Reverse Array In Place"
                   />
                 </div>
@@ -582,7 +582,7 @@ export const BattleLobbyPage: React.FC = () => {
                     value={customProblem.description}
                     onChange={e => setCustomProblem(p => ({ ...p, description: e.target.value }))}
                     rows={4}
-                    className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all placeholder:text-gray-600 resize-none shadow-inner"
+                    className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10 transition-all placeholder:text-gray-600 resize-none shadow-inner"
                     placeholder="Given an array of integers, return the array reversed. Example: Input [1,2,3] -> Output [3,2,1]..."
                   />
                 </div>
@@ -653,7 +653,7 @@ export const BattleLobbyPage: React.FC = () => {
                       value={customProblem.pythonTemplate}
                       onChange={e => setCustomProblem(p => ({ ...p, pythonTemplate: e.target.value }))}
                       rows={5}
-                      className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
+                      className="w-full bg-dark-input border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
                     />
                   </div>
                   {/* JS */}
@@ -663,7 +663,7 @@ export const BattleLobbyPage: React.FC = () => {
                       value={customProblem.jsTemplate}
                       onChange={e => setCustomProblem(p => ({ ...p, jsTemplate: e.target.value }))}
                       rows={5}
-                      className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
+                      className="w-full bg-dark-input border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
                     />
                   </div>
                   {/* C++ */}
@@ -673,7 +673,7 @@ export const BattleLobbyPage: React.FC = () => {
                       value={customProblem.cppTemplate}
                       onChange={e => setCustomProblem(p => ({ ...p, cppTemplate: e.target.value }))}
                       rows={5}
-                      className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
+                      className="w-full bg-dark-input border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
                     />
                   </div>
                   {/* Java */}
@@ -683,7 +683,7 @@ export const BattleLobbyPage: React.FC = () => {
                       value={customProblem.javaTemplate}
                       onChange={e => setCustomProblem(p => ({ ...p, javaTemplate: e.target.value }))}
                       rows={5}
-                      className="w-full bg-dark-bg/60 border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
+                      className="w-full bg-dark-input border border-dark-border rounded-xl px-2.5 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-emerald-500/50 transition-all resize-none shadow-inner"
                     />
                   </div>
                 </div>

@@ -91,6 +91,11 @@ html.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
 
   pre, code, kbd, samp { @apply font-mono; }
 
+  input, textarea, select {
+    background-color: var(--color-input);
+    color: var(--color-text);
+  }
+
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,
