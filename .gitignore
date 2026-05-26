@@ -30,3 +30,5 @@ Thumbs.db
 *.db
 backend/storage/
 backend/tmp/
+
+auto_push.ps1
