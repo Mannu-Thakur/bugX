@@ -4,7 +4,13 @@ from redis.exceptions import RedisError
 
 class RateLimitService:
     def __init__(self, redis_url: str) -> None:
-        self.redis = Redis.from_url(redis_url, decode_responses=True)
+        self.redis = Redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=0.2,
+            socket_timeout=0.2,
+            retry_on_timeout=False,
+        )
 
     async def close(self) -> None:
         await self.redis.aclose()

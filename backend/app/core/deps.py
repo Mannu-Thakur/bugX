@@ -73,32 +73,22 @@ async def get_optional_user(
         return None
 
     token = auth_header.split(" ")[1]
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
 
     try:
         payload = decode_token(token)
         user_id_str: str = payload.get("sub")
         if user_id_str is None:
-            raise credentials_exception
+            return None
         try:
             user_id = uuid.UUID(user_id_str)
         except ValueError:
-            raise credentials_exception
+            return None
     except JWTError:
-        raise credentials_exception
+        return None
 
     user_repo = UserRepo(db)
     user = await user_repo.get_by_id(user_id)
-    if user is None:
-        raise credentials_exception
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user"
-        )
+    if user is None or not user.is_active:
+        return None
 
     return user

@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
-import { User, Link } from 'lucide-react';
+import { Code2, ImagePlus, Link, Terminal, Upload, User } from 'lucide-react';
 import { useAuth } from '../useAuth';
 import { Modal } from '../../../shared/ui/modal/Modal';
 import { Input } from '../../../shared/ui/input/Input';
@@ -12,19 +12,63 @@ interface EditProfileModalProps {
 }
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, uploadAvatar } = useAuth();
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [errors, setErrors] = useState<{ username?: string; avatarUrl?: string }>({});
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
+  const [avatarUrlDirty, setAvatarUrlDirty] = useState(false);
+  const [leetcodeUrl, setLeetcodeUrl] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [portfolioUrl, setPortfolioUrl] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       setUsername(user.username || '');
       setAvatarUrl(user.avatarUrl || '');
+      setAvatarFile(null);
+      setAvatarPreviewUrl('');
+      setAvatarUrlDirty(false);
+      setLeetcodeUrl(user.leetcodeUrl || '');
+      setGithubUrl(user.githubUrl || '');
+      setLinkedinUrl(user.linkedinUrl || '');
+      setPortfolioUrl(user.portfolioUrl || '');
       setErrors({});
     }
   }, [user, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
+    };
+  }, [avatarPreviewUrl]);
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrors(prev => ({ ...prev, avatarUrl: 'Please upload an image file.' }));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, avatarUrl: 'Image must be under 5 MB.' }));
+      return;
+    }
+
+    if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
+    setAvatarFile(file);
+    setAvatarPreviewUrl(URL.createObjectURL(file));
+    setErrors(prev => {
+      const next = { ...prev };
+      delete next.avatarUrl;
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,9 +85,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       newErrors.username = 'Username must contain only alphanumeric characters, dashes, and underscores.';
     }
 
-    // Validate avatar url (max 512)
-    if (avatarUrl && avatarUrl.length > 512) {
-      newErrors.avatarUrl = 'Avatar URL cannot exceed 512 characters.';
+    if (avatarUrlDirty && avatarUrl && avatarUrl.length > 2048) {
+      newErrors.avatarUrl = 'Profile image URL is too long.';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -55,9 +98,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     setLoading(true);
 
     try {
+      if (avatarFile) {
+        await uploadAvatar(avatarFile);
+      }
+
       await updateProfile({
         username,
-        avatarUrl: avatarUrl || null,
+        ...(avatarUrlDirty && !avatarFile ? { avatarUrl: avatarUrl || null } : {}),
+        leetcodeUrl: leetcodeUrl || null,
+        githubUrl: githubUrl || null,
+        linkedinUrl: linkedinUrl || null,
+        portfolioUrl: portfolioUrl || null,
       });
       onClose();
     } catch {
@@ -71,20 +122,50 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Edit Profile Settings"
-      size="sm"
+      title="Edit Profile"
+      size="lg"
       footer={
         <div className="flex gap-2 w-full justify-end">
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={loading}>
+          <Button type="submit" form="edit-profile-form" loading={loading}>
             Save Changes
           </Button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-5">
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-full bg-blue-600/10 border border-blue-500/20 overflow-hidden flex items-center justify-center shrink-0">
+            {avatarPreviewUrl || avatarUrl ? (
+              <img
+                src={avatarPreviewUrl || avatarUrl}
+                alt="Profile preview"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <ImagePlus className="w-7 h-7 text-blue-400" />
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-dark-bg border border-dark-border hover:bg-dark-hover text-gray-300 text-xs font-bold cursor-pointer transition-colors">
+              <Upload className="w-3.5 h-3.5" />
+              Upload Profile Image
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+            <p className="text-[11px] text-gray-500">JPG, PNG, WebP, or GIF up to 5 MB. It will be stored on the backend.</p>
+            {avatarFile && (
+              <p className="text-[11px] text-blue-300 truncate">
+                Ready to upload: {avatarFile.name}
+              </p>
+            )}
+          </div>
+        </div>
+
         <Input
           label="Username"
           type="text"
@@ -96,28 +177,55 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         />
 
         <Input
-          label="Avatar Image URL (Optional)"
+          label="Profile Image URL"
           type="text"
           value={avatarUrl}
-          onChange={(e) => setAvatarUrl(e.target.value)}
+          onChange={(e) => {
+            if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
+            setAvatarPreviewUrl('');
+            setAvatarFile(null);
+            setAvatarUrlDirty(true);
+            setAvatarUrl(e.target.value);
+          }}
           error={errors.avatarUrl}
           icon={<Link className="w-4 h-4" />}
           placeholder="https://example.com/avatar.png"
         />
 
-        {avatarUrl && !errors.avatarUrl && (
-          <div className="flex items-center gap-3 p-3 bg-dark-bg/40 border border-dark-border/60 rounded-md">
-            <span className="text-xs text-gray-500 font-medium">Avatar Preview:</span>
-            <img
-              src={avatarUrl}
-              alt="Avatar Preview"
-              className="w-10 h-10 rounded-full object-cover border border-dark-border"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
-              }}
-            />
-          </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="LeetCode"
+            type="url"
+            value={leetcodeUrl}
+            onChange={(e) => setLeetcodeUrl(e.target.value)}
+            icon={<Link className="w-4 h-4" />}
+            placeholder="https://leetcode.com/u/username"
+          />
+          <Input
+            label="GitHub"
+            type="url"
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
+            icon={<Terminal className="w-4 h-4" />}
+            placeholder="https://github.com/username"
+          />
+          <Input
+            label="LinkedIn"
+            type="url"
+            value={linkedinUrl}
+            onChange={(e) => setLinkedinUrl(e.target.value)}
+            icon={<Code2 className="w-4 h-4" />}
+            placeholder="https://linkedin.com/in/username"
+          />
+          <Input
+            label="Portfolio / Other"
+            type="url"
+            value={portfolioUrl}
+            onChange={(e) => setPortfolioUrl(e.target.value)}
+            icon={<Link className="w-4 h-4" />}
+            placeholder="https://your-site.com"
+          />
+        </div>
       </form>
     </Modal>
   );

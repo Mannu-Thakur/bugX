@@ -129,6 +129,7 @@ class ProblemListItem(BaseModel):
     acceptance_rate: Optional[float] = None
     tags: List[TagResponse] = []
     score_base: int
+    user_status: Optional[UserStatusEmbed] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,7 +17,9 @@ async def health(request: Request) -> dict[str, str]:
     redis_status = await _check_redis(request)
     judge0_status = await _check_judge0()
     
-    overall = "ok" if db_status == "ok" and redis_status == "ok" and judge0_status in ("ok", "skipped") else "degraded"
+    # "Backend Core" means the API can serve data. Redis/Judge0 are still
+    # reported separately because they affect submissions, not catalog access.
+    overall = "ok" if db_status == "ok" else "degraded"
 
     return {
         "status": overall,
@@ -42,7 +46,7 @@ async def _check_redis(request: Request) -> str:
         return "error"
 
     try:
-        await rate_limiter.ping()
+        await asyncio.wait_for(rate_limiter.ping(), timeout=0.5)
         return "ok"
     except Exception:
         return "error"
@@ -55,8 +59,8 @@ async def _check_judge0() -> str:
     
     client = Judge0Client(settings.JUDGE0_URL)
     try:
-        about = await client.get_about()
-        workers = await client.get_workers()
+        await asyncio.wait_for(client.get_about(), timeout=0.8)
+        workers = await asyncio.wait_for(client.get_workers(), timeout=0.8)
         available = workers[0].get("available", 0) if workers else 0
         if available >= 1:
             return "ok"

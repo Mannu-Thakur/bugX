@@ -8,9 +8,21 @@ class LeaderboardService:
     def __init__(self, redis: Redis):
         self.redis = redis
 
+    async def _cache_get(self, key: str):
+        try:
+            return await self.redis.get(key)
+        except Exception:
+            return None
+
+    async def _cache_setex(self, key: str, ttl: int, value: str):
+        try:
+            await self.redis.setex(key, ttl, value)
+        except Exception:
+            return None
+
     async def get_all_time_leaderboard(self, session: AsyncSession, limit: int = 50):
         # Check cache
-        cached = await self.redis.get("leaderboard:all")
+        cached = await self._cache_get("leaderboard:all")
         if cached:
             return json.loads(cached)
 
@@ -35,12 +47,12 @@ class LeaderboardService:
                 "rank": row.rank
             })
 
-        await self.redis.setex("leaderboard:all", 60, json.dumps(data))
+        await self._cache_setex("leaderboard:all", 60, json.dumps(data))
         return data
 
     async def get_weekly_leaderboard(self, session: AsyncSession, limit: int = 50):
         # Check cache
-        cached = await self.redis.get("leaderboard:week")
+        cached = await self._cache_get("leaderboard:week")
         if cached:
             return json.loads(cached)
 
@@ -77,5 +89,5 @@ class LeaderboardService:
                 "rank": row.rank
             })
 
-        await self.redis.setex("leaderboard:week", 60, json.dumps(data))
+        await self._cache_setex("leaderboard:week", 60, json.dumps(data))
         return data

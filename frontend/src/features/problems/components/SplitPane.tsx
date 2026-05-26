@@ -64,11 +64,11 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex w-full h-[calc(100vh-140px)] overflow-hidden rounded-lg border border-dark-border bg-dark-bg"
+      className="flex w-full h-[calc(100vh-115px)] overflow-hidden rounded-lg border border-dark-border bg-dark-bg"
     >
       {/* Left Pane */}
       <div
-        className="h-full overflow-y-auto"
+        className="h-full overflow-hidden"
         style={{ width: `${leftWidth}%` }}
       >
         {left}
@@ -85,7 +85,7 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
 
       {/* Right Pane */}
       <div
-        className="h-full overflow-y-auto flex-1"
+        className="h-full overflow-hidden flex-1"
         style={{ width: `${100 - leftWidth}%` }}
       >
         {right}

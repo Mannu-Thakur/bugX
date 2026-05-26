@@ -26,6 +26,34 @@ export const ProblemDetailPage: React.FC = () => {
   const [activeSubmission, setActiveSubmission] = useState<SubmissionResponse | null>(null);
   const [results, setResults] = useState<SubmissionResultResponse[] | null>(null);
 
+  // Timer States
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerIsActive, setTimerIsActive] = useState(false);
+
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval>;
+    if (timerIsActive) {
+      intervalId = setInterval(() => {
+        setTimerSeconds(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(intervalId);
+  }, [timerIsActive]);
+
+  const formatTimerTime = (totalSecs: number) => {
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    
+    const formattedMins = mins.toString().padStart(2, '0');
+    const formattedSecs = secs.toString().padStart(2, '0');
+    
+    if (hrs > 0) {
+      return `${hrs}:${formattedMins}:${formattedSecs}`;
+    }
+    return `${formattedMins}:${formattedSecs}`;
+  };
+
   // Responsive state
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
   const [mobileTab, setMobileTab] = useState<'description' | 'editor'>('description');
@@ -279,7 +307,7 @@ export const ProblemDetailPage: React.FC = () => {
   if (isError || !problem) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center space-y-4">
-        <span className="text-4xl">🔍</span>
+        <span className="text-4xl">404</span>
         <h2 className="text-2xl font-bold text-gray-200">Problem Not Found</h2>
         <p className="text-gray-500 text-sm max-w-md mx-auto">
           {error instanceof Error ? error.message : "The problem could not be found or has not been published yet."}
@@ -308,22 +336,58 @@ export const ProblemDetailPage: React.FC = () => {
             {problem.acceptance_rate ? problem.acceptance_rate.toFixed(1) : '0.0'}% Acceptance
           </span>
         </div>
-        <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight">
+        <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight break-words">
           {problem.title}
         </h1>
       </div>
 
       {/* Description Body */}
-      <div className="bg-dark-panel border border-dark-border rounded-xl p-5 shadow-sm space-y-4">
-        <h2 className="text-sm font-bold text-gray-200 border-b border-dark-border pb-2 select-none">Description</h2>
-        <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">
-          {problem.description}
+      <div className="bg-dark-panel border border-dark-border rounded-xl p-5 shadow-sm space-y-6 overflow-hidden">
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold text-gray-200 border-b border-dark-border pb-2 select-none flex items-center gap-2">
+            <span className="w-1.5 h-3 bg-blue-500 rounded-full" />
+            Description
+          </h2>
+          <div 
+            className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-sans problem-description-content break-words overflow-x-auto"
+            dangerouslySetInnerHTML={{ __html: problem.description }}
+          />
         </div>
+
+        {/* Dynamic Examples from Sample Test Cases if not already embedded in description */}
+        {!problem.description.toLowerCase().includes('example 1') && 
+         !problem.description.toLowerCase().includes('example:') && 
+         problem.sample_test_cases && 
+         problem.sample_test_cases.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-dark-border">
+            <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-wider select-none">Examples</h3>
+            <div className="space-y-3.5">
+              {problem.sample_test_cases.map((tc, index) => (
+                <div key={tc.id} className="bg-dark-bg/60 p-4 rounded-xl border border-dark-border/80 space-y-2.5 overflow-hidden">
+                  <div className="text-xs font-bold text-gray-400 select-none">Example {index + 1}</div>
+                  <div className="font-mono text-xs space-y-1.5 pl-3 border-l-2 border-blue-500 min-w-0">
+                    <div className="break-all whitespace-pre-wrap">
+                      <span className="text-gray-500 font-bold">Input: </span>
+                      <span className="text-gray-300">{tc.input}</span>
+                    </div>
+                    <div className="break-all whitespace-pre-wrap">
+                      <span className="text-gray-500 font-bold">Output: </span>
+                      <span className="text-gray-300">{tc.expected_output}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {problem.constraints && (
-          <div className="mt-4 pt-4 border-t border-dark-border">
-            <h3 className="text-xs font-bold text-gray-300 mb-2 select-none">Constraints</h3>
-            <div className="text-gray-400 text-xs font-mono bg-dark-bg p-3 rounded-lg border border-dark-border leading-normal">
+          <div className="pt-4 border-t border-dark-border">
+            <h3 className="text-xs font-bold text-gray-300 mb-2 select-none flex items-center gap-1.5">
+              <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+              Constraints
+            </h3>
+            <div className="text-gray-400 text-xs font-mono bg-dark-bg p-3 rounded-lg border border-dark-border leading-normal whitespace-pre-wrap break-words overflow-x-auto">
               {problem.constraints}
             </div>
           </div>
@@ -432,13 +496,53 @@ export const ProblemDetailPage: React.FC = () => {
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-      {/* Back button header */}
-      <div className="flex items-center justify-between select-none">
-        <Link to="/problems" className="inline-flex items-center text-xs text-gray-400 hover:text-gray-200 font-semibold transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Catalog
-        </Link>
+    <div className="w-full px-2 py-2 space-y-2">
+      {/* Back button header with sleek Coding Timer */}
+      <div className="flex items-center justify-between select-none flex-wrap gap-3">
+        <div className="flex items-center gap-4">
+          <Link to="/problems" className="inline-flex items-center text-xs text-gray-400 hover:text-gray-200 font-semibold transition-colors">
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+            Back to Catalog
+          </Link>
+          
+          {/* Coding Timer */}
+          <div className="flex items-center gap-2 bg-dark-panel border border-dark-border px-3 py-1 rounded-full shadow-inner select-none font-sans text-xs">
+            <div className="flex items-center gap-1 border-r border-dark-border/60 pr-2">
+              <span className={`relative flex h-1.5 w-1.5 ${timerIsActive ? 'animate-pulse' : ''}`}>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${timerIsActive ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${timerIsActive ? 'bg-emerald-500' : 'bg-gray-500'}`}></span>
+              </span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-gray-500">Stopwatch</span>
+            </div>
+            
+            <span className={`font-mono font-black tracking-widest text-xs ${timerIsActive ? 'text-emerald-400' : 'text-gray-400'}`}>
+              {formatTimerTime(timerSeconds)}
+            </span>
+            
+            <div className="flex items-center gap-1.5 pl-1.5 border-l border-dark-border/60 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setTimerIsActive(!timerIsActive)}
+                className="hover:text-emerald-400 font-black uppercase tracking-wider transition-colors cursor-pointer select-none px-1 py-0.5 rounded hover:bg-dark-hover"
+                title={timerIsActive ? 'Pause' : 'Start'}
+              >
+                {timerIsActive ? 'Pause' : 'Start'}
+              </button>
+              <span className="text-dark-border/60 font-sans">|</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimerIsActive(false);
+                  setTimerSeconds(0);
+                }}
+                className="hover:text-rose-400 font-black uppercase tracking-wider transition-colors cursor-pointer select-none px-1 py-0.5 rounded hover:bg-dark-hover"
+                title="Reset"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
         
         {/* Mobile Tab Control */}
         {!isLargeScreen && (
@@ -471,7 +575,7 @@ export const ProblemDetailPage: React.FC = () => {
           initialLeftWidthPercent={42}
         />
       ) : (
-        <div className="border border-dark-border rounded-lg bg-dark-panel overflow-hidden h-[calc(100vh-140px)]">
+        <div className="border border-dark-border rounded-lg bg-dark-panel overflow-hidden h-[calc(100vh-115px)]">
           {mobileTab === 'description' ? renderDescription() : renderEditorWorkspace()}
         </div>
       )}

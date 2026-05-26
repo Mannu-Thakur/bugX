@@ -121,3 +121,102 @@ html.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
 .animate-slide-in-right { animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-fade-in        { animation: fade-in         0.2s  cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-zoom-in        { animation: zoom-in          0.2s  cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* Style HTML inside problem descriptions */
+.problem-description-content {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+.problem-description-content p {
+  margin-bottom: 0.75rem;
+}
+.problem-description-content p:last-child {
+  margin-bottom: 0;
+}
+/* Inline code elements */
+.problem-description-content code {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #60a5fa; /* light blue */
+  word-break: break-all;
+}
+html.light .problem-description-content code {
+  color: #2563eb; /* blue-600 */
+  background-color: #f1f5f9;
+}
+/* Pre blocks (block code elements) */
+.problem-description-content pre {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+}
+.problem-description-content pre code {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+  display: block;
+  word-break: normal;
+  white-space: pre;
+}
+html.light .problem-description-content pre {
+  background-color: #f8fafc;
+}
+html.light .problem-description-content pre code {
+  color: #0f172a;
+}
+.problem-description-content strong {
+  font-weight: 700;
+  color: var(--color-text);
+}
+.problem-description-content ul {
+  list-style-type: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.problem-description-content ol {
+  list-style-type: decimal;
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.problem-description-content li {
+  margin-bottom: 0.25rem;
+}
+/* Tables inside description */
+.problem-description-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  display: block;
+}
+.problem-description-content th,
+.problem-description-content td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.problem-description-content th {
+  background-color: var(--color-input);
+  font-weight: 600;
+}
+/* Images inside description */
+.problem-description-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}

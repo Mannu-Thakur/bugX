@@ -1,0 +1,66 @@
+import pytest
+from app.services.code_wrapper_service import CodeWrapperService
+from app.models.problem_template import ArgStyleEnum
+
+def test_generate_cpp_template():
+    python_template = "def twoSum(nums: list[int], target: int) -> list[int]:\n    pass"
+    tpl = CodeWrapperService.generate_cpp_template("twoSum", python_template)
+    
+    assert "class Solution" in tpl
+    assert "vector<int> twoSum(vector<int>& nums, int target)" in tpl
+
+def test_generate_java_template():
+    python_template = "def twoSum(nums: list[int], target: int) -> list[int]:\n    pass"
+    tpl = CodeWrapperService.generate_java_template("twoSum", python_template)
+    
+    assert "class Solution" in tpl
+    assert "int[] twoSum(int[] nums, int target)" in tpl
+
+def test_wrap_python():
+    user_code = "class Solution:\n    def twoSum(self, nums, target):\n        return [0, 1]"
+    wrapped = CodeWrapperService.wrap_code("python", user_code, "twoSum", ArgStyleEnum.single)
+    
+    assert "sys.stdin.read()" in wrapped
+    assert "json.dumps" in wrapped
+    assert "twoSum(" in wrapped
+
+def test_wrap_javascript():
+    user_code = "class Solution {\n    twoSum(nums, target) {\n        return [0, 1];\n    }\n}"
+    wrapped = CodeWrapperService.wrap_code("javascript", user_code, "twoSum", ArgStyleEnum.single)
+    
+    assert "fs.readFileSync" in wrapped
+    assert "JSON.stringify" in wrapped
+    assert "twoSum(data)" in wrapped
+
+def test_wrap_cpp():
+    user_code = """
+class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        return {0, 1};
+    }
+};
+"""
+    python_template = "def twoSum(nums: list[int], target: int) -> list[int]:\n    pass"
+    wrapped = CodeWrapperService.wrap_code("cpp", user_code, "twoSum", ArgStyleEnum.single, python_template)
+    
+    assert "int main(" in wrapped
+    assert "Solution sol;" in wrapped
+    assert "sol.twoSum(" in wrapped
+    assert "parse_val(cin, nums)" in wrapped
+
+def test_wrap_java():
+    user_code = """
+class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        return new int[]{0, 1};
+    }
+}
+"""
+    python_template = "def twoSum(nums: list[int], target: int) -> list[int]:\n    pass"
+    wrapped = CodeWrapperService.wrap_code("java", user_code, "twoSum", ArgStyleEnum.single, python_template)
+    
+    assert "public static void main(" in wrapped
+    assert "Solution sol = new Solution();" in wrapped
+    assert "sol.twoSum(" in wrapped
+    assert "parser.parseIntArray()" in wrapped

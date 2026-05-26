@@ -35,6 +35,14 @@ class ProblemController:
             sort=sort
         )
         pages = (total + limit - 1) // limit if total > 0 else 0
+
+        # Populate user_status dynamically if user is logged in
+        for problem in items:
+            problem.user_status = None
+            if current_user:
+                res = await ProblemRepo.get_user_status(self.db, current_user.id, problem.id)
+                problem.user_status = UserStatusEmbed(solved=res["solved"], best_score=res["best_score"])
+
         return {
             "items": items,
             "total": total,
@@ -106,13 +114,43 @@ class ProblemController:
 
         # Create templates
         templates = []
+        provided_languages = set()
+        python_tpl_data = None
+        fn_name = None
+        arg_style_val = None
+
         for t in req.templates:
+            provided_languages.add(t.language)
             templates.append(ProblemTemplate(
                 language=t.language,
                 template_code=t.template_code,
                 function_name=t.function_name,
                 arg_style=ArgStyleEnum(t.arg_style)
             ))
+            if t.language == "python":
+                python_tpl_data = t.template_code
+                fn_name = t.function_name
+                arg_style_val = t.arg_style
+
+        # Auto-generate C++ and Java templates if not provided
+        if python_tpl_data and fn_name:
+            from app.services.code_wrapper_service import CodeWrapperService
+            if "cpp" not in provided_languages:
+                cpp_code = CodeWrapperService.generate_cpp_template(fn_name, python_tpl_data)
+                templates.append(ProblemTemplate(
+                    language="cpp",
+                    template_code=cpp_code,
+                    function_name=fn_name,
+                    arg_style=ArgStyleEnum(arg_style_val)
+                ))
+            if "java" not in provided_languages:
+                java_code = CodeWrapperService.generate_java_template(fn_name, python_tpl_data)
+                templates.append(ProblemTemplate(
+                    language="java",
+                    template_code=java_code,
+                    function_name=fn_name,
+                    arg_style=ArgStyleEnum(arg_style_val)
+                ))
 
         # Create test cases
         test_cases = []

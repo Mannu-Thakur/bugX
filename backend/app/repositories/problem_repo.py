@@ -2,7 +2,7 @@
 import uuid
 from typing import List, Optional
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,11 +55,26 @@ class ProblemRepo:
         count_stmt = select(func.count()).select_from(base.subquery())
         total = (await session.execute(count_stmt)).scalar() or 0
 
-        # Sort
-        if sort == "acceptance":
-            base = base.order_by(Problem.acceptance_rate.desc().nulls_last(), Problem.title.asc())
-        else:
-            base = base.order_by(Problem.title.asc())
+        difficulty_rank = case(
+            (Problem.difficulty == "EASY", 1),
+            (Problem.difficulty == "MEDIUM", 2),
+            (Problem.difficulty == "HARD", 3),
+            else_=4,
+        )
+
+        sort_orders = {
+            "newest": (Problem.created_at.desc(), Problem.title.asc()),
+            "oldest": (Problem.created_at.asc(), Problem.title.asc()),
+            "title": (Problem.title.asc(),),
+            "title_asc": (Problem.title.asc(),),
+            "title_desc": (Problem.title.desc(),),
+            "difficulty_asc": (difficulty_rank.asc(), Problem.title.asc()),
+            "difficulty_desc": (difficulty_rank.desc(), Problem.title.asc()),
+            "acceptance": (Problem.acceptance_rate.desc().nulls_last(), Problem.title.asc()),
+            "acceptance_desc": (Problem.acceptance_rate.desc().nulls_last(), Problem.title.asc()),
+            "acceptance_asc": (Problem.acceptance_rate.asc().nulls_last(), Problem.title.asc()),
+        }
+        base = base.order_by(*sort_orders.get(sort, sort_orders["newest"]))
 
         base = base.offset((page - 1) * limit).limit(limit)
         rows = list((await session.execute(base)).scalars().unique().all())

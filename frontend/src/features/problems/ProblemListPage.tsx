@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RotateCcw, WifiOff } from 'lucide-react';
+import { Search, RotateCcw, WifiOff, Check } from 'lucide-react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
@@ -30,25 +30,26 @@ export const ProblemListPage: React.FC = () => {
     e.preventDefault();
     const slugOrUrl = importInput.trim();
     if (!slugOrUrl) {
-      toast.error("Please enter a LeetCode URL or slug.");
+      toast.error("Please enter a Google coding question or keyword.");
       return;
     }
 
     setImporting(true);
-    setImportStep("Connecting to LeetCode GraphQL...");
+    setImportStep("Searching Google interview question bank...");
 
     try {
       await new Promise(r => setTimeout(r, 600));
-      setImportStep("Parsing problem schema & starter templates...");
+      setImportStep("Resolving question mapping & templates...");
       await new Promise(r => setTimeout(r, 600));
       setImportStep("Synthesizing test cases & validating workspace...");
 
-      const problem = await api.problems.import(slugOrUrl);
+      const payload = `google:${slugOrUrl}`;
+      const problem = await api.problems.import(payload);
 
       setImportStep("Success! Synchronizing workspace...");
       await new Promise(r => setTimeout(r, 450));
 
-      toast.success(`Successfully imported "${problem.title}"! Redirecting...`);
+      toast.success(`Successfully imported "${problem.title}" from Google Bank! Redirecting...`);
       queryClient.invalidateQueries({ queryKey: ['problems'] });
       navigate(`/problems/${problem.slug}`);
     } catch (err: any) {
@@ -165,12 +166,19 @@ export const ProblemListPage: React.FC = () => {
       header: 'Title',
       className: 'w-[40%]',
       render: (p) => (
-        <Link 
-          to={`/problems/${p.slug}`}
-          className="text-gray-200 hover:text-blue-400 font-semibold cursor-pointer transition-colors hover:underline flex items-center gap-2 group-hover:text-blue-400"
-        >
-          {p.title}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link 
+            to={`/problems/${p.slug}`}
+            className="text-gray-200 hover:text-blue-400 font-semibold cursor-pointer transition-colors hover:underline flex items-center gap-2 group-hover:text-blue-400"
+          >
+            {p.title}
+          </Link>
+          {p.user_status?.solved && (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-black tracking-wider uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded select-none shadow-sm animate-fade-in">
+              <Check className="w-2.5 h-2.5" /> Solved
+            </span>
+          )}
+        </div>
       )
     },
     {
@@ -211,7 +219,7 @@ export const ProblemListPage: React.FC = () => {
       className: 'w-[10%] text-right font-mono',
       render: (p) => (
         <span className="text-xs text-gray-400">
-          {p.acceptance_rate.toFixed(1)}%
+          {typeof p.acceptance_rate === 'number' ? p.acceptance_rate.toFixed(1) : '0.0'}%
         </span>
       )
     },
@@ -260,44 +268,50 @@ export const ProblemListPage: React.FC = () => {
         )}
       </div>
 
-      {/* Dynamic LeetCode Importer */}
-      <div className="bg-gradient-to-r from-blue-950/20 via-[#121218] to-purple-950/20 border border-dark-border p-5 rounded-xl shadow-lg relative overflow-hidden select-none">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Dynamic Google Problem Importer */}
+      <div className="bg-gradient-to-r from-emerald-950/30 via-[#0a0c10] to-[#0c1017] border border-emerald-500/20 p-5 rounded-xl shadow-xl relative overflow-hidden select-none">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
               <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              Dynamic LeetCode Importer
-            </h3>
-            <p className="text-xs text-gray-400 max-w-lg leading-relaxed">
-              Enter any LeetCode URL or title slug (e.g. <i>valid-parentheses</i>) to dynamically fetch problem details, templates, and test cases directly into your sandbox.
+              <h3 className="text-sm font-black text-gray-100 flex items-center gap-2 tracking-wide uppercase">
+                Google Question Importer
+              </h3>
+              <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                Interview Prep
+              </span>
+            </div>
+            
+            <p className="text-xs text-gray-400 max-w-xl leading-relaxed">
+              Search any <b>Google coding interview question</b> (e.g., <i>Fruit Into Baskets</i> or <i>Decompress String</i>). AlgoAxis will dynamically locate the problem, synthesize templates, load test cases, and ready your C++ sandbox environment!
             </p>
           </div>
           
           <form onSubmit={handleImport} className="flex-1 max-w-md w-full flex gap-2">
             <Input 
-              placeholder="https://leetcode.com/problems/..." 
+              placeholder="Search Google problem: e.g. Fruit Into Baskets" 
               value={importInput}
               onChange={(e) => setImportInput(e.target.value)}
               disabled={importing}
-              className="flex-1 bg-dark-bg/60 border-dark-border"
+              className="flex-1 !bg-gray-950 !text-gray-100 placeholder:!text-gray-500 !caret-emerald-400 border-dark-border focus:!border-emerald-500/50 focus:!ring-emerald-500/20"
             />
             <Button 
               type="submit" 
               disabled={importing || !importInput.trim()}
-              className="bg-blue-600 hover:bg-blue-500 text-white shrink-0 shadow-lg shadow-blue-500/10 active:scale-95 transition-all text-xs font-bold px-4 h-9 flex items-center justify-center gap-1.5"
+              className="shrink-0 shadow-lg active:scale-95 transition-all text-xs font-bold px-4 h-9 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/10 border-0"
             >
               {importing ? (
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <span className="text-base font-normal">⚡</span>
+                <Search className="w-3.5 h-3.5" />
               )}
-              {importing ? 'Importing...' : 'Import & Solve'}
+              {importing ? 'Searching...' : 'Search & Solve'}
             </Button>
           </form>
         </div>
@@ -305,8 +319,8 @@ export const ProblemListPage: React.FC = () => {
         {/* Step Loader Feedbacks */}
         {importing && (
           <div className="mt-4 pt-4 border-t border-dark-border/40 flex items-center justify-between text-xs animate-pulse">
-            <div className="flex items-center gap-2 text-blue-400 font-semibold">
-              <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 font-semibold text-emerald-400">
+              <div className="w-3.5 h-3.5 border border-t-transparent rounded-full animate-spin border-emerald-400" />
               {importStep}
             </div>
             <span className="text-gray-500 font-medium">Readying Monaco workspace...</span>
@@ -329,7 +343,7 @@ export const ProblemListPage: React.FC = () => {
         </div>
         
         {/* Difficulty */}
-        <div className="md:col-span-2.5">
+        <div className="md:col-span-2">
           <Select 
             options={[
               { value: 'ALL', label: 'All Difficulties' },
@@ -343,7 +357,7 @@ export const ProblemListPage: React.FC = () => {
         </div>
 
         {/* Tag */}
-        <div className="md:col-span-2.5">
+        <div className="md:col-span-3">
           <Select 
             options={tagOptions}
             value={tag}
@@ -387,7 +401,7 @@ export const ProblemListPage: React.FC = () => {
         <div className="bg-amber-950/20 border border-amber-500/20 text-amber-200 p-3 rounded-lg flex items-center gap-3 text-sm">
           <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
           <div>
-            <span className="font-semibold">Offline Mode</span> — Backend is unreachable. Showing sample demo data. Start PostgreSQL & Redis to see real problems.
+            <span className="font-semibold">Offline Mode</span> - Backend is unreachable. Showing sample demo data. Start the backend to see real problems.
           </div>
         </div>
       )}

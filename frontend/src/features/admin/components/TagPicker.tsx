@@ -126,7 +126,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ selectedTagIds, onChange }
 
         {/* Dropdown list */}
         {isDropdownOpen && (search || filteredTags.length > 0) && (
-          <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-dark-panel border border-dark-border rounded-md shadow-xl select-none scrollbar-thin">
+          <div className="absolute left-0 right-0 z-50 mt-1 max-h-44 sm:max-h-52 overflow-y-auto overscroll-contain bg-dark-panel border border-dark-border rounded-md shadow-xl select-none">
             {isLoading ? (
               <div className="px-3 py-2 text-xs text-gray-500">Loading tags...</div>
             ) : (
@@ -136,7 +136,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ selectedTagIds, onChange }
                     key={tag.id}
                     type="button"
                     onClick={() => handleSelect(tag.id)}
-                    className="w-full px-3 py-1.5 text-left text-xs text-gray-300 hover:bg-dark-hover hover:text-white transition-colors border-b border-dark-border/40 last:border-b-0"
+                    className="w-full px-3 py-1.5 text-left text-xs text-gray-300 hover:bg-dark-hover hover:text-white transition-colors border-b border-dark-border/40 last:border-b-0 truncate"
                   >
                     {tag.name}
                   </button>
@@ -150,7 +150,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ selectedTagIds, onChange }
                     className="w-full px-3 py-2 text-left text-xs text-amber-400 hover:bg-dark-hover hover:text-amber-300 font-medium transition-colors flex items-center gap-1.5 border-t border-dark-border/60"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Create new tag &ldquo;<span className="font-bold underline">{search.trim()}</span>&rdquo;</span>
+                    <span className="min-w-0 truncate">Create new tag &ldquo;<span className="font-bold underline">{search.trim()}</span>&rdquo;</span>
                   </button>
                 )}
               </>

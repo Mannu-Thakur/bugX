@@ -25,3 +25,8 @@ Thumbs.db
 
 # Docker / logs
 *.log
+
+# Databases & local user storage
+*.db
+backend/storage/
+backend/tmp/

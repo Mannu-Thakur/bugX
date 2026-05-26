@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 
 from app.core.config import get_settings
 from app.core.exceptions import (
@@ -16,6 +18,8 @@ from app.core.exceptions import (
 )
 from app.routers.health import router as health_router
 from app.services.rate_limit_service import RateLimitService
+from app.services.upload_service import storage_root
+import app.models
 
 
 def create_app() -> FastAPI:
@@ -25,20 +29,27 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.rate_limit_service = RateLimitService(settings.REDIS_URL)
         
-        # Auto-seed the database if empty on startup
+        # Auto-create tables and auto-seed the database if empty on startup
         try:
-            from app.core.database import AsyncSessionLocal
+            from app.core.database import Base, engine, AsyncSessionLocal
             from app.services.seeder_service import seed_problems
+            
+            # Dynamically create tables on SQLite/PostgreSQL
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                await _ensure_user_profile_columns(conn)
+                
+            # Seed base problems
             async with AsyncSessionLocal() as session:
                 await seed_problems(session)
         except Exception as e:
-            print(f"Startup database seeding error: {e}")
+            print(f"Startup database initialization error: {e}")
             
         yield
         await app.state.rate_limit_service.close()
 
     app = FastAPI(
-        title="XYZ Platform API",
+        title="AlgoAxis API",
         version="0.1.0",
         lifespan=lifespan,
     )
@@ -50,6 +61,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    public_uploads = storage_root() / "public"
+    public_uploads.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=public_uploads), name="uploads")
 
     app.add_exception_handler(AppException, app_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
@@ -81,6 +96,7 @@ def create_app() -> FastAPI:
     from app.routers.submissions import router as submissions_router
     from app.routers.leaderboard import router as leaderboard_router
     from app.routers.problems import router as problems_router
+    from app.routers.battle import router as battle_router
 
     app.include_router(
         health_router,
@@ -111,8 +127,30 @@ def create_app() -> FastAPI:
         prefix=f"{settings.API_V1_PREFIX}/leaderboard",
         tags=["leaderboard"],
     )
+    app.include_router(
+        battle_router,
+        prefix=f"{settings.API_V1_PREFIX}/battle",
+        tags=["battle"],
+    )
 
     return app
+
+
+async def _ensure_user_profile_columns(conn) -> None:
+    required_columns = {
+        "leetcode_url": "VARCHAR(512)",
+        "github_url": "VARCHAR(512)",
+        "linkedin_url": "VARCHAR(512)",
+        "portfolio_url": "VARCHAR(512)",
+    }
+
+    def existing_columns(sync_conn) -> set[str]:
+        return {column["name"] for column in inspect(sync_conn).get_columns("users")}
+
+    existing = await conn.run_sync(existing_columns)
+    for column_name, column_type in required_columns.items():
+        if column_name not in existing:
+            await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
 
 
 def _client_ip(request: Request) -> str:

@@ -143,17 +143,19 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
             {/* Selected case details */}
             {testCases[selectedCaseIdx] && (
               <div className="space-y-3 font-mono text-xs">
-                <div>
-                  <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Input</div>
-                  <pre className="bg-dark-bg border border-dark-border p-3 rounded-lg overflow-x-auto text-gray-300 max-h-32">
-                    {testCases[selectedCaseIdx].input}
-                  </pre>
-                </div>
-                <div>
-                  <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Expected Output</div>
-                  <pre className="bg-dark-bg border border-dark-border p-3 rounded-lg overflow-x-auto text-gray-300 max-h-32">
-                    {testCases[selectedCaseIdx].expected_output}
-                  </pre>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Input</div>
+                    <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                      {testCases[selectedCaseIdx].input}
+                    </pre>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Expected Output</div>
+                    <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                      {testCases[selectedCaseIdx].expected_output}
+                    </pre>
+                  </div>
                 </div>
 
                 {/* If run results are available for this specific test case */}

@@ -33,7 +33,7 @@ export const router = createBrowserRouter([
   {
     path: '/problems/:slug',
     element: (
-      <PageShell>
+      <PageShell fullWidth>
         <ProblemDetailPage />
       </PageShell>
     ),
@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
   {
     path: '/battle',
     element: (
-      <PageShell>
+      <PageShell fullWidth>
         <BattleLobbyPage />
       </PageShell>
     ),

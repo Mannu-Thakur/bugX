@@ -27,7 +27,10 @@ async def list_problems(
     difficulty: Optional[str] = Query(None, pattern="^(EASY|MEDIUM|HARD)$"),
     tag: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    sort: str = Query("title", pattern="^(title|acceptance)$"),
+    sort: str = Query(
+        "newest",
+        pattern="^(newest|oldest|title|title_asc|title_desc|difficulty_asc|difficulty_desc|acceptance|acceptance_asc|acceptance_desc)$",
+    ),
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
@@ -84,12 +87,20 @@ class ProblemImportRequest(BaseModel):
 @router.post("/import", response_model=ProblemDetail, status_code=status.HTTP_201_CREATED)
 async def import_problem(
     req: ProblemImportRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     from app.services.leetcode_importer import LeetCodeImporter
+    from app.services.google_importer import GoogleImporter
     try:
-        problem = await LeetCodeImporter.import_problem(db, req.url_or_slug)
+        url_or_slug = req.url_or_slug
+        if url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
+            if url_or_slug.startswith("google:"):
+                url_or_slug = url_or_slug[len("google:"):]
+            problem = await GoogleImporter.resolve_and_import(db, url_or_slug)
+        else:
+            problem = await LeetCodeImporter.import_problem(db, url_or_slug)
+            
         await db.commit()
         
         # Retrieve using controller to guarantee exact response format
@@ -97,6 +108,9 @@ async def import_problem(
         return await controller.get_problem(problem.slug, current_user)
     except Exception as e:
         await db.rollback()
+        import traceback
+        print(f"[ImportEndpoint] Failed to import problem: {e}")
+        traceback.print_exc()
         from fastapi import HTTPException
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

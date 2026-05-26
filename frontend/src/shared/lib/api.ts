@@ -3,7 +3,7 @@ import { ENV } from '../config/env';
 // Core Types
 export type Role = 'USER' | 'ADMIN';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
-export type Language = 'python' | 'javascript';
+export type Language = 'python' | 'javascript' | 'cpp' | 'java';
 
 export type SubmissionStatus =
   | 'PENDING'
@@ -30,8 +30,21 @@ export interface User {
   username: string;
   role: Role;
   avatarUrl: string | null;
+  leetcodeUrl: string | null;
+  githubUrl: string | null;
+  linkedinUrl: string | null;
+  portfolioUrl: string | null;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface StudyFileItem {
+  id: string;
+  subject: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
 }
 
 export interface UserStats {
@@ -75,11 +88,12 @@ export interface ProblemListItem {
   slug: string;
   title: string;
   difficulty: Difficulty;
-  acceptance_rate: number;
+  acceptance_rate: number | null;
   score_base: number;
   tags: Tag[];
   is_published: boolean;
   created_at: string;
+  user_status?: { solved: boolean; best_score: number | null } | null;
 }
 
 export interface ProblemDetail {
@@ -89,12 +103,12 @@ export interface ProblemDetail {
   difficulty: Difficulty;
   description: string;
   constraints: string | null;
-  acceptance_rate: number;
+  acceptance_rate: number | null;
   score_base: number;
   time_limit_ms: number;
   memory_limit_kb: number;
   tags: Tag[];
-  templates: { language: string; source_code: string }[];
+  templates: { language: string; source_code?: string; template_code?: string; function_name?: string; arg_style?: string }[];
   sample_test_cases: { id: string; input: string | null; expected_output: string | null; is_sample: boolean }[];
   is_published: boolean;
   created_at: string;
@@ -278,6 +292,15 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+const apiOrigin = ENV.API_URL.replace(/\/api\/v\d+\/?$/, '');
+
+const toAssetUrl = (value?: string | null): string | null => {
+  if (!value) return null;
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (value.startsWith('/')) return `${apiOrigin}${value}`;
+  return value;
+};
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { params, headers: customHeaders, ...rest } = options;
 
@@ -301,6 +324,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   const token = getToken();
+  const hadToken = Boolean(token);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -325,7 +349,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const error = await normalizeError(response);
     
     // Auto-logout on 401 Unauthorized unless we're actually calling login/register
-    if (response.status === 401 && !path.includes('/auth/')) {
+    if (response.status === 401 && hadToken && !path.includes('/auth/')) {
       clearToken();
       window.dispatchEvent(new Event('auth_session_expired'));
     }
@@ -350,32 +374,113 @@ interface RawLeaderboardEntry {
   weekly_solved?: number;
 }
 
+interface RawUser {
+  id: string;
+  email: string;
+  username: string;
+  role: Role;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
+  leetcode_url?: string | null;
+  leetcodeUrl?: string | null;
+  github_url?: string | null;
+  githubUrl?: string | null;
+  linkedin_url?: string | null;
+  linkedinUrl?: string | null;
+  portfolio_url?: string | null;
+  portfolioUrl?: string | null;
+  is_active?: boolean;
+  isActive?: boolean;
+  created_at?: string;
+  createdAt?: string;
+}
+
+const normalizeUser = (raw: RawUser): User => ({
+  id: raw.id,
+  email: raw.email,
+  username: raw.username,
+  role: raw.role,
+  avatarUrl: toAssetUrl(raw.avatarUrl ?? raw.avatar_url ?? null),
+  leetcodeUrl: raw.leetcodeUrl ?? raw.leetcode_url ?? null,
+  githubUrl: raw.githubUrl ?? raw.github_url ?? null,
+  linkedinUrl: raw.linkedinUrl ?? raw.linkedin_url ?? null,
+  portfolioUrl: raw.portfolioUrl ?? raw.portfolio_url ?? null,
+  isActive: raw.isActive ?? raw.is_active ?? true,
+  createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+});
+
+export interface UserUpdatePayload {
+  username?: string;
+  avatarUrl?: string | null;
+  leetcodeUrl?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
+  portfolioUrl?: string | null;
+}
+
+const toUserUpdatePayload = (body: UserUpdatePayload) => ({
+  ...(body.username !== undefined ? { username: body.username } : {}),
+  ...(body.avatarUrl !== undefined ? { avatar_url: body.avatarUrl } : {}),
+  ...(body.leetcodeUrl !== undefined ? { leetcode_url: body.leetcodeUrl } : {}),
+  ...(body.githubUrl !== undefined ? { github_url: body.githubUrl } : {}),
+  ...(body.linkedinUrl !== undefined ? { linkedin_url: body.linkedinUrl } : {}),
+  ...(body.portfolioUrl !== undefined ? { portfolio_url: body.portfolioUrl } : {}),
+});
+
+interface RawStudyFileItem {
+  id: string;
+  subject: string;
+  name: string;
+  type: string;
+  size: number;
+  uploaded_at?: string;
+  uploadedAt?: string;
+}
+
+const normalizeStudyFile = (raw: RawStudyFileItem): StudyFileItem => ({
+  id: raw.id,
+  subject: raw.subject,
+  name: raw.name,
+  type: raw.type,
+  size: raw.size,
+  uploadedAt: raw.uploadedAt ?? raw.uploaded_at ?? new Date().toISOString(),
+});
+
 export const api = {
   auth: {
     register: (body: Record<string, unknown>) => 
-      request<{ access_token: string; token_type: string; user: User }>('/auth/register', {
+      request<{ access_token: string; token_type: string; user: RawUser }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify(body),
-      }),
+      }).then(data => ({ ...data, user: normalizeUser(data.user) })),
 
     login: (body: Record<string, unknown>) => 
-      request<{ access_token: string; token_type: string; user: User }>('/auth/login', {
+      request<{ access_token: string; token_type: string; user: RawUser }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify(body),
-      }),
+      }).then(data => ({ ...data, user: normalizeUser(data.user) })),
   },
   
   users: {
     getMe: () => 
-      request<User>('/users/me', {
+      request<RawUser>('/users/me', {
         method: 'GET',
-      }),
+      }).then(normalizeUser),
 
-    updateMe: (body: { username?: string; avatarUrl?: string | null }) => 
-      request<User>('/users/me', {
+    updateMe: (body: UserUpdatePayload) => 
+      request<RawUser>('/users/me', {
         method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
+        body: JSON.stringify(toUserUpdatePayload(body)),
+      }).then(normalizeUser),
+
+    uploadAvatar: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return request<RawUser>('/users/me/avatar', {
+        method: 'POST',
+        body: form,
+      }).then(normalizeUser);
+    },
 
     getStats: () =>
       request<UserStats>('/users/me/stats', {
@@ -386,6 +491,50 @@ export const api = {
       request<Paginated<SubmissionSummary>>(`/users/me/submissions?page=${page}&limit=${limit}`, {
         method: 'GET',
       }),
+  },
+
+  files: {
+    list: (subject?: string) =>
+      request<RawStudyFileItem[]>('/users/me/files', {
+        method: 'GET',
+        params: { subject },
+      }).then((items) => items.map(normalizeStudyFile)),
+
+    upload: (subject: string, file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return request<RawStudyFileItem>('/users/me/files', {
+        method: 'POST',
+        params: { subject },
+        body: form,
+      }).then(normalizeStudyFile);
+    },
+
+    delete: (fileId: string) =>
+      request<void>(`/users/me/files/${fileId}`, {
+        method: 'DELETE',
+      }),
+
+    download: async (fileId: string): Promise<{ blob: Blob; filename: string }> => {
+      const response = await fetch(`${ENV.API_URL}/users/me/files/${fileId}/download`, {
+        headers: {
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        throw await normalizeError(response);
+      }
+
+      const disposition = response.headers.get('content-disposition') || '';
+      const filenameMatch = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+      const filename = filenameMatch ? decodeURIComponent(filenameMatch[1].replace(/"$/, '')) : 'download';
+
+      return {
+        blob: await response.blob(),
+        filename,
+      };
+    },
   },
 
   problems: {
@@ -468,5 +617,39 @@ export const api = {
           solved: period === 'week' ? (item.weekly_solved ?? 0) : (item.total_solved ?? 0),
         }))
       ),
+  },
+
+  battle: {
+    create: (body: {
+      player1_username: string;
+      player2_username: string;
+      time_limit: number;
+      problem_source: string;
+      selected_slug?: string | null;
+      custom_problem?: any;
+    }) =>
+      request<{ id: string }>('/battle/create', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    
+    get: (id: string, player?: number) =>
+      request<any>(`/battle/${id}`, {
+        method: 'GET',
+        params: { player },
+      }),
+      
+    update: (id: string, body: {
+      player: number;
+      score?: number;
+      solved?: boolean;
+      attempts?: number;
+      code?: string;
+      lang?: string;
+    }) =>
+      request<any>(`/battle/${id}/update`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
 };

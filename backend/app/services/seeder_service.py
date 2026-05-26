@@ -447,6 +447,8 @@ BASE_SEED_PROBLEMS = [
 ]
 
 async def seed_problems(session: AsyncSession) -> None:
+    from app.services.code_wrapper_service import CodeWrapperService
+
     # Check if problems already exist
     stmt = select(func.count(Problem.id))
     res = await session.execute(stmt)
@@ -478,6 +480,27 @@ async def seed_problems(session: AsyncSession) -> None:
                 function_name=t_data["function_name"],
                 arg_style=ArgStyleEnum(t_data["arg_style"])
             ))
+
+        # Dynamically generate C++ and Java templates from the Python template
+        py_tpl = next(t for t in p_data["templates"] if t["language"] == "python")
+        fn_name = py_tpl["function_name"]
+        arg_style = py_tpl["arg_style"]
+
+        cpp_code = CodeWrapperService.generate_cpp_template(fn_name, py_tpl["template_code"])
+        java_code = CodeWrapperService.generate_java_template(fn_name, py_tpl["template_code"])
+
+        templates_objs.append(ProblemTemplate(
+            language="cpp",
+            template_code=cpp_code,
+            function_name=fn_name,
+            arg_style=ArgStyleEnum(arg_style)
+        ))
+        templates_objs.append(ProblemTemplate(
+            language="java",
+            template_code=java_code,
+            function_name=fn_name,
+            arg_style=ArgStyleEnum(arg_style)
+        ))
             
         # Create test cases
         testcase_objs = []

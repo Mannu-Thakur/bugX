@@ -1,334 +1,369 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Settings, Sun, Moon, Globe, Save, CheckCircle2, StickyNote } from 'lucide-react';
-import { Input } from '../../shared/ui/input/Input';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Award, BookOpen, Clock, Download, FileText, History, StickyNote, Swords, Trash2, Trophy, Upload } from 'lucide-react';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
+import { api } from '../../shared/lib/api';
+import type { ApiError, StudyFileItem } from '../../shared/lib/api';
 
-const GithubIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-    <path d="M9 18c-4.51 2-5-2-7-2" />
-  </svg>
-);
-
-const LinkedinIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-    <rect width="4" height="12" x="2" y="9" />
-    <circle cx="4" cy="4" r="2" />
-  </svg>
-);
-
-const LeetcodeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    {...props}
-  >
-    <path d="M16.102 17.93l-2.69 2.607c-.466.451-1.211.451-1.677 0l-4.51-4.375a1.233 1.233 0 0 1 0-1.707l4.51-4.375c.466-.452 1.211-.452 1.677 0l2.69 2.607c.28.272.732.272 1.012 0l1.01-1.008a.734.734 0 0 0 0-1.026l-3.7-3.61c-1.396-1.353-3.666-1.353-5.062 0l-7.79 7.554c-1.397 1.354-1.397 3.553 0 4.907l7.79 7.553c1.396 1.354 3.666 1.354 5.062 0l3.7-3.609a.734.734 0 0 0 0-1.027l-1.01-1.008a.727.727 0 0 0-1.012 0z" />
-    <path d="M12.115 12.304l-2.69 2.607c-.466.452-1.211.452-1.677 0l-1.01-1.008a.734.734 0 0 1 0-1.026l2.69-2.608c.466-.452 1.211-.452 1.677 0l1.01 1.008c.28.272.28.714 0 .987z" />
-  </svg>
-);
-
-interface SocialLinks {
-  leetcode: string;
-  linkedin: string;
-  github: string;
-  portfolio: string;
+interface BattleHistoryItem {
+  id: string;
+  problemTitle?: string;
+  player1?: string;
+  player2?: string;
+  p1Score?: number;
+  p2Score?: number;
+  p1Solved?: boolean;
+  p2Solved?: boolean;
+  p1Attempts?: number;
+  p2Attempts?: number;
+  winner?: string;
+  timeLimitMinutes?: number;
+  timeUsedSeconds?: number;
+  endedByTimeout?: boolean;
+  endedAt?: string;
 }
 
-const DEFAULT_SOCIAL_LINKS: SocialLinks = {
-  leetcode: '',
-  linkedin: '',
-  github: '',
-  portfolio: '',
+type SubjectKey = 'dbms' | 'sql' | 'os' | 'cn' | 'oop' | 'dsa';
+
+type StudyFile = StudyFileItem;
+
+const SUBJECTS: { key: SubjectKey; label: string; hint: string }[] = [
+  { key: 'dbms', label: 'DBMS', hint: 'ER models, normalization, indexing' },
+  { key: 'sql', label: 'SQL', hint: 'Queries, joins, transactions' },
+  { key: 'os', label: 'OS', hint: 'Processes, memory, scheduling' },
+  { key: 'cn', label: 'CN', hint: 'TCP/IP, routing, protocols' },
+  { key: 'oop', label: 'OOP', hint: 'Design principles and patterns' },
+  { key: 'dsa', label: 'DSA', hint: 'Patterns, formulas, edge cases' },
+];
+
+const createEmptyStudyFiles = (): Record<SubjectKey, StudyFile[]> => ({
+  dbms: [],
+  sql: [],
+  os: [],
+  cn: [],
+  oop: [],
+  dsa: [],
+});
+
+const groupStudyFiles = (files: StudyFile[]): Record<SubjectKey, StudyFile[]> => {
+  const grouped = createEmptyStudyFiles();
+  files.forEach((file) => {
+    if (file.subject in grouped) {
+      grouped[file.subject as SubjectKey].push(file);
+    }
+  });
+  return grouped;
+};
+
+const formatDuration = (seconds = 0) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+};
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export const SettingsPage: React.FC = () => {
-  const { success } = useToast();
+  const { error, success } = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ─── Theme ───────────────────────────────────────────────
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark') return saved;
-    return 'dark';
-  });
-
-  const toggleTheme = () => {
-    setTheme(prev => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      const root = document.documentElement;
-      if (next === 'light') {
-        root.classList.add('light');
-        root.classList.remove('dark');
-      } else {
-        root.classList.add('dark');
-        root.classList.remove('light');
-      }
-      localStorage.setItem('theme', next);
-      return next;
-    });
-  };
-
-  // ─── Social Links ────────────────────────────────────────
-  const [socialLinks, setSocialLinks] = useState<SocialLinks>(() => {
+  const [activeSubject, setActiveSubject] = useState<SubjectKey>('dbms');
+  const [studyFiles, setStudyFiles] = useState<Record<SubjectKey, StudyFile[]>>(createEmptyStudyFiles);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [battleHistory, setBattleHistory] = useState<BattleHistoryItem[]>(() => {
     try {
-      const saved = localStorage.getItem('social_links');
-      if (saved) return { ...DEFAULT_SOCIAL_LINKS, ...JSON.parse(saved) };
-    } catch { /* ignore */ }
-    return DEFAULT_SOCIAL_LINKS;
+      const parsed = JSON.parse(localStorage.getItem('battle_history') || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   });
 
-  const handleSocialChange = (field: keyof SocialLinks, value: string) => {
-    setSocialLinks(prev => ({ ...prev, [field]: value }));
-  };
-
-  const saveSocialLinks = () => {
-    localStorage.setItem('social_links', JSON.stringify(socialLinks));
-    success('Social links saved successfully!');
-  };
-
-  // ─── Notes ───────────────────────────────────────────────
-  const [notes, setNotes] = useState<string>(() => {
-    return localStorage.getItem('user_notes') || '';
-  });
-  const [notesSaved, setNotesSaved] = useState(true);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const saveNotes = useCallback((value: string) => {
-    localStorage.setItem('user_notes', value);
-    setNotesSaved(true);
-  }, []);
-
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setNotes(value);
-    setNotesSaved(false);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => saveNotes(value), 500);
-  };
+  const loadStudyFiles = useCallback(async () => {
+    setFilesLoading(true);
+    try {
+      const files = await api.files.list();
+      setStudyFiles(groupStudyFiles(files));
+    } catch (err) {
+      const apiErr = err as ApiError;
+      error(apiErr.message || 'Failed to load saved files from the backend.');
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [error]);
 
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+    loadStudyFiles();
+  }, [loadStudyFiles]);
 
-  const MAX_NOTES_CHARS = 5000;
+  const battleStats = useMemo(() => {
+    const total = battleHistory.length;
+    const solved = battleHistory.reduce((sum, item) => sum + (item.p1Solved ? 1 : 0) + (item.p2Solved ? 1 : 0), 0);
+    const ties = battleHistory.filter(item => item.winner === 'Tie Match').length;
+    return { total, solved, ties };
+  }, [battleHistory]);
 
-  // ─── Render ──────────────────────────────────────────────
+  const clearBattleHistory = () => {
+    if (!window.confirm('Clear all local battle history?')) return;
+    localStorage.removeItem('battle_history');
+    setBattleHistory([]);
+    success('Battle history cleared.');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const uploadedFiles: StudyFile[] = [];
+    setUploading(true);
+
+    try {
+      for (const file of files) {
+        uploadedFiles.push(await api.files.upload(activeSubject, file));
+      }
+
+      setStudyFiles(prev => ({
+        ...prev,
+        [activeSubject]: [...uploadedFiles, ...(prev[activeSubject] || [])],
+      }));
+      success(`${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'} added to ${SUBJECTS.find(s => s.key === activeSubject)?.label}.`);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      error(apiErr.message || 'Upload failed. Please try a smaller file or confirm the backend is running.');
+      await loadStudyFiles();
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const removeStudyFile = async (fileId: string) => {
+    try {
+      await api.files.delete(fileId);
+      setStudyFiles(prev => ({
+        ...prev,
+        [activeSubject]: prev[activeSubject].filter(file => file.id !== fileId),
+      }));
+      success('Study file removed.');
+    } catch (err) {
+      const apiErr = err as ApiError;
+      error(apiErr.message || 'Failed to remove file.');
+    }
+  };
+
+  const downloadStudyFile = async (file: StudyFile) => {
+    setDownloadingId(file.id);
+    try {
+      const { blob, filename } = await api.files.download(file.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      error(apiErr.message || 'Failed to download file.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const activeFiles = studyFiles[activeSubject] || [];
+
   return (
-    <div className="animate-fade-in">
-      {/* Page Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-          <Settings className="w-5 h-5 text-blue-400" />
+    <div className="animate-fade-in space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+          <StickyNote className="w-5 h-5 text-blue-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Settings</h1>
-          <p className="text-sm text-gray-500">Manage your local preferences and profile links</p>
+          <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Vault</h1>
+          <p className="text-sm text-gray-500">Subject files and battle history</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* ─── Section 1: Appearance ──────────────────────── */}
-        <div className="bg-dark-panel border border-dark-border rounded-xl p-6 transition-all duration-200 hover:border-dark-border/80">
-          <div className="flex items-center gap-2.5 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              {theme === 'dark' ? (
-                <Moon className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Sun className="w-4 h-4 text-amber-400" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-100">Appearance</h2>
-              <p className="text-xs text-gray-500">Customize the look and feel</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between bg-dark-bg/60 border border-dark-border/60 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-dark-input border border-dark-border flex items-center justify-center">
-                {theme === 'dark' ? (
-                  <Moon className="w-4 h-4 text-blue-400" />
-                ) : (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-200">
-                  {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {theme === 'dark' ? 'Easy on the eyes' : 'Bright and clear'}
-                </p>
-              </div>
-            </div>
-
-            {/* Custom Toggle Switch */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={theme === 'light'}
-              aria-label="Toggle theme"
-              onClick={toggleTheme}
-              className={`
-                relative inline-flex h-7 w-[52px] shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                transition-colors duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg
-                ${theme === 'light' ? 'bg-blue-600' : 'bg-dark-border'}
-              `}
-            >
-              <span
-                className={`
-                  pointer-events-none inline-flex h-[24px] w-[24px] items-center justify-center rounded-full
-                  bg-white shadow-lg ring-0 transition-transform duration-300 ease-in-out
-                  ${theme === 'light' ? 'translate-x-[24px]' : 'translate-x-0'}
-                `}
-              >
-                {theme === 'dark' ? (
-                  <Moon className="w-3 h-3 text-gray-700" />
-                ) : (
-                  <Sun className="w-3 h-3 text-amber-500" />
-                )}
-              </span>
-            </button>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
-            <div className={`w-1.5 h-1.5 rounded-full ${theme === 'dark' ? 'bg-blue-500' : 'bg-amber-500'}`} />
-            Currently using <span className="font-medium text-gray-400">{theme === 'dark' ? 'Dark' : 'Light'}</span> theme
-          </div>
-        </div>
-
-        {/* ─── Section 3: Personal Notes ─────────────────── */}
-        <div className="bg-dark-panel border border-dark-border rounded-xl p-6 transition-all duration-200 hover:border-dark-border/80 lg:row-span-1">
-          <div className="flex items-center justify-between mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="xl:col-span-2 bg-dark-panel border border-dark-border rounded-lg p-5">
+          <div className="flex items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <StickyNote className="w-4 h-4 text-emerald-400" />
-              </div>
+              <History className="w-5 h-5 text-orange-400" />
               <div>
-                <h2 className="text-base font-semibold text-gray-100">Personal Notes</h2>
-                <p className="text-xs text-gray-500">Quick reminders and scratchpad</p>
+                <h2 className="text-base font-semibold text-gray-100">Battle History</h2>
+                <p className="text-xs text-gray-500">Last 50 local 1v1 matches</p>
               </div>
             </div>
-
-            {/* Saved Indicator */}
-            <div
-              className={`
-                flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-all duration-300
-                ${notesSaved
-                  ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/20'
-                  : 'text-amber-400 bg-amber-500/5 border-amber-500/20'
-                }
-              `}
-            >
-              {notesSaved ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3" />
-                  Saved
-                </>
-              ) : (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  Saving...
-                </>
-              )}
-            </div>
-          </div>
-
-          <textarea
-            value={notes}
-            onChange={handleNotesChange}
-            maxLength={MAX_NOTES_CHARS}
-            placeholder="Type your notes, reminders, or anything here..."
-            rows={7}
-            className="w-full bg-dark-input border border-dark-border text-sm text-gray-200 rounded-lg py-3 px-4 transition-colors placeholder-gray-600 focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/80 resize-none leading-relaxed"
-          />
-
-          <div className="flex items-center justify-between mt-2">
-            <p className="text-[11px] text-gray-600">Auto-saves after 500ms of inactivity</p>
-            <p className={`text-[11px] font-mono ${notes.length > MAX_NOTES_CHARS * 0.9 ? 'text-amber-400' : 'text-gray-500'}`}>
-              {notes.length.toLocaleString()} / {MAX_NOTES_CHARS.toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        {/* ─── Section 2: Social Links ───────────────────── */}
-        <div className="bg-dark-panel border border-dark-border rounded-xl p-6 transition-all duration-200 hover:border-dark-border/80 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Globe className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-gray-100">Social Links</h2>
-                <p className="text-xs text-gray-500">Add your coding profiles and website</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="LeetCode Profile"
-              placeholder="https://leetcode.com/u/your-username"
-              icon={<LeetcodeIcon className="w-4 h-4" />}
-              value={socialLinks.leetcode}
-              onChange={(e) => handleSocialChange('leetcode', e.target.value)}
-            />
-            <Input
-              label="LinkedIn Profile"
-              placeholder="https://linkedin.com/in/your-username"
-              icon={<LinkedinIcon className="w-4 h-4" />}
-              value={socialLinks.linkedin}
-              onChange={(e) => handleSocialChange('linkedin', e.target.value)}
-            />
-            <Input
-              label="GitHub Profile"
-              placeholder="https://github.com/your-username"
-              icon={<GithubIcon className="w-4 h-4" />}
-              value={socialLinks.github}
-              onChange={(e) => handleSocialChange('github', e.target.value)}
-            />
-            <Input
-              label="Portfolio / Website"
-              placeholder="https://your-website.com"
-              icon={<Globe className="w-4 h-4" />}
-              value={socialLinks.portfolio}
-              onChange={(e) => handleSocialChange('portfolio', e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-dark-border/60">
-            <p className="text-xs text-gray-500">Links are stored locally in your browser</p>
-            <Button onClick={saveSocialLinks} size="sm">
-              <Save className="w-3.5 h-3.5 mr-2" />
-              Save Links
+            <Button variant="outline" size="sm" onClick={clearBattleHistory} disabled={battleHistory.length === 0}>
+              Clear
             </Button>
           </div>
-        </div>
 
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
+              <Swords className="w-4 h-4 text-orange-400 mb-2" />
+              <div className="text-xl font-black text-gray-100">{battleStats.total}</div>
+              <div className="text-[11px] text-gray-500 uppercase font-bold">Battles</div>
+            </div>
+            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
+              <Award className="w-4 h-4 text-emerald-400 mb-2" />
+              <div className="text-xl font-black text-gray-100">{battleStats.solved}</div>
+              <div className="text-[11px] text-gray-500 uppercase font-bold">Solves</div>
+            </div>
+            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
+              <Trophy className="w-4 h-4 text-amber-400 mb-2" />
+              <div className="text-xl font-black text-gray-100">{battleStats.ties}</div>
+              <div className="text-[11px] text-gray-500 uppercase font-bold">Ties</div>
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+            {battleHistory.length === 0 ? (
+              <div className="border border-dashed border-dark-border rounded-lg p-8 text-center text-sm text-gray-500">
+                No battles recorded yet. Finish a 1v1 match and it will appear here.
+              </div>
+            ) : (
+              battleHistory.map(item => (
+                <div key={item.id} className="bg-dark-bg border border-dark-border rounded-lg p-4">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-gray-100">{item.problemTitle || 'Battle Match'}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {item.endedAt ? new Date(item.endedAt).toLocaleString() : 'Unknown time'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase text-gray-500 font-bold">Winner</div>
+                      <div className="text-sm text-amber-400 font-black">{item.winner || 'Pending'}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                    <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3">
+                      <div className="text-xs text-blue-400 font-bold">{item.player1 || 'Participant 1'}</div>
+                      <div className="text-lg font-mono font-black text-blue-200">{item.p1Score ?? 0} pts</div>
+                      <div className="text-[11px] text-gray-500">Attempts {item.p1Attempts ?? 0} - {item.p1Solved ? 'Solved' : 'Incomplete'}</div>
+                    </div>
+                    <div className="border border-rose-500/20 bg-rose-500/5 rounded-lg p-3">
+                      <div className="text-xs text-rose-400 font-bold">{item.player2 || 'Participant 2'}</div>
+                      <div className="text-lg font-mono font-black text-rose-200">{item.p2Score ?? 0} pts</div>
+                      <div className="text-[11px] text-gray-500">Attempts {item.p2Attempts ?? 0} - {item.p2Solved ? 'Solved' : 'Incomplete'}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDuration(item.timeUsedSeconds)}</span>
+                    <span>Limit {item.timeLimitMinutes ?? '-'} min</span>
+                    {item.endedByTimeout && <span className="text-amber-400">Timeout finish</span>}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="bg-dark-panel border border-dark-border rounded-lg p-5">
+          <div className="flex items-center gap-2.5 mb-5">
+            <BookOpen className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h2 className="text-base font-semibold text-gray-100">Subject File Vault</h2>
+              <p className="text-xs text-gray-500">Upload PDFs, images, docs, markdown, or text notes</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {SUBJECTS.map(subject => (
+              <button
+                key={subject.key}
+                type="button"
+                onClick={() => setActiveSubject(subject.key)}
+                className={`text-left border rounded-lg p-3 transition-colors ${
+                  activeSubject === subject.key
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : 'bg-dark-bg border-dark-border text-gray-300 hover:border-gray-600'
+                }`}
+              >
+                <div className="text-xs font-black">{subject.label}</div>
+                <div className="text-[10px] text-gray-500 mt-1 leading-snug">{subject.hint}</div>
+              </button>
+            ))}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full border border-dashed border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg p-5 flex flex-col items-center justify-center gap-2 text-center transition-colors"
+          >
+            <Upload className="w-6 h-6 text-emerald-400" />
+            <span className="text-sm font-bold text-gray-100">
+              {uploading ? 'Uploading...' : `Upload notes for ${SUBJECTS.find(s => s.key === activeSubject)?.label}`}
+            </span>
+            <span className="text-xs text-gray-500">Stored on the backend. Max file size: 25 MB.</span>
+          </button>
+
+          <div className="mt-4 space-y-2 max-h-[340px] overflow-y-auto pr-1">
+            {filesLoading ? (
+              <div className="border border-dark-border rounded-lg p-5 text-center text-sm text-gray-500">
+                Loading files...
+              </div>
+            ) : activeFiles.length === 0 ? (
+              <div className="border border-dark-border rounded-lg p-5 text-center text-sm text-gray-500">
+                No files uploaded for this subject yet.
+              </div>
+            ) : (
+              activeFiles.map(file => (
+                <div key={file.id} className="bg-dark-bg border border-dark-border rounded-lg p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-gray-200 truncate">{file.name}</div>
+                    <div className="text-[11px] text-gray-500">
+                      {formatFileSize(file.size)} - {new Date(file.uploadedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => downloadStudyFile(file)}
+                    disabled={downloadingId === file.id}
+                    className="p-2 rounded-lg border border-dark-border text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-colors"
+                    title="Download file"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeStudyFile(file.id)}
+                    className="p-2 rounded-lg border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    title="Remove file"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <p className="text-[11px] text-gray-600 mt-2">Files are saved through the backend and can be downloaded from this vault.</p>
+        </section>
       </div>
+
     </div>
   );
 };

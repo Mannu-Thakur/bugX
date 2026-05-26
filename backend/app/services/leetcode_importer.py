@@ -119,7 +119,13 @@ class LeetCodeImporter:
         res = await session.execute(exist_stmt)
         existing = res.scalar_one_or_none()
         if existing:
-            return existing
+            # Auto-purge/overwrite placeholder problems
+            if existing.description and "Google-style problem placeholder created while external problem lookup was unavailable" in existing.description:
+                print(f"[LeetCodeImporter] Purging stale placeholder problem '{slug}' to allow real import...")
+                await session.delete(existing)
+                await session.flush()
+            else:
+                return existing
 
         # Fetch LeetCode question data via GraphQL
         gql_url = "https://leetcode.com/graphql"
@@ -200,6 +206,8 @@ class LeetCodeImporter:
         
         py_snippet = next((s for s in snippets if s["langSlug"] == "python3"), None)
         js_snippet = next((s for s in snippets if s["langSlug"] == "javascript"), None)
+        cpp_snippet = next((s for s in snippets if s["langSlug"] == "cpp"), None)
+        java_snippet = next((s for s in snippets if s["langSlug"] == "java"), None)
 
         if not py_snippet and not js_snippet:
             # Create a simple default fallback
@@ -207,15 +215,19 @@ class LeetCodeImporter:
             js_snippet = {"code": "function solve() {\n    \n}"}
 
         # Python Template
+        func_name = "solve"
+        arg_style = "single"
+        python_clean_code = ""
+        
         if py_snippet:
             raw_code = py_snippet["code"]
             func_name = cls._parse_function_name(raw_code, "python")
             arg_style = cls._parse_arg_style(raw_code, "python", func_name)
-            clean_code = cls._clean_python_template(raw_code)
+            python_clean_code = cls._clean_python_template(raw_code)
             
             tpl = ProblemTemplate(
                 language="python",
-                template_code=clean_code,
+                template_code=python_clean_code,
                 function_name=func_name,
                 arg_style=ArgStyleEnum(arg_style)
             )
@@ -224,12 +236,56 @@ class LeetCodeImporter:
         # Javascript Template
         if js_snippet:
             raw_code = js_snippet["code"]
-            func_name = cls._parse_function_name(raw_code, "javascript")
-            arg_style = cls._parse_arg_style(raw_code, "javascript", func_name)
+            js_func_name = cls._parse_function_name(raw_code, "javascript")
+            js_arg_style = cls._parse_arg_style(raw_code, "javascript", js_func_name)
+            # If python didn't set them, JS does
+            if not py_snippet:
+                func_name = js_func_name
+                arg_style = js_arg_style
             
             tpl = ProblemTemplate(
                 language="javascript",
                 template_code=raw_code,
+                function_name=js_func_name,
+                arg_style=ArgStyleEnum(js_arg_style)
+            )
+            templates_list.append(tpl)
+
+        # C++ Template
+        if cpp_snippet:
+            tpl = ProblemTemplate(
+                language="cpp",
+                template_code=cpp_snippet["code"],
+                function_name=func_name,
+                arg_style=ArgStyleEnum(arg_style)
+            )
+            templates_list.append(tpl)
+        elif py_snippet:
+            from app.services.code_wrapper_service import CodeWrapperService
+            cpp_code = CodeWrapperService.generate_cpp_template(func_name, python_clean_code)
+            tpl = ProblemTemplate(
+                language="cpp",
+                template_code=cpp_code,
+                function_name=func_name,
+                arg_style=ArgStyleEnum(arg_style)
+            )
+            templates_list.append(tpl)
+
+        # Java Template
+        if java_snippet:
+            tpl = ProblemTemplate(
+                language="java",
+                template_code=java_snippet["code"],
+                function_name=func_name,
+                arg_style=ArgStyleEnum(arg_style)
+            )
+            templates_list.append(tpl)
+        elif py_snippet:
+            from app.services.code_wrapper_service import CodeWrapperService
+            java_code = CodeWrapperService.generate_java_template(func_name, python_clean_code)
+            tpl = ProblemTemplate(
+                language="java",
+                template_code=java_code,
                 function_name=func_name,
                 arg_style=ArgStyleEnum(arg_style)
             )

@@ -21,12 +21,15 @@ class Settings(BaseSettings):
     )
     REDIS_URL: str = "redis://localhost:6379/0"
     JUDGE0_URL: str = "http://localhost:2358"
-    CORS_ORIGINS: str = "http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     API_V1_PREFIX: str = "/api/v1"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     MAX_SUBMISSIONS_PER_MINUTE: int = 10
     MAX_REQUESTS_PER_MINUTE_IP: int = 100
     MAX_SOURCE_BYTES: int = 65536
+    MAX_AVATAR_BYTES: int = 5 * 1024 * 1024
+    MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
+    STORAGE_DIR: str = "storage"
     RECLAIM_ALL_RUNNING_ON_START: bool = False
 
     @property

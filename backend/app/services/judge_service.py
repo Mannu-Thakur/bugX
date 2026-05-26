@@ -42,6 +42,15 @@ class JudgeService:
             await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, "Template not found")
             return
 
+        # Get Python Template (for robust signature recovery fallback)
+        py_tpl_stmt = select(ProblemTemplate).where(
+            ProblemTemplate.problem_id == submission.problem_id,
+            ProblemTemplate.language == "python"
+        )
+        py_tpl_res = await session.execute(py_tpl_stmt)
+        py_template_obj = py_tpl_res.scalar_one_or_none()
+        python_template = py_template_obj.template_code if py_template_obj else None
+
         # Get Test Cases
         tc_stmt = select(TestCase).where(TestCase.problem_id == submission.problem_id).order_by(TestCase.order_index)
         if submission.run_samples_only:
@@ -78,7 +87,8 @@ class JudgeService:
                     submission.language, 
                     submission.source_code, 
                     template.function_name, 
-                    template.arg_style
+                    template.arg_style,
+                    python_template
                 )
             except Exception as e:
                 await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Wrapper error: {str(e)}")

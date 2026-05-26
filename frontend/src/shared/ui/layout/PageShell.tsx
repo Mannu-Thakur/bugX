@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut, User, Sun, Moon, Settings, Swords } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, Database, CheckCircle2, LogOut, User, Sun, Moon, BookOpen, Swords } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -8,7 +8,7 @@ import { UserMenu } from '../../../features/auth/ui/UserMenu';
 import { EditProfileModal } from '../../../features/auth/ui/EditProfileModal';
 import { ENV } from '../../config/env';
 
-export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolean }> = ({ children, fullWidth = false }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [healthStatus, setHealthStatus] = useState<'loading' | 'online' | 'degraded' | 'offline'>('loading');
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -38,7 +38,7 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Live health check check on backend
+  // Live health check on backend
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -58,6 +58,8 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
       }
     };
     checkHealth();
+    const intervalId = window.setInterval(checkHealth, 10000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const navLinks = [
@@ -65,7 +67,7 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
     { to: '/battle', label: '1v1 Battle', icon: <Swords className="w-4 h-4 text-orange-400" /> },
     { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
     ...(user ? [{ to: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> }] : []),
-    { to: '/settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
+    { to: '/settings', label: 'Vault', icon: <BookOpen className="w-4 h-4" /> },
   ];
 
   return (
@@ -78,11 +80,15 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
             {/* Logo */}
             <div className="flex items-center gap-6">
               <Link to="/problems" className="flex items-center gap-2 group">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-blue-500/10 group-hover:bg-blue-500 transition-colors duration-150">
-                  {"<>"}
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-blue-500/10 group-hover:scale-105 transition-transform duration-150 overflow-hidden border border-blue-500/20">
+                  <img
+                    src="https://www.svgrepo.com/show/249746/coding-code.svg"
+                    alt="AlgoAxis logo"
+                    className="w-7 h-7 object-contain"
+                  />
                 </div>
                 <span className="font-sans font-bold text-base tracking-wide text-gray-100 group-hover:text-white transition-colors duration-150">
-                  XYZ <span className="text-blue-500 font-normal">Platform</span>
+                  Algo<span className="text-blue-500 font-normal">Axis</span>
                 </span>
               </Link>
 
@@ -271,7 +277,10 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
       </header>
 
       {/* Main Page Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+      <main className={cn(
+        "flex-1 w-full flex flex-col mx-auto",
+        fullWidth ? "max-w-none p-0" : "max-w-7xl px-4 sm:px-6 lg:px-8 py-6"
+      )}>
         <div className="flex-1 w-full h-full">
           {children}
         </div>
@@ -282,7 +291,7 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
           
           <p className="text-[11px] text-gray-500 tracking-wide font-sans">
-            &copy; {new Date().getFullYear()} XYZ Platform. All rights reserved. Built with React, Vite & Tailwind CSS.
+            &copy; {new Date().getFullYear()} AlgoAxis. All rights reserved. Built with React, Vite & Tailwind CSS.
           </p>
 
           {/* Health Status Indicator */}
@@ -302,10 +311,10 @@ export const PageShell: React.FC<{ children: React.ReactNode }> = ({ children })
               </div>
             )}
             {healthStatus === 'degraded' && (
-              <div className="flex items-center gap-1.5 text-amber-400 text-xs" title="Database, Redis, or Judge0 is offline. Submissions will fail.">
+              <div className="flex items-center gap-1.5 text-amber-400 text-xs" title="Backend is reachable, but one or more dependencies need attention.">
                 <Database className="w-3 h-3 text-amber-500 animate-pulse" />
                 <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span className="text-[10px] uppercase font-bold tracking-wider font-semibold">degraded (offline DB)</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider font-semibold">degraded</span>
               </div>
             )}
             {healthStatus === 'offline' && (

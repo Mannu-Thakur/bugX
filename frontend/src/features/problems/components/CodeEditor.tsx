@@ -26,19 +26,23 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   isRunning,
   isSubmitting,
 }) => {
-  const [language, setLanguage] = useState<'python' | 'javascript'>('python');
+  const [language, setLanguage] = useState<'python' | 'javascript' | 'cpp' | 'java'>('cpp');
 
   // Find template for current language
-  const getStarterCode = (lang: 'python' | 'javascript') => {
+  const getStarterCode = (lang: 'python' | 'javascript' | 'cpp' | 'java') => {
     const found = templates.find(t => t.language === lang);
     const defaultCode = lang === 'python'
       ? '# Write your python code here\n'
-      : '// Write your javascript code here\n';
+      : lang === 'javascript'
+      ? '// Write your javascript code here\n'
+      : lang === 'cpp'
+      ? '// Write your C++ code here\n'
+      : '// Write your Java code here\n';
     if (found) return found.source_code || found.template_code || defaultCode;
     return defaultCode;
   };
 
-  const getSavedCode = (lang: 'python' | 'javascript') => {
+  const getSavedCode = (lang: 'python' | 'javascript' | 'cpp' | 'java') => {
     const draftKey = `draft_${problemSlug}_${lang}`;
     const savedDraft = localStorage.getItem(draftKey);
     return savedDraft !== null ? savedDraft : getStarterCode(lang);
@@ -73,8 +77,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   };
 
-  const getMonacoLanguage = (lang: 'python' | 'javascript') => {
-    return lang === 'python' ? 'python' : 'javascript';
+  const getMonacoLanguage = (lang: 'python' | 'javascript' | 'cpp' | 'java') => {
+    if (lang === 'python') return 'python';
+    if (lang === 'javascript') return 'javascript';
+    if (lang === 'cpp') return 'cpp';
+    return 'java';
   };
 
   return (
@@ -91,7 +98,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 : 'text-gray-400 hover:text-gray-200 border border-transparent'
             )}
           >
-            Python 3
+            Python
           </button>
           <button
             onClick={() => setLanguage('javascript')}
@@ -103,6 +110,28 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             )}
           >
             JavaScript
+          </button>
+          <button
+            onClick={() => setLanguage('cpp')}
+            className={cn(
+              'px-3 py-1 rounded-md text-xs font-bold transition-all',
+              language === 'cpp'
+                ? 'bg-dark-hover text-blue-400 shadow-sm border border-dark-border/40'
+                : 'text-gray-400 hover:text-gray-200 border border-transparent'
+            )}
+          >
+            C++
+          </button>
+          <button
+            onClick={() => setLanguage('java')}
+            className={cn(
+              'px-3 py-1 rounded-md text-xs font-bold transition-all',
+              language === 'java'
+                ? 'bg-dark-hover text-blue-400 shadow-sm border border-dark-border/40'
+                : 'text-gray-400 hover:text-gray-200 border border-transparent'
+            )}
+          >
+            Java
           </button>
         </div>
 
@@ -123,6 +152,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           language={getMonacoLanguage(language)}
           value={code}
           onChange={handleEditorChange}
+          onMount={(editor) => {
+            const domNode = editor.getDomNode();
+            if (domNode) {
+              domNode.addEventListener('copy', (e: any) => e.preventDefault());
+              domNode.addEventListener('paste', (e: any) => e.preventDefault());
+              domNode.addEventListener('cut', (e: any) => e.preventDefault());
+            }
+          }}
           theme="vs-dark"
           loading={
             <div className="absolute inset-0 flex items-center justify-center bg-dark-bg text-xs text-gray-500 font-medium">

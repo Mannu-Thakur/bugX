@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, String
+from sqlalchemy import Boolean, Column, DateTime, Enum, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -22,9 +22,14 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(RoleEnum), default=RoleEnum.USER, nullable=False)
-    avatar_url = Column(String(512), nullable=True)
+    avatar_url = Column(Text, nullable=True)
+    leetcode_url = Column(String(512), nullable=True)
+    github_url = Column(String(512), nullable=True)
+    linkedin_url = Column(String(512), nullable=True)
+    portfolio_url = Column(String(512), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     stats = relationship("UserStats", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    files = relationship("UserFile", back_populates="user", cascade="all, delete-orphan")

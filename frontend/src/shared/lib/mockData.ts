@@ -1,4 +1,4 @@
-import type { ProblemListItem, ProblemDetail, Tag, Paginated, LeaderboardEntry } from './api';
+import type { ProblemListItem, ProblemDetail, Tag, Paginated } from './api';
 
 export const MOCK_TAGS: Tag[] = [
   { id: 'tag-1', name: 'Arrays' },
@@ -26,6 +26,7 @@ export const MOCK_PROBLEMS: ProblemListItem[] = [
     tags: [MOCK_TAGS[0], MOCK_TAGS[1]],
     is_published: true,
     created_at: '2026-01-10T00:00:00Z',
+    user_status: { solved: true, best_score: 100 },
   },
   {
     id: 'prob-2',
@@ -37,6 +38,7 @@ export const MOCK_PROBLEMS: ProblemListItem[] = [
     tags: [MOCK_TAGS[4]],
     is_published: true,
     created_at: '2026-01-12T00:00:00Z',
+    user_status: { solved: true, best_score: 200 },
   },
   {
     id: 'prob-3',
@@ -190,17 +192,6 @@ export const MOCK_PAGINATED_PROBLEMS: Paginated<ProblemListItem> = {
   limit: 20,
   pages: 1,
 };
-
-export const MOCK_LEADERBOARD: LeaderboardEntry[] = [
-  { rank: 1, username: 'alice_dev',    score: 3400, solved: 12 },
-  { rank: 2, username: 'bob_codes',    score: 2900, solved: 10 },
-  { rank: 3, username: 'charlie_xyz',  score: 2400, solved: 8  },
-  { rank: 4, username: 'diana_algo',   score: 1800, solved: 6  },
-  { rank: 5, username: 'evan_123',     score: 1200, solved: 4  },
-  { rank: 6, username: 'frank_bits',   score:  900, solved: 3  },
-  { rank: 7, username: 'grace_loop',   score:  600, solved: 2  },
-  { rank: 8, username: 'henry_stack',  score:  300, solved: 1  },
-];
 
 // ─── Full Problem Details for offline fallback ───────────────────────────────
 
@@ -1141,3 +1132,109 @@ var maxSubArray = function(nums) {
     user_status: null,
   },
 };
+
+// ── Dynamic C++/Java Template Generator ──────────────────────────────────
+// Parses a Python function signature and auto-generates the equivalent
+// C++ or Java Solution class.  Works for ANY problem, not just the 15
+// seeded ones.
+// ─────────────────────────────────────────────────────────────────────────
+
+const PY_TO_CPP: Record<string, string> = {
+  'int': 'int', 'str': 'string', 'float': 'double', 'bool': 'bool',
+  'list[int]': 'vector<int>', 'List[int]': 'vector<int>',
+  'list[str]': 'vector<string>', 'List[str]': 'vector<string>',
+  'list[float]': 'vector<double>', 'List[float]': 'vector<double>',
+  'list[list[int]]': 'vector<vector<int>>', 'List[List[int]]': 'vector<vector<int>>',
+  'list[list[str]]': 'vector<vector<string>>', 'List[List[str]]': 'vector<vector<string>>',
+  'list': 'vector<int>', 'List': 'vector<int>',
+};
+
+const PY_TO_JAVA: Record<string, string> = {
+  'int': 'int', 'str': 'String', 'float': 'double', 'bool': 'boolean',
+  'list[int]': 'int[]', 'List[int]': 'int[]',
+  'list[str]': 'String[]', 'List[str]': 'String[]',
+  'list[float]': 'double[]', 'List[float]': 'double[]',
+  'list[list[int]]': 'List<List<Integer>>', 'List[List[int]]': 'List<List<Integer>>',
+  'list[list[str]]': 'List<List<String>>', 'List[List[str]]': 'List<List<String>>',
+  'list': 'int[]', 'List': 'int[]',
+};
+
+const CPP_DEFAULTS: Record<string, string> = {
+  'int': '0', 'double': '0.0', 'float': '0.0f', 'bool': 'false', 'string': '""',
+};
+const JAVA_DEFAULTS: Record<string, string> = {
+  'int': '0', 'double': '0.0', 'float': '0.0f', 'boolean': 'false', 'String': '""',
+};
+
+function parsePySig(pyCode: string): { params: [string, string][]; ret: string | null } {
+  const m = pyCode.match(/def\s+\w+\s*\(([^)]*)\)\s*(?:->\s*(.+?))?\s*:/);
+  if (!m) return { params: [], ret: null };
+  const rawParams = m[1].trim();
+  const ret = m[2]?.trim() ?? null;
+  const params: [string, string][] = [];
+  if (rawParams) {
+    for (const p of rawParams.split(',')) {
+      const t = p.trim();
+      if (t === 'self' || t === 'cls' || !t) continue;
+      if (t.includes(':')) {
+        const [name, type] = t.split(':').map(s => s.trim());
+        params.push([name, type]);
+      } else {
+        params.push([t, 'int']);
+      }
+    }
+  }
+  return { params, ret };
+}
+
+function generateCppTemplate(pyCode: string): string {
+  const fnMatch = pyCode.match(/def\s+(\w+)/);
+  if (!fnMatch) return '// Could not auto-generate template\nclass Solution {\npublic:\n    // Write your solution here\n};';
+  const fnName = fnMatch[1];
+  const { params, ret } = parsePySig(pyCode);
+  const cppRet = ret ? (PY_TO_CPP[ret] || 'int') : 'void';
+  const cppParams = params.map(([name, type]) => {
+    const ct = PY_TO_CPP[type] || 'int';
+    return ct.startsWith('vector') ? `${ct}& ${name}` : `${ct} ${name}`;
+  }).join(', ');
+  let retStmt = '';
+  if (cppRet === 'void') retStmt = '';
+  else if (CPP_DEFAULTS[cppRet]) retStmt = `\n        return ${CPP_DEFAULTS[cppRet]};`;
+  else retStmt = '\n        return {};';
+  return `class Solution {\npublic:\n    ${cppRet} ${fnName}(${cppParams}) {\n        // Write your solution here${retStmt}\n    }\n};`;
+}
+
+function generateJavaTemplate(pyCode: string): string {
+  const fnMatch = pyCode.match(/def\s+(\w+)/);
+  if (!fnMatch) return '// Could not auto-generate template\nclass Solution {\n    // Write your solution here\n}';
+  const fnName = fnMatch[1];
+  const { params, ret } = parsePySig(pyCode);
+  const javaRet = ret ? (PY_TO_JAVA[ret] || 'int') : 'void';
+  const javaParams = params.map(([name, type]) => {
+    const jt = PY_TO_JAVA[type] || 'int';
+    return `${jt} ${name}`;
+  }).join(', ');
+  let retStmt = '';
+  if (javaRet === 'void') retStmt = '';
+  else if (JAVA_DEFAULTS[javaRet]) retStmt = `\n        return ${JAVA_DEFAULTS[javaRet]};`;
+  else if (javaRet.endsWith('[]')) retStmt = `\n        return new ${javaRet.slice(0, -2)}[0];`;
+  else if (javaRet.startsWith('List')) retStmt = '\n        return new ArrayList<>();';
+  else retStmt = '\n        return null;';
+  return `class Solution {\n    public ${javaRet} ${fnName}(${javaParams}) {\n        // Write your solution here${retStmt}\n    }\n}`;
+}
+
+// Inject C++ and Java templates for ALL mock problems dynamically
+Object.keys(MOCK_PROBLEM_DETAILS).forEach(slug => {
+  const prob = MOCK_PROBLEM_DETAILS[slug];
+  const pyTpl = prob.templates.find((t: any) => t.language === 'python');
+  if (!pyTpl) return;
+  const pyCode: string = pyTpl.source_code || pyTpl.template_code || '';
+  // Add C++ template if not already present
+  if (!prob.templates.some((t: any) => t.language === 'cpp')) {
+    prob.templates.push({ language: 'cpp', source_code: generateCppTemplate(pyCode) });
+  }
+  // Add Java template if not already present
+  if (!prob.templates.some((t: any) => t.language === 'java')) {
+    prob.templates.push({ language: 'java', source_code: generateJavaTemplate(pyCode) });
+  }
+});

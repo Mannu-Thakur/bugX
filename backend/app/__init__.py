@@ -1,1 +1,1 @@
-"""XYZ Platform backend package."""
+"""AlgoAxis backend package."""

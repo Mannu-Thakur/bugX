@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.schemas.user import UserProfile, UserUpdate
+from app.schemas.user import UserFileResponse, UserProfile, UserUpdate
+from app.services.upload_service import UploadedFilePayload
 from app.services.user_service import UserService
 
 
@@ -13,6 +14,22 @@ class UserController:
     async def update_me(self, current_user: User, req: UserUpdate) -> UserProfile:
         updated_user = await self.user_service.update_me(current_user, req)
         return UserProfile.model_validate(updated_user)
+
+    async def upload_avatar(self, current_user: User, upload: UploadedFilePayload) -> UserProfile:
+        updated_user = await self.user_service.save_avatar(current_user, upload)
+        return UserProfile.model_validate(updated_user)
+
+    async def list_my_files(self, current_user: User, subject: str | None = None) -> list[UserFileResponse]:
+        return await self.user_service.list_files(current_user, subject)
+
+    async def upload_my_file(self, current_user: User, subject: str, upload: UploadedFilePayload) -> UserFileResponse:
+        return await self.user_service.save_file(current_user, subject, upload)
+
+    async def delete_my_file(self, current_user: User, file_id):
+        await self.user_service.delete_file(current_user, file_id)
+
+    async def download_my_file(self, current_user: User, file_id):
+        return await self.user_service.download_file(current_user, file_id)
 
     async def get_my_stats(self, current_user: User) -> dict:
         from app.repositories.user_stats_repo import UserStatsRepo

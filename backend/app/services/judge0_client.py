@@ -4,7 +4,10 @@ from typing import Dict, Any, Optional
 class Judge0Client:
     LANGUAGE_MAP = {
         "python": 71,
-        "javascript": 63
+        "javascript": 63,
+        "cpp": 54,
+        "c++": 54,
+        "java": 62
     }
 
     def __init__(self, base_url: str):
