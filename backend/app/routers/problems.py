@@ -61,6 +61,20 @@ async def create_tag(
     controller = ProblemController(db)
     return await controller.create_tag(name)
 
+@router.get("/random", response_model=ProblemDetail)
+async def get_random_problem(
+    difficulty: Optional[str] = Query(None, pattern="^(EASY|MEDIUM|HARD)$"),
+    tag: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    controller = ProblemController(db)
+    return await controller.get_random_problem(
+        current_user=current_user,
+        difficulty=difficulty,
+        tag=tag
+    )
+
 @router.get("/{slug}", response_model=ProblemDetail)
 async def get_problem(
     slug: str = Path(..., min_length=1, max_length=100),
@@ -69,6 +83,7 @@ async def get_problem(
 ) -> Any:
     controller = ProblemController(db)
     return await controller.get_problem(slug, current_user)
+
 
 @router.get("/{slug}/submissions/best", response_model=BestSubmissionResponse)
 async def get_best_submission(

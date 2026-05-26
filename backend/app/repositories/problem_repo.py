@@ -108,6 +108,38 @@ class ProblemRepo:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
+    @staticmethod
+    async def get_random_problem(
+        session: AsyncSession,
+        *,
+        difficulty: Optional[str] = None,
+        tag: Optional[str] = None,
+    ) -> Optional[Problem]:
+        base = (
+            select(Problem)
+            .where(Problem.is_published == True)  # noqa: E712
+            .options(
+                selectinload(Problem.tags),
+                selectinload(Problem.templates),
+                selectinload(Problem.test_cases),
+            )
+        )
+
+        if difficulty:
+            base = base.where(Problem.difficulty == difficulty)
+
+        if tag:
+            # Exact case-sensitive tag name match per spec
+            tag_subq = select(problem_tags.c.problem_id).join(
+                Tag, Tag.id == problem_tags.c.tag_id
+            ).where(Tag.name == tag)
+            base = base.where(Problem.id.in_(tag_subq))
+
+        stmt = base.order_by(func.random()).limit(1)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
+
+
     # ── Admin create / update ─────────────────────────────────────────────────
 
     @staticmethod

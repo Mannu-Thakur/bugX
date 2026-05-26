@@ -549,6 +549,12 @@ export const api = {
         method: 'GET',
       }),
 
+    random: (params?: { difficulty?: string; tag?: string }) =>
+      request<ProblemDetail>('/problems/random', {
+        method: 'GET',
+        params: params as Record<string, string | number | boolean | undefined>,
+      }),
+
     getBestSubmission: (slug: string) =>
       request<BestSubmissionResponse>(`/problems/${slug}/submissions/best`, {
         method: 'GET',

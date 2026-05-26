@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RotateCcw, WifiOff, Check } from 'lucide-react';
+import { Search, RotateCcw, WifiOff, Check, Shuffle } from 'lucide-react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
@@ -25,6 +25,7 @@ export const ProblemListPage: React.FC = () => {
   const [importInput, setImportInput] = useState('');
   const [importing, setImporting] = useState(false);
   const [importStep, setImportStep] = useState('');
+  const [shuffling, setShuffling] = useState(false);
 
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +117,36 @@ export const ProblemListPage: React.FC = () => {
     setSearchInput('');
     setSearchParams(new URLSearchParams());
     toast.info("All filters reset successfully.");
+  };
+
+  const handleRandomProblem = async () => {
+    setShuffling(true);
+    try {
+      const filters: { difficulty?: string; tag?: string } = {};
+      if (difficulty !== 'ALL') filters.difficulty = difficulty;
+      if (tag !== 'ALL') filters.tag = tag;
+
+      const problem = await api.problems.random(filters);
+      toast.success(`Fetched random problem: ${problem.title}`);
+      navigate(`/problems/${problem.slug}`);
+    } catch (err: any) {
+      // Offline fallback: select randomly from MOCK_PROBLEMS filtering by active filters
+      const filteredMocks = MOCK_PROBLEMS.filter(p => {
+        if (difficulty !== 'ALL' && p.difficulty !== difficulty) return false;
+        if (tag !== 'ALL' && !p.tags.some(t => t.name === tag)) return false;
+        return true;
+      });
+
+      if (filteredMocks.length > 0) {
+        const randomMock = filteredMocks[Math.floor(Math.random() * filteredMocks.length)];
+        toast.info(`Picked random problem: ${randomMock.title} (offline mode)`);
+        navigate(`/problems/${randomMock.slug}`);
+      } else {
+        toast.error("No problems found matching active filters.");
+      }
+    } finally {
+      setShuffling(false);
+    }
   };
 
   // Queries
@@ -332,7 +363,7 @@ export const ProblemListPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-dark-panel p-4 rounded-lg border border-dark-border select-none">
         
         {/* Search */}
-        <div className="md:col-span-4">
+        <div className="md:col-span-3">
           <Input 
             placeholder="Search title, slug..." 
             value={searchInput}
@@ -381,6 +412,19 @@ export const ProblemListPage: React.FC = () => {
             value={sort}
             onChange={(e) => updateFilter('sort', e.target.value)}
           />
+        </div>
+
+        {/* Shuffle / Random */}
+        <div className="md:col-span-1 flex items-end">
+          <Button 
+            variant="outline" 
+            onClick={handleRandomProblem}
+            loading={shuffling}
+            className="w-full h-9 flex items-center justify-center shrink-0 border-dark-border hover:bg-dark-hover text-blue-400 hover:text-blue-300"
+            title="Shuffle (Pick Random)"
+          >
+            {!shuffling && <Shuffle className="w-4 h-4" />}
+          </Button>
         </div>
 
         {/* Reset */}

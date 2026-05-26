@@ -89,6 +89,51 @@ class ProblemController:
             "user_status": user_status
         }
 
+    async def get_random_problem(
+        self,
+        current_user: Optional[User],
+        difficulty: Optional[str],
+        tag: Optional[str],
+    ) -> dict:
+        problem = await ProblemRepo.get_random_problem(
+            self.db,
+            difficulty=difficulty,
+            tag=tag
+        )
+        if not problem:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No problems found matching criteria"
+            )
+
+        # Get user status if logged in
+        user_status = None
+        if current_user:
+            res = await ProblemRepo.get_user_status(self.db, current_user.id, problem.id)
+            user_status = UserStatusEmbed(solved=res["solved"], best_score=res["best_score"])
+
+        # Filter sample test cases for public view
+        sample_test_cases = [tc for tc in problem.test_cases if tc.is_sample]
+
+        return {
+            "id": problem.id,
+            "slug": problem.slug,
+            "title": problem.title,
+            "description": problem.description,
+            "difficulty": problem.difficulty.value,
+            "time_limit_ms": problem.time_limit_ms,
+            "memory_limit_kb": problem.memory_limit_kb,
+            "score_base": problem.score_base,
+            "runtime_bonus_max": problem.runtime_bonus_max,
+            "expected_complexity": problem.expected_complexity,
+            "acceptance_rate": problem.acceptance_rate,
+            "tags": problem.tags,
+            "templates": problem.templates,
+            "sample_test_cases": sample_test_cases,
+            "user_status": user_status
+        }
+
+
     async def get_best_submission(self, slug: str, current_user: User) -> dict:
         problem = await ProblemRepo.get_by_slug(self.db, slug)
         if not problem:
