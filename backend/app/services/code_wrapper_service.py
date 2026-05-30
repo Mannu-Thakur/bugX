@@ -213,14 +213,33 @@ class CodeWrapperService:
     # ══════════════════════════════════════════════════════════════════
 
     @staticmethod
+    def _detect_python_class(source_code, function_name):
+        """Detect if function_name is a method inside a class (e.g. class Solution)."""
+        class_match = re.search(r'class\s+(\w+)\s*[:(]', source_code)
+        if class_match:
+            class_name = class_match.group(1)
+            # Check if function_name is a method of this class (has self param)
+            method_pattern = r'def\s+' + re.escape(function_name) + r'\s*\(\s*self\b'
+            if re.search(method_pattern, source_code):
+                return class_name
+        return None
+
+    @staticmethod
     def _wrap_python(source_code, function_name, arg_style):
+        # Detect class-based solutions (e.g. class Solution: def threeSum(self, nums):)
+        class_name = CodeWrapperService._detect_python_class(source_code, function_name)
+        if class_name:
+            call_prefix = f"{class_name}().{function_name}"
+        else:
+            call_prefix = function_name
+
         if arg_style == ArgStyleEnum.kwargs:
             return f"""
 import json, sys
 {source_code}
 if __name__ == "__main__":
     data = json.loads(sys.stdin.read())
-    result = {function_name}(**data)
+    result = {call_prefix}(**data)
     print(json.dumps(result))
 """
         elif arg_style == ArgStyleEnum.single:
@@ -229,7 +248,7 @@ import json, sys
 {source_code}
 if __name__ == "__main__":
     data = json.loads(sys.stdin.read())
-    result = {function_name}(data)
+    result = {call_prefix}(data)
     print(json.dumps(result))
 """
         elif arg_style == ArgStyleEnum.positional:
@@ -238,14 +257,33 @@ import json, sys
 {source_code}
 if __name__ == "__main__":
     args = json.loads(sys.stdin.read())
-    result = {function_name}(*args)
+    result = {call_prefix}(*args)
     print(json.dumps(result))
 """
         else:
             raise ValueError(f"Unknown arg_style {arg_style} for python")
 
     @staticmethod
+    def _detect_js_class(source_code, function_name):
+        """Detect if function_name is a method inside a JS/TS class."""
+        class_match = re.search(r'class\s+(\w+)\s*\{', source_code)
+        if class_match:
+            class_name = class_match.group(1)
+            # Check if function_name appears as a method (no 'function' keyword, inside class body)
+            method_pattern = r'\b' + re.escape(function_name) + r'\s*\('
+            if re.search(method_pattern, source_code):
+                return class_name
+        return None
+
+    @staticmethod
     def _wrap_javascript(source_code, function_name, arg_style):
+        # Detect class-based solutions
+        class_name = CodeWrapperService._detect_js_class(source_code, function_name)
+        if class_name:
+            call_prefix = f"new {class_name}().{function_name}"
+        else:
+            call_prefix = function_name
+
         if arg_style == ArgStyleEnum.kwargs:
             raise ValueError("JavaScript does not support kwargs arg_style")
         elif arg_style == ArgStyleEnum.single:
@@ -253,7 +291,7 @@ if __name__ == "__main__":
 {source_code}
 const fs = require('fs');
 const data = JSON.parse(fs.readFileSync(0, 'utf8'));
-const result = {function_name}(data);
+const result = {call_prefix}(data);
 console.log(JSON.stringify(result));
 """
         elif arg_style == ArgStyleEnum.positional:
@@ -261,7 +299,7 @@ console.log(JSON.stringify(result));
 {source_code}
 const fs = require('fs');
 const args = JSON.parse(fs.readFileSync(0, 'utf8'));
-const result = {function_name}(...args);
+const result = {call_prefix}(...args);
 console.log(JSON.stringify(result));
 """
         else:

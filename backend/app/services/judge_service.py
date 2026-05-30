@@ -126,7 +126,7 @@ class JudgeService:
             stdout = judge_res.get("stdout") or ""
 
             if status_id == 3: # Accepted by Judge0 (ran successfully)
-                is_passed = OutputCompareService.compare(tc.expected_output, stdout)
+                is_passed = OutputCompareService.compare(tc.expected_output, stdout, problem.slug)
                 if not is_passed:
                     has_comparison_failure = True
             elif status_id == 5:
@@ -142,10 +142,11 @@ class JudgeService:
                 tc_status = SubmissionStatus.RUNTIME_ERROR
 
             if tc_status and not terminal_status:
-                # Priority: Compile > Runtime > TLE > MLE > WA
-                # We just take the first error for terminal status in v1 (since we don't early exit, but worst outcome wins)
-                # Actually, worst outcome priority: Compile (6) > Runtime > TLE > MLE.
+                # Priority: Compile (6) > Runtime > TLE > MLE.
                 terminal_status = tc_status
+                # Save the first error's stderr as the submission error_message
+                if stderr.strip():
+                    submission.error_message = stderr.strip()[:4000]
 
             if is_passed:
                 submission.passed_count += 1

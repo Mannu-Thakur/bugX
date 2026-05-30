@@ -212,3 +212,93 @@ async def test_random_problem(client: AsyncClient, db: AsyncSession):
     assert rand_hard.status_code == 200
     assert rand_hard.json()["slug"] == "hard-prob"
 
+
+@pytest.mark.asyncio
+async def test_get_last_submission(client: AsyncClient, db: AsyncSession):
+    # 1. Register a user
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "subtest@example.com", "username": "subtestuser", "password": "Password123"}
+    )
+    assert resp.status_code in (200, 201)
+    token = resp.json()["access_token"]
+
+    # 2. Get user object to retrieve user.id
+    from sqlalchemy import select
+    stmt = select(User).where(User.username == "subtestuser")
+    res = await db.execute(stmt)
+    user = res.scalar_one()
+
+    # 3. Create a problem
+    from app.models.problem import Problem
+    import uuid
+    problem_id = uuid.uuid4()
+    problem = Problem(
+        id=problem_id,
+        slug="test-last-sub-prob",
+        title="Test Last Sub Prob",
+        description="Calculate something.",
+        difficulty="EASY",
+        time_limit_ms=2000,
+        memory_limit_kb=262144,
+        score_base=100,
+        is_published=True
+    )
+    db.add(problem)
+    await db.commit()
+
+    # 4. Attempt to fetch last submission (should return 404 since none exists yet)
+    get_resp = await client.get(
+        "/api/v1/problems/test-last-sub-prob/submissions/last",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert get_resp.status_code == 404
+    assert get_resp.json()["detail"] == "No submissions found"
+
+    # 5. Insert a submission directly using DB session
+    from app.models.submission import Submission, SubmissionStatus
+    submission = Submission(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        problem_id=problem.id,
+        language="python",
+        source_code="print('hello')",
+        status=SubmissionStatus.ACCEPTED,
+        passed_count=2,
+        total_count=2,
+        score=100,
+        run_samples_only=False
+    )
+    db.add(submission)
+    await db.commit()
+
+    # 6. Fetch last submission again (should return the submission we just added)
+    get_resp = await client.get(
+        "/api/v1/problems/test-last-sub-prob/submissions/last",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data["language"] == "python"
+    assert data["source_code"] == "print('hello')"
+    assert data["status"].lower() == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_leetcode_importer_resolve_slug():
+    from app.services.leetcode_importer import LeetCodeImporter
+    
+    slug1 = await LeetCodeImporter.resolve_slug("google:3161. Block Placement Queries")
+    assert slug1 == "block-placement-queries"
+    
+    slug2 = await LeetCodeImporter.resolve_slug("3161")
+    assert slug2 == "block-placement-queries"
+    
+    slug3 = await LeetCodeImporter.resolve_slug("https://leetcode.com/problems/block-placement-queries/")
+    assert slug3 == "block-placement-queries"
+    
+    slug4 = await LeetCodeImporter.resolve_slug("3sum")
+    assert slug4 == "3sum"
+
+
+

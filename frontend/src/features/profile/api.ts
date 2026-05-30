@@ -14,6 +14,7 @@ export interface UserStats {
   current_streak: number;
   best_streak: number;
   last_active_date: string | null;
+  submission_activity?: Record<string, number> | null;
 }
 
 export interface SubmissionSummary {

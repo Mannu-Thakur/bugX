@@ -11,6 +11,7 @@ from app.schemas.problem import (
     ProblemDetail,
     PaginatedProblems,
     BestSubmissionResponse,
+    LastSubmissionResponse,
     ProblemCreate,
     ProblemUpdate,
     TagResponse
@@ -94,6 +95,16 @@ async def get_best_submission(
     controller = ProblemController(db)
     return await controller.get_best_submission(slug, current_user)
 
+
+@router.get("/{slug}/submissions/last", response_model=LastSubmissionResponse)
+async def get_last_submission(
+    slug: str = Path(..., min_length=1, max_length=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    controller = ProblemController(db)
+    return await controller.get_last_submission(slug, current_user)
+
 from pydantic import BaseModel
 
 class ProblemImportRequest(BaseModel):
@@ -109,7 +120,12 @@ async def import_problem(
     from app.services.google_importer import GoogleImporter
     try:
         url_or_slug = req.url_or_slug
-        if url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
+        if url_or_slug.startswith("gfg:") or "geeksforgeeks" in url_or_slug.lower() or "gfg" in url_or_slug.lower():
+            from app.services.gfg_importer import GFGImporter
+            if url_or_slug.startswith("gfg:"):
+                url_or_slug = url_or_slug[len("gfg:"):]
+            problem = await GFGImporter.import_problem(db, url_or_slug)
+        elif url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
             if url_or_slug.startswith("google:"):
                 url_or_slug = url_or_slug[len("google:"):]
             problem = await GoogleImporter.resolve_and_import(db, url_or_slug)

@@ -96,7 +96,9 @@ class ScoringService:
             await StatsService.update_acceptance_rate(session, submission.problem_id)
 
         # After DB transaction committed, clear leaderboard cache
-        try:
-            await self.redis.delete("leaderboard:all", "leaderboard:week")
-        except Exception as e:
-            logger.error(f"Redis cache invalidation failed: {e}")
+        if self.redis is not None:
+            try:
+                await self.redis.delete("leaderboard:all", "leaderboard:week")
+            except Exception as e:
+                logger.error(f"Redis cache invalidation failed: {e}")
+

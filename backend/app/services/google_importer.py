@@ -119,10 +119,20 @@ class GoogleImporter:
     def _normalize_query(url_or_slug: str) -> str:
         query = url_or_slug.strip()
 
+        # Handle google prefix and google.com URLs
         if "google.com" in query.lower() or "google" in query.lower():
+            query = re.sub(r"^google:", "", query, flags=re.IGNORECASE)
             query = re.sub(r"^https?://(www\.)?", "", query, flags=re.IGNORECASE)
             query = re.sub(r"^google\.com/(search\?q=|problems/)?", "", query, flags=re.IGNORECASE)
             query = re.sub(r"\bgoogle\b", "", query, flags=re.IGNORECASE)
+
+        # Strip any leading colon or symbols left over (e.g. from google: prefix)
+        query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
+
+        # Strip leading question numbers (e.g. "3161. ", "3161: ", "3161 ")
+        # We do not strip if followed by a dash (e.g. "1-bit") to preserve hyphenated terms.
+        query = re.sub(r"^\d+[\s\.:]+", "", query)
+        query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
 
         query = query.replace("+", " ").replace("/", " ").replace("-", " ")
         query = re.sub(r"\s+", " ", query).strip()
@@ -143,6 +153,15 @@ class GoogleImporter:
             data = resp.json()
             pairs = data.get("stat_status_pairs", [])
             
+            # 0. Try matching by frontend_question_id if search_term is digits only
+            is_id = search_term.isdigit()
+            if is_id:
+                for pair in pairs:
+                    stat = pair.get("stat", {})
+                    if str(stat.get("frontend_question_id")) == search_term:
+                        print(f"[GoogleImporter] ID match found: {stat.get('question__title_slug')}")
+                        return stat.get("question__title_slug")
+
             # 1. Try exact match on title_slug
             search_slug = re.sub(r"\s+", "-", search_term.lower()).strip()
             for pair in pairs:

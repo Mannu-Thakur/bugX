@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle2, XCircle, AlertTriangle, Terminal, Code, Cpu } from 'lucide-react';
 import { cn } from '../../../shared/lib/cn';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../../shared/lib/api';
@@ -26,12 +26,34 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
   const [activeTab, setActiveTab] = useState<'cases' | 'result'>('cases');
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
 
+  // Auto-switch to result tab when execution starts
+  useEffect(() => {
+    if (isPolling) {
+      setActiveTab('result');
+    }
+  }, [isPolling]);
+
+  // Build display cases: sample test cases + first failing hidden case (if any)
+  const firstFailingHidden = results?.find(r => r.is_first_failing_hidden && !r.passed);
+  const displayCases: { id: string; input: string | null; expected_output: string | null; is_sample: boolean; label: string }[] = [
+    ...testCases.map((tc, idx) => ({ ...tc, label: `Case ${idx + 1}` })),
+  ];
+  if (firstFailingHidden && !testCases.some(tc => tc.id === firstFailingHidden.test_case_id)) {
+    displayCases.push({
+      id: firstFailingHidden.test_case_id,
+      input: firstFailingHidden.test_case_input,
+      expected_output: firstFailingHidden.expected_output,
+      is_sample: false,
+      label: '❌ Failing Hidden Case',
+    });
+  }
+
   // Group results into sample and hidden
-  const sampleResults = results?.filter(r => 
+  const sampleResults = results?.filter(r =>
     testCases.some(tc => tc.id === r.test_case_id)
   ) || [];
 
-  const hiddenResults = results?.filter(r => 
+  const hiddenResults = results?.filter(r =>
     !testCases.some(tc => tc.id === r.test_case_id)
   ) || [];
 
@@ -111,9 +133,10 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
           <div className="space-y-4">
             {/* Case selector */}
             <div className="flex flex-wrap gap-2 select-none">
-              {testCases.map((tc, idx) => {
+              {displayCases.map((tc, idx) => {
                 // Check if this specific case passed
                 const matchResult = results?.find(r => r.test_case_id === tc.id);
+                const isFailingHidden = !tc.is_sample && firstFailingHidden?.test_case_id === tc.id;
                 return (
                   <button
                     key={tc.id}
@@ -121,8 +144,12 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                     className={cn(
                       'px-3 py-1.5 rounded-md text-xs font-semibold border flex items-center gap-1.5 transition-all',
                       selectedCaseIdx === idx
-                        ? 'bg-dark-hover border-blue-500 text-gray-100'
-                        : 'bg-dark-bg/60 border-dark-border text-gray-400 hover:text-gray-200'
+                        ? isFailingHidden
+                          ? 'bg-rose-500/15 border-rose-500 text-rose-300'
+                          : 'bg-dark-hover border-blue-500 text-gray-100'
+                        : isFailingHidden
+                          ? 'bg-rose-500/5 border-rose-500/40 text-rose-400 hover:text-rose-300'
+                          : 'bg-dark-bg/60 border-dark-border text-gray-400 hover:text-gray-200'
                     )}
                   >
                     {matchResult ? (
@@ -134,63 +161,77 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                     ) : (
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
                     )}
-                    Case {idx + 1}
+                    {tc.label}
                   </button>
                 );
               })}
             </div>
 
             {/* Selected case details */}
-            {testCases[selectedCaseIdx] && (
-              <div className="space-y-3 font-mono text-xs">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Input</div>
-                    <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
-                      {testCases[selectedCaseIdx].input}
-                    </pre>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Expected Output</div>
-                    <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
-                      {testCases[selectedCaseIdx].expected_output}
-                    </pre>
-                  </div>
-                </div>
-
-                {/* If run results are available for this specific test case */}
-                {results?.find(r => r.test_case_id === testCases[selectedCaseIdx].id) && (() => {
-                  const res = results.find(r => r.test_case_id === testCases[selectedCaseIdx].id)!;
-                  return (
-                    <div className="space-y-3 pt-2 border-t border-dark-border/40">
-                      {res.stdout && (
-                        <div>
-                          <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Stdout</div>
-                          <pre className="bg-dark-bg border border-dark-border p-3 rounded-lg overflow-x-auto text-emerald-400/90 max-h-32">
-                            {res.stdout}
-                          </pre>
-                        </div>
-                      )}
-                      {res.stderr && (
-                        <div>
-                          <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Stderr</div>
-                          <pre className="bg-dark-bg border border-dark-border p-3 rounded-lg overflow-x-auto text-rose-400 max-h-32">
-                            {res.stderr}
-                          </pre>
-                        </div>
-                      )}
+            {displayCases[selectedCaseIdx] && (() => {
+              const selectedCase = displayCases[selectedCaseIdx];
+              const res = results?.find(r => r.test_case_id === selectedCase.id);
+              return (
+                <div className="space-y-3 font-mono text-xs">
+                  {/* 3-column layout: Input | Expected Output | Your Output */}
+                  <div className={cn("grid gap-3", res ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2")}>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Input</div>
+                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                        {selectedCase.input ?? res?.test_case_input ?? '(hidden)'}
+                      </pre>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Expected Output</div>
+                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                        {selectedCase.expected_output ?? res?.expected_output ?? '(hidden)'}
+                      </pre>
+                    </div>
+                    {res && (
                       <div>
-                        <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Execution Stats</div>
-                        <div className="flex gap-4 text-[11px] text-gray-400 bg-dark-bg/40 p-2.5 rounded-lg border border-dark-border">
-                          <span className="flex items-center gap-1"><Code className="w-3.5 h-3.5 text-blue-400" /> Runtime: {res.runtime_ms} ms</span>
-                          <span className="flex items-center gap-1"><Cpu className="w-3.5 h-3.5 text-blue-400" /> Memory: {res.memory_kb} KB</span>
+                        <div className={cn(
+                          "text-[10px] uppercase font-sans font-bold mb-1 select-none",
+                          res.passed ? "text-emerald-500" : "text-rose-500"
+                        )}>
+                          Your Output {res.passed ? '✓' : '✗'}
                         </div>
+                        <pre className={cn(
+                          "border p-2.5 rounded-lg overflow-x-auto max-h-32",
+                          res.passed
+                            ? "bg-emerald-500/5 border-emerald-500/25 text-emerald-400"
+                            : "bg-rose-500/5 border-rose-500/25 text-rose-400"
+                        )}>
+                          {res.stdout?.trim() || '(no output)'}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stderr / error output */}
+                  {res?.stderr && res.stderr.trim() && (
+                    <div>
+                      <div className="text-[10px] text-amber-500 uppercase font-sans font-bold mb-1 select-none flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Stderr / Error Log
+                      </div>
+                      <pre className="bg-[#1f1618] border border-amber-950/40 p-3 rounded-lg overflow-x-auto text-amber-200 max-h-32">
+                        {res.stderr}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Execution stats */}
+                  {res && (
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Execution Stats</div>
+                      <div className="flex gap-4 text-[11px] text-gray-400 bg-dark-bg/40 p-2.5 rounded-lg border border-dark-border">
+                        <span className="flex items-center gap-1"><Code className="w-3.5 h-3.5 text-blue-400" /> Runtime: {res.runtime_ms} ms</span>
+                        <span className="flex items-center gap-1"><Cpu className="w-3.5 h-3.5 text-blue-400" /> Memory: {res.memory_kb} KB</span>
                       </div>
                     </div>
-                  );
-                })()}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="space-y-4">
@@ -253,7 +294,15 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                       {sampleResults.map((r, idx) => (
                         <div
                           key={r.id}
-                          className="flex items-center justify-between p-2.5 bg-dark-bg/60 rounded-lg border border-dark-border text-xs"
+                          onClick={() => {
+                            // Switch to test cases tab and select this case
+                            const caseIdx = displayCases.findIndex(dc => dc.id === r.test_case_id);
+                            if (caseIdx >= 0) {
+                              setSelectedCaseIdx(caseIdx);
+                              setActiveTab('cases');
+                            }
+                          }}
+                          className="flex items-center justify-between p-2.5 bg-dark-bg/60 rounded-lg border border-dark-border text-xs cursor-pointer hover:bg-dark-hover transition-colors"
                         >
                           <span className="font-semibold text-gray-300">Sample Case {idx + 1}</span>
                           <span className="flex items-center gap-2">
@@ -271,9 +320,26 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                       {hiddenResults.map((r, idx) => (
                         <div
                           key={r.id}
-                          className="flex items-center justify-between p-2.5 bg-dark-bg/40 rounded-lg border border-dark-border/60 text-xs"
+                          onClick={() => {
+                            if (r.is_first_failing_hidden) {
+                              const caseIdx = displayCases.findIndex(dc => dc.id === r.test_case_id);
+                              if (caseIdx >= 0) {
+                                setSelectedCaseIdx(caseIdx);
+                                setActiveTab('cases');
+                              }
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-2.5 bg-dark-bg/40 rounded-lg border border-dark-border/60 text-xs",
+                            r.is_first_failing_hidden && !r.passed ? "cursor-pointer hover:bg-dark-hover transition-colors border-rose-500/30" : ""
+                          )}
                         >
-                          <span className="font-semibold text-gray-400">Hidden Case {idx + 1}</span>
+                          <span className="font-semibold text-gray-400">
+                            Hidden Case {idx + 1}
+                            {r.is_first_failing_hidden && !r.passed && (
+                              <span className="ml-1.5 text-[10px] text-rose-400 font-normal">(click to view)</span>
+                            )}
+                          </span>
                           <span className="flex items-center gap-2">
                             <span className="font-mono text-gray-500 text-[10px]">{r.runtime_ms}ms</span>
                             {r.passed ? (

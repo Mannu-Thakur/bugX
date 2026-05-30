@@ -9,7 +9,7 @@ from app.models.test_case import TestCase
 from app.models.tag import Tag
 from app.models.user import User
 from app.repositories.problem_repo import ProblemRepo
-from app.schemas.problem import ProblemCreate, ProblemUpdate, ProblemListItem, ProblemDetail, UserStatusEmbed, BestSubmissionResponse
+from app.schemas.problem import ProblemCreate, ProblemUpdate, ProblemListItem, ProblemDetail, UserStatusEmbed, BestSubmissionResponse, LastSubmissionResponse
 
 class ProblemController:
     def __init__(self, db: AsyncSession):
@@ -142,6 +142,17 @@ class ProblemController:
         sub = await ProblemRepo.get_best_qualifying_submission(self.db, current_user.id, problem.id)
         if not sub:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Best submission not found")
+
+        return sub
+
+    async def get_last_submission(self, slug: str, current_user: User) -> dict:
+        problem = await ProblemRepo.get_by_slug(self.db, slug)
+        if not problem:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+
+        sub = await ProblemRepo.get_last_submission(self.db, current_user.id, problem.id)
+        if not sub:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No submissions found")
 
         return sub
 

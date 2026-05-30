@@ -164,6 +164,7 @@ export const ProfilePage: React.FC = () => {
 
       <ActivityHeatmap
         lastActiveDate={stats?.last_active_date}
+        submissionActivity={stats?.submission_activity}
         isLoading={statsLoading}
       />
 

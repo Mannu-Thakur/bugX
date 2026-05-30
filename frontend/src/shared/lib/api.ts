@@ -203,10 +203,24 @@ export interface SubmissionResultResponse {
   expected_output: string | null;
   stdout: string | null;
   stderr: string | null;
+  is_sample?: boolean;
+  is_first_failing_hidden?: boolean;
 }
 
 export interface BestSubmissionResponse {
   id: string;
+  status: string;
+  score: number;
+  runtime_ms: number | null;
+  passed_count: number;
+  total_count: number;
+  created_at: string;
+}
+
+export interface LastSubmissionResponse {
+  id: string;
+  language: string;
+  source_code: string;
   status: string;
   score: number;
   runtime_ms: number | null;
@@ -557,6 +571,11 @@ export const api = {
 
     getBestSubmission: (slug: string) =>
       request<BestSubmissionResponse>(`/problems/${slug}/submissions/best`, {
+        method: 'GET',
+      }),
+
+    getLastSubmission: (slug: string) =>
+      request<LastSubmissionResponse>(`/problems/${slug}/submissions/last`, {
         method: 'GET',
       }),
 

@@ -31,26 +31,64 @@ export const ProblemListPage: React.FC = () => {
     e.preventDefault();
     const slugOrUrl = importInput.trim();
     if (!slugOrUrl) {
-      toast.error("Please enter a Google coding question or keyword.");
+      toast.error("Please enter a question name, URL, or keyword.");
       return;
     }
 
+    const isGfg = slugOrUrl.toLowerCase().includes('geeksforgeeks') || slugOrUrl.toLowerCase().includes('gfg') || slugOrUrl.startsWith('gfg:');
+    const isLeetcode = slugOrUrl.toLowerCase().includes('leetcode') || slugOrUrl.startsWith('leetcode:');
+    const isGoogle = slugOrUrl.toLowerCase().includes('google') || slugOrUrl.startsWith('google:');
+
+    let payload = slugOrUrl;
+    let platformName = 'LeetCode';
+    let stepTitle = 'online repository';
+
+    if (isGfg) {
+      platformName = 'GeeksforGeeks';
+      stepTitle = 'GeeksforGeeks';
+      if (!slugOrUrl.startsWith('gfg:')) {
+        payload = `gfg:${slugOrUrl}`;
+      }
+    } else if (isGoogle) {
+      platformName = 'Google interview bank';
+      stepTitle = 'Google interview bank';
+      if (!slugOrUrl.startsWith('google:')) {
+        payload = `google:${slugOrUrl}`;
+      }
+    } else if (isLeetcode) {
+      platformName = 'LeetCode';
+      stepTitle = 'LeetCode';
+      if (slugOrUrl.startsWith('leetcode:')) {
+        payload = slugOrUrl.substring('leetcode:'.length);
+      }
+    } else {
+      if (slugOrUrl.includes(' ')) {
+        // Multi-word keyword search: map through the query resolver
+        platformName = 'Online Index';
+        stepTitle = 'online query index';
+        payload = `google:${slugOrUrl}`;
+      } else {
+        // Standard single-word slug: default to LeetCode
+        platformName = 'LeetCode';
+        stepTitle = 'LeetCode';
+      }
+    }
+
     setImporting(true);
-    setImportStep("Searching Google interview question bank...");
+    setImportStep(`Connecting to ${stepTitle}...`);
 
     try {
       await new Promise(r => setTimeout(r, 600));
-      setImportStep("Resolving question mapping & templates...");
+      setImportStep("Extracting problem statements & parsing metadata...");
       await new Promise(r => setTimeout(r, 600));
-      setImportStep("Synthesizing test cases & validating workspace...");
+      setImportStep("Synthesizing template files & matching offline test cases...");
 
-      const payload = `google:${slugOrUrl}`;
       const problem = await api.problems.import(payload);
 
       setImportStep("Success! Synchronizing workspace...");
       await new Promise(r => setTimeout(r, 450));
 
-      toast.success(`Successfully imported "${problem.title}" from Google Bank! Redirecting...`);
+      toast.success(`Successfully imported "${problem.title}" from ${platformName}! Redirecting...`);
       queryClient.invalidateQueries({ queryKey: ['problems'] });
       navigate(`/problems/${problem.slug}`);
     } catch (err: any) {
@@ -299,7 +337,7 @@ export const ProblemListPage: React.FC = () => {
         )}
       </div>
 
-      {/* Dynamic Google Problem Importer */}
+      {/* Dynamic Online Problem Importer */}
       <div className="bg-gradient-to-r from-emerald-950/30 via-[#0a0c10] to-[#0c1017] border border-emerald-500/20 p-5 rounded-xl shadow-xl relative overflow-hidden select-none">
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -312,7 +350,7 @@ export const ProblemListPage: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <h3 className="text-sm font-black text-gray-100 flex items-center gap-2 tracking-wide uppercase">
-                Google Question Importer
+                Fetch Online
               </h3>
               <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
                 Interview Prep
@@ -320,13 +358,13 @@ export const ProblemListPage: React.FC = () => {
             </div>
             
             <p className="text-xs text-gray-400 max-w-xl leading-relaxed">
-              Search any <b>Google coding interview question</b> (e.g., <i>Fruit Into Baskets</i> or <i>Decompress String</i>). AlgoAxis will dynamically locate the problem, synthesize templates, load test cases, and ready your C++ sandbox environment!
+              Search any <b>LeetCode / Google coding interview question</b> (e.g., <i>two-sum</i>, <i>Fruit Into Baskets</i>) or <b>GeeksforGeeks problem/URL</b> (e.g., <i>second-largest3735</i>). AlgoAxis will dynamically fetch, refactor class signatures into clean standalone templates, synthesize test cases, and ready your Monaco workspace!
             </p>
           </div>
           
           <form onSubmit={handleImport} className="flex-1 max-w-md w-full flex gap-2">
             <Input 
-              placeholder="Search Google problem: e.g. Fruit Into Baskets" 
+              placeholder="Search online (LeetCode, GFG, slug, url, or keyword)" 
               value={importInput}
               onChange={(e) => setImportInput(e.target.value)}
               disabled={importing}

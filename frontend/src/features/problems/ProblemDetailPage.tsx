@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal } from 'lucide-react';
+import { ArrowLeft, Clock, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../shared/lib/api';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
@@ -25,6 +25,9 @@ export const ProblemDetailPage: React.FC = () => {
   const [isPolling, setIsPolling] = useState(false);
   const [activeSubmission, setActiveSubmission] = useState<SubmissionResponse | null>(null);
   const [results, setResults] = useState<SubmissionResultResponse[] | null>(null);
+  const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false);
+  const [isLoadingLastSub, setIsLoadingLastSub] = useState(false);
+  const [lastSubmissionData, setLastSubmissionData] = useState<{ source_code: string; language: string } | null>(null);
 
   // Timer States
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -152,6 +155,25 @@ export const ProblemDetailPage: React.FC = () => {
 
     timeoutId = setTimeout(check, 1000);
     return () => clearTimeout(timeoutId);
+  };
+
+  const handleLoadLastSubmission = async () => {
+    if (!user || !slug) return;
+    setIsLoadingLastSub(true);
+    try {
+      const lastSub = await api.problems.getLastSubmission(slug);
+      setLastSubmissionData({ source_code: lastSub.source_code, language: lastSub.language });
+      showToastSuccess('Last submission loaded into editor.');
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number; message?: string };
+      if (errorObj?.status === 404) {
+        showToastError('No previous submissions found for this problem.');
+      } else {
+        showToastError(errorObj?.message || 'Failed to load last submission.');
+      }
+    } finally {
+      setIsLoadingLastSub(false);
+    }
   };
 
   const handleRun = async (code: string, language: string) => {
@@ -323,36 +345,40 @@ export const ProblemDetailPage: React.FC = () => {
   }
 
   // Description view layout
-  const renderDescription = () => (
-    <div className="space-y-6 p-6 select-text overflow-y-auto h-full">
-      {/* Header Info */}
-      <div className="space-y-3 pb-6 border-b border-dark-border select-none">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Badge variant={problem.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
-            {problem.difficulty}
-          </Badge>
-          <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
-            <CheckCircle className="w-3 h-3 text-emerald-500" />
-            {problem.acceptance_rate ? problem.acceptance_rate.toFixed(1) : '0.0'}% Acceptance
-          </span>
+  const renderDescription = () => {
+    const isHtmlDescription = problem.description.includes('<') && problem.description.includes('>');
+    return (
+      <div className="space-y-6 p-6 select-text overflow-y-auto h-full">
+        {/* Header Info */}
+        <div className="space-y-3 pb-6 border-b border-dark-border select-none">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Badge variant={problem.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
+              {problem.difficulty}
+            </Badge>
+            <span className="text-xs text-gray-500 font-mono flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-emerald-500" />
+              {problem.acceptance_rate ? problem.acceptance_rate.toFixed(1) : '0.0'}% Acceptance
+            </span>
+          </div>
+          <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight break-words">
+            {problem.title}
+          </h1>
         </div>
-        <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight break-words">
-          {problem.title}
-        </h1>
-      </div>
 
-      {/* Description Body */}
-      <div className="bg-dark-panel border border-dark-border rounded-xl p-5 shadow-sm space-y-6 overflow-hidden">
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-200 border-b border-dark-border pb-2 select-none flex items-center gap-2">
-            <span className="w-1.5 h-3 bg-blue-500 rounded-full" />
-            Description
-          </h2>
-          <div 
-            className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-sans problem-description-content break-words overflow-x-auto"
-            dangerouslySetInnerHTML={{ __html: problem.description }}
-          />
-        </div>
+        {/* Description Body */}
+        <div className="bg-dark-panel border border-dark-border rounded-xl p-5 shadow-sm space-y-6 overflow-hidden">
+          <div className="space-y-4">
+            <h2 className="text-sm font-bold text-gray-200 border-b border-dark-border pb-2 select-none flex items-center gap-2">
+              <span className="w-1.5 h-3 bg-blue-500 rounded-full" />
+              Description
+            </h2>
+            <div 
+              className={`text-gray-300 text-sm leading-relaxed font-sans problem-description-content break-words overflow-x-auto ${
+                isHtmlDescription ? 'whitespace-normal' : 'whitespace-pre-wrap'
+              }`}
+              dangerouslySetInnerHTML={{ __html: problem.description }}
+            />
+          </div>
 
         {/* Dynamic Examples from Sample Test Cases if not already embedded in description */}
         {!problem.description.toLowerCase().includes('example 1') && 
@@ -452,12 +478,13 @@ export const ProblemDetailPage: React.FC = () => {
       </div>
     </div>
   );
+};
 
   // Editor and TestCase layout
   const renderEditorWorkspace = () => (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Code Editor */}
-      <div className="flex-1 min-h-[400px]">
+      <div className={isTestPanelCollapsed ? 'flex-1' : 'flex-1 min-h-[400px]'}>
         <CodeEditor
           problemSlug={problem.slug}
           templates={problem.templates}
@@ -465,6 +492,9 @@ export const ProblemDetailPage: React.FC = () => {
           onSubmit={handleSubmit}
           isRunning={isRunning}
           isSubmitting={isSubmitting}
+          onLoadLastSubmission={user ? handleLoadLastSubmission : undefined}
+          isLoadingLastSubmission={isLoadingLastSub}
+          lastSubmission={lastSubmissionData}
         />
       </div>
 
@@ -478,20 +508,38 @@ export const ProblemDetailPage: React.FC = () => {
         </div>
       )}
 
+      {/* Toggle bar for Test Case Panel */}
+      <button
+        onClick={() => setIsTestPanelCollapsed(!isTestPanelCollapsed)}
+        className="w-full px-4 py-1.5 border-t border-dark-border bg-dark-bg/60 flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-all select-none cursor-pointer group"
+        title={isTestPanelCollapsed ? 'Show Test Cases' : 'Hide Test Cases'}
+      >
+        {isTestPanelCollapsed ? (
+          <ChevronUp className="w-3.5 h-3.5 group-hover:text-blue-400 transition-colors" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 group-hover:text-blue-400 transition-colors" />
+        )}
+        <span className="font-semibold group-hover:text-blue-400 transition-colors">
+          {isTestPanelCollapsed ? 'Show Test Cases & Results' : 'Hide Test Cases'}
+        </span>
+      </button>
+
       {/* Test Case & Result Panel */}
-      <div className="h-[340px] border-t border-dark-border">
-        <TestCasePanel
-          testCases={problem.sample_test_cases.map(tc => ({
-            id: tc.id,
-            input: tc.input,
-            expected_output: tc.expected_output,
-            is_sample: tc.is_sample,
-          }))}
-          submission={activeSubmission}
-          results={results}
-          isPolling={isPolling}
-        />
-      </div>
+      {!isTestPanelCollapsed && (
+        <div className="h-[340px] border-t border-dark-border">
+          <TestCasePanel
+            testCases={problem.sample_test_cases.map(tc => ({
+              id: tc.id,
+              input: tc.input,
+              expected_output: tc.expected_output,
+              is_sample: tc.is_sample,
+            }))}
+            submission={activeSubmission}
+            results={results}
+            isPolling={isPolling}
+          />
+        </div>
+      )}
     </div>
   );
 

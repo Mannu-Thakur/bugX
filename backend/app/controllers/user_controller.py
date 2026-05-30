@@ -33,13 +33,31 @@ class UserController:
 
     async def get_my_stats(self, current_user: User) -> dict:
         from app.repositories.user_stats_repo import UserStatsRepo
+        from app.models.submission import Submission
+        from sqlalchemy import select
+        from collections import Counter
+        from datetime import datetime, timedelta
+
         repo = UserStatsRepo(self.db)
         stats = await repo.get_by_user_id(current_user.id)
+        
+        # Query submission timestamps for the last year
+        one_year_ago = datetime.utcnow() - timedelta(days=366)
+        stmt = (
+            select(Submission.created_at)
+            .where(Submission.user_id == current_user.id)
+            .where(Submission.created_at >= one_year_ago)
+        )
+        res = await self.db.execute(stmt)
+        timestamps = res.scalars().all()
+        activity = Counter(t.strftime("%Y-%m-%d") for t in timestamps if t)
+
         if not stats:
             return {
                 "total_solved": 0, "easy_solved": 0, "medium_solved": 0, "hard_solved": 0,
                 "total_score": 0, "current_streak": 0, "best_streak": 0,
-                "last_active_date": None
+                "last_active_date": None,
+                "submission_activity": dict(activity)
             }
         return {
             "total_solved": stats.total_solved,
@@ -49,7 +67,8 @@ class UserController:
             "total_score": stats.total_score,
             "current_streak": stats.current_streak,
             "best_streak": stats.best_streak,
-            "last_active_date": stats.last_active_date
+            "last_active_date": stats.last_active_date,
+            "submission_activity": dict(activity)
         }
 
     async def get_my_submissions(self, current_user: User, page: int, limit: int) -> dict:

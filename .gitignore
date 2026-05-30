@@ -32,3 +32,9 @@ backend/storage/
 backend/tmp/
 
 auto_push.ps1
+
+# offline execution sandbox
+.sandbox/
+
+# temp pytest output
+backend/tmp_pytest/

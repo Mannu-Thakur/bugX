@@ -173,3 +173,17 @@ class BestSubmissionResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LastSubmissionResponse(BaseModel):
+    id: uuid.UUID
+    language: str
+    source_code: str
+    status: str
+    score: int
+    runtime_ms: Optional[int] = None
+    passed_count: int
+    total_count: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

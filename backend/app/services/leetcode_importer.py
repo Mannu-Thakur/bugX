@@ -101,18 +101,92 @@ class LeetCodeImporter:
         return cleaned
 
     @classmethod
-    async def import_problem(cls, session: AsyncSession, url_or_slug: str) -> Problem:
-        # Extract slug
-        slug = url_or_slug.strip().lower()
-        if "/" in slug:
-            # e.g., https://leetcode.com/problems/two-sum/ -> two-sum
-            parts = [p for p in slug.split("/") if p]
+    async def resolve_slug(cls, input_str: str) -> str:
+        query = input_str.strip()
+        
+        # If it is a URL, extract slug
+        if "/" in query:
+            parts = [p for p in query.split("/") if p]
             if "problems" in parts:
                 idx = parts.index("problems")
                 if idx + 1 < len(parts):
-                    slug = parts[idx + 1]
+                    return parts[idx + 1]
             else:
-                slug = parts[-1]
+                return parts[-1]
+                
+        # Clean Google/LeetCode/GFG prefixes just in case
+        query = re.sub(r"^(google|leetcode|gfg):", "", query, flags=re.IGNORECASE)
+        
+        # Clean leading colons or symbols
+        query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
+        
+        # Clean leading numbers (e.g. "3161. ", "3161: ") but not hyphenated titles (e.g. "1-bit")
+        query = re.sub(r"^\d+[\s\.:]+", "", query)
+        query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
+        
+        # If query is empty, fallback
+        if not query:
+            return "unknown-problem"
+            
+        # Check if query is purely digits (question ID) or has spaces/punctuation
+        is_id = query.isdigit()
+        has_spaces = " " in query or "." in query or ":" in query
+        
+        # If it is a clean slug (no spaces, not purely digits, e.g., "two-sum"),
+        # we can assume it's already a slug and return it directly.
+        # But if it has spaces or is an ID, we resolve it.
+        if not is_id and not has_spaces:
+            return query.lower()
+            
+        # Resolve via LeetCode REST algorithms list
+        url = "https://leetcode.com/api/problems/algorithms/"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers=headers, timeout=10.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    pairs = data.get("stat_status_pairs", [])
+                    
+                    if is_id:
+                        for pair in pairs:
+                            stat = pair.get("stat", {})
+                            if str(stat.get("frontend_question_id")) == query:
+                                return stat.get("question__title_slug")
+                    else:
+                        search_slug = re.sub(r"\s+", "-", query.lower()).strip()
+                        # 1. Exact slug match
+                        for pair in pairs:
+                            stat = pair.get("stat", {})
+                            slug = stat.get("question__title_slug")
+                            if slug == search_slug:
+                                return slug
+                        
+                        # 2. Substring slug match
+                        for pair in pairs:
+                            stat = pair.get("stat", {})
+                            slug = stat.get("question__title_slug", "")
+                            if search_slug in slug:
+                                return slug
+                                
+                        # 3. Substring title match
+                        for pair in pairs:
+                            stat = pair.get("stat", {})
+                            title = stat.get("question__title", "").lower()
+                            if query.lower() in title:
+                                return stat.get("question__title_slug")
+        except Exception as e:
+            print(f"[LeetCodeImporter] Error in resolve_slug: {e}")
+            
+        # Fallback formatting
+        return re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
+
+    @classmethod
+    async def import_problem(cls, session: AsyncSession, url_or_slug: str) -> Problem:
+        # Resolve to clean LeetCode slug
+        slug = await cls.resolve_slug(url_or_slug)
                 
         # Query database to check if problem already exists
         exist_stmt = select(Problem).where(Problem.slug == slug)

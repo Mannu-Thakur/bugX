@@ -229,6 +229,27 @@ class ProblemRepo:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
+    # ── Last submission for user ───────────────────────────────────────────────
+
+    @staticmethod
+    async def get_last_submission(
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        problem_id: uuid.UUID,
+    ) -> Optional[Submission]:
+        stmt = (
+            select(Submission)
+            .where(
+                Submission.user_id == user_id,
+                Submission.problem_id == problem_id,
+                Submission.run_samples_only == False,  # noqa: E712
+            )
+            .order_by(Submission.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
+
     # ── User status helpers ───────────────────────────────────────────────────
 
     @staticmethod

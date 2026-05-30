@@ -22,7 +22,16 @@ def test_wrap_python():
     
     assert "sys.stdin.read()" in wrapped
     assert "json.dumps" in wrapped
-    assert "twoSum(" in wrapped
+    assert "Solution().twoSum(data)" in wrapped
+
+def test_wrap_python_standalone():
+    user_code = "def twoSum(nums, target):\n    return [0, 1]"
+    wrapped = CodeWrapperService.wrap_code("python", user_code, "twoSum", ArgStyleEnum.single)
+    
+    assert "sys.stdin.read()" in wrapped
+    assert "json.dumps" in wrapped
+    assert "twoSum(data)" in wrapped
+    assert "Solution()" not in wrapped
 
 def test_wrap_javascript():
     user_code = "class Solution {\n    twoSum(nums, target) {\n        return [0, 1];\n    }\n}"
@@ -30,7 +39,16 @@ def test_wrap_javascript():
     
     assert "fs.readFileSync" in wrapped
     assert "JSON.stringify" in wrapped
+    assert "new Solution().twoSum(data)" in wrapped
+
+def test_wrap_javascript_standalone():
+    user_code = "function twoSum(nums, target) {\n    return [0, 1];\n}"
+    wrapped = CodeWrapperService.wrap_code("javascript", user_code, "twoSum", ArgStyleEnum.single)
+    
+    assert "fs.readFileSync" in wrapped
+    assert "JSON.stringify" in wrapped
     assert "twoSum(data)" in wrapped
+    assert "new Solution()" not in wrapped
 
 def test_wrap_cpp():
     user_code = """
