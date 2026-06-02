@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Terminal, Swords, Award, Search, Sparkles, ChevronRight,
-  Play, Zap, Trophy, Clock
+  Play, Zap, Trophy, Clock, Cpu, Shield, Globe
 } from 'lucide-react';
 import { api } from '../shared/lib/api';
 import { useToast } from '../shared/ui/toast/ToastProvider';
@@ -47,7 +47,7 @@ public:
 const CODE_FRAGMENTS = ['{}', '()', '=>', '//', '#include', 'const', 'return', '&&', '||', 'for', 'if', '==', '[]', '++;', 'void', '<<'];
 
 /* ═══════════════════════════════════════════════════
-   Custom Hooks
+   Custom Hook for Typing Effect
    ═══════════════════════════════════════════════════ */
 function useTypingText(text: string, speed = 65, delay = 0, enabled = true) {
   const [displayed, setDisplayed] = useState('');
@@ -75,7 +75,6 @@ function useTypingText(text: string, speed = 65, delay = 0, enabled = true) {
 
   return { displayed, done };
 }
-
 
 /* ═══════════════════════════════════════════════════
    Battle Simulation Component
@@ -303,14 +302,25 @@ const ExhaustParticles: React.FC<{ boosted: boolean }> = ({ boosted }) => {
 };
 
 /* ═══════════════════════════════════════════════════
-   Interactive Feature Card
+   Interactive Bento Card Component
    ═══════════════════════════════════════════════════ */
-const FeatureCard: React.FC<{
-  to: string; icon: React.ElementType; title: string; desc: string;
-  color: string; borderHover: string; iconBg: string; iconText: string;
-  chevronColor: string; delay: number;
+interface BentoCardProps {
+  to: string;
+  title: string;
+  desc: string;
+  icon: React.ElementType;
+  color: 'orange' | 'blue' | 'emerald';
+  borderHover: string;
+  iconBg: string;
+  iconText: string;
+  chevronColor: string;
+  className?: string;
   children?: React.ReactNode;
-}> = ({ to, icon: Icon, title, desc, color, borderHover, iconBg, iconText, chevronColor, delay, children }) => {
+}
+
+const BentoCard: React.FC<BentoCardProps> = ({
+  to, title, desc, icon: Icon, color, borderHover, iconBg, iconText, chevronColor, className = '', children
+}) => {
   const ref = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [hovered, setHovered] = useState(false);
@@ -320,33 +330,30 @@ const FeatureCard: React.FC<{
     const r = ref.current.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width - 0.5;
     const y = (e.clientY - r.top) / r.height - 0.5;
-    setTilt({ x: y * -10, y: x * 10 });
+    setTilt({ x: y * -8, y: x * 8 });
   }, []);
 
   const colorVal = color === 'orange' ? '#f97316' : color === 'blue' ? '#3b82f6' : '#10b981';
-  const gradFrom = color === 'orange' ? 'from-orange-500/[0.06]' : color === 'blue' ? 'from-blue-500/[0.06]' : 'from-emerald-500/[0.06]';
+  const gradFrom = color === 'orange' ? 'from-orange-500/[0.04]' : color === 'blue' ? 'from-blue-500/[0.04]' : 'from-emerald-500/[0.04]';
 
   return (
-    <Link to={to} className="block">
+    <Link to={to} className={`block ${className}`}>
       <div
         ref={ref}
-        className={`group glass-card glass-card-hover p-6 rounded-2xl transition-colors duration-300 ${borderHover} relative overflow-hidden animate-spring-in`}
+        className={`group glass-card glass-card-hover p-6 rounded-2xl transition-colors duration-300 h-full border border-white/[0.06] bg-white/[0.01] ${borderHover} relative overflow-hidden`}
         style={{
           transform: `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
           transition: hovered ? 'transform 0.08s ease-out' : 'transform 0.5s ease-out',
-          animationDelay: `${delay}ms`,
         }}
         onMouseMove={onMove}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setTilt({ x: 0, y: 0 }); setHovered(false); }}
       >
-        {/* Hover gradient overlay */}
         <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br ${gradFrom} to-transparent rounded-2xl pointer-events-none`} />
 
-        {/* Animated border glow on hover */}
         <div className="absolute inset-[-1px] rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none animate-border-travel"
           style={{
-            background: `conic-gradient(from var(--border-angle, 0deg), transparent 60%, ${colorVal}44 80%, ${colorVal} 100%)`,
+            background: `conic-gradient(from var(--border-angle, 0deg), transparent 60%, ${colorVal}33 80%, ${colorVal} 100%)`,
             mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
             WebkitMaskComposite: 'xor',
             maskComposite: 'exclude',
@@ -354,22 +361,20 @@ const FeatureCard: React.FC<{
           } as React.CSSProperties}
         />
 
-        <div
-          className={`w-11 h-11 rounded-xl ${iconBg} border flex items-center justify-center mb-5 ${iconText}`}
-          style={{
-            transform: hovered ? 'scale(1.15) rotate(360deg)' : 'scale(1) rotate(0deg)',
-            transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          }}
-        >
-          <Icon className="w-5 h-5" />
+        <div className="flex items-start justify-between mb-4">
+          <div className={`w-10 h-10 rounded-xl ${iconBg} border flex items-center justify-center ${iconText}`}
+            style={{
+              transform: hovered ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)',
+              transition: 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            }}
+          >
+            <Icon className="w-4.5 h-4.5" />
+          </div>
+          <ChevronRight className={`w-4 h-4 ${chevronColor} opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300`} />
         </div>
 
-        <h3 className="text-lg font-bold text-white mb-2 flex items-center">
-          {title}
-          <ChevronRight className={`w-4 h-4 ${chevronColor} opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 ml-auto`} />
-        </h3>
-
-        <p className="text-sm text-gray-400 leading-relaxed font-medium mb-3.5">{desc}</p>
+        <h3 className="text-base font-bold text-white mb-1.5">{title}</h3>
+        <p className="text-xs text-gray-400 leading-relaxed font-medium mb-4">{desc}</p>
 
         {children}
       </div>
@@ -385,10 +390,10 @@ const FloatingCodeParticles: React.FC = React.memo(() => {
     CODE_FRAGMENTS.map((text) => ({
       text,
       x: Math.random() * 100,
-      y: 20 + Math.random() * 70,
-      delay: Math.random() * 25,
-      dur: 18 + Math.random() * 22,
-      size: 10 + Math.random() * 4,
+      y: 10 + Math.random() * 80,
+      delay: Math.random() * 20,
+      dur: 20 + Math.random() * 25,
+      size: 10 + Math.random() * 3,
     }))
   , []);
 
@@ -402,8 +407,8 @@ const FloatingCodeParticles: React.FC = React.memo(() => {
             left: `${p.x}%`,
             top: `${p.y}%`,
             fontSize: p.size,
-            opacity: 0.035,
-            color: '#94a3b8',
+            opacity: 0.03,
+            color: '#cbd5e1',
             animationDelay: `${p.delay}s`,
             animationDuration: `${p.dur}s`,
           }}
@@ -416,22 +421,22 @@ const FloatingCodeParticles: React.FC = React.memo(() => {
 });
 
 /* ═══════════════════════════════════════════════════
-   Authentic Micro-UI Widgets for Cards
+   Bento Widgets
    ═══════════════════════════════════════════════════ */
 const BattleQueueWidget: React.FC = () => {
   return (
-    <div className="mt-5 p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-2 select-none text-[11px] text-gray-400 font-medium">
-      <div className="flex items-center gap-1.5 font-bold text-gray-400">
+    <div className="p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-2 select-none text-[11px] text-gray-400 font-medium">
+      <div className="flex items-center gap-1.5 font-bold text-gray-400 text-[10px]">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         Lobby Matchmaker Active
       </div>
-      <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#0f111a] border border-white/[0.03] rounded-lg">
+      <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#0a0d14] border border-white/[0.03] rounded-lg">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-blue-400 font-bold uppercase">You</span>
-          <span className="text-gray-600 font-semibold">vs</span>
-          <span className="font-mono text-rose-400 font-bold uppercase">Rival_7</span>
+          <span className="font-mono text-blue-400 font-bold uppercase text-[9px]">You</span>
+          <span className="text-gray-600 font-semibold text-[8px]">vs</span>
+          <span className="font-mono text-rose-400 font-bold uppercase text-[9px]">Rival_7</span>
         </div>
-        <div className="text-[10px] text-gray-500 font-mono font-medium animate-pulse">01:42 elapsed</div>
+        <div className="text-[9px] text-gray-500 font-mono font-medium animate-pulse">01:42 elapsed</div>
       </div>
       <div className="h-1 bg-[#161a24] rounded-full overflow-hidden">
         <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse" style={{ width: '45%' }} />
@@ -449,9 +454,9 @@ const WorkspaceStatsWidget: React.FC<{ count: number | null; loading: boolean }>
   ];
 
   return (
-    <div className="mt-5 p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-3 select-none text-[11px] text-gray-400 font-medium">
+    <div className="p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-3 select-none text-[11px] text-gray-400 font-medium">
       <div className="flex items-center justify-between">
-        <span className="font-bold text-gray-400">Available Problems</span>
+        <span className="font-bold text-gray-400">Compiler Support</span>
         {loading ? (
           <div className="w-8 h-3.5 bg-white/5 rounded animate-pulse" />
         ) : (
@@ -460,27 +465,18 @@ const WorkspaceStatsWidget: React.FC<{ count: number | null; loading: boolean }>
           </span>
         )}
       </div>
-      
       <div className="flex flex-wrap gap-1.5">
         {pills.map(p => (
-          <span key={p.name} className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${p.style}`}>
+          <span key={p.name} className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${p.style}`}>
             {p.name}
           </span>
         ))}
-      </div>
-      
-      <div className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-400/90 pt-0.5 border-t border-white/[0.03]">
-        <div className="w-1 h-1 rounded-full bg-emerald-400" />
-        Compiler sandbox ready to compile & run
       </div>
     </div>
   );
 };
 
-const LeaderboardPreviewWidget: React.FC<{
-  climbers: { username: string; score: number }[];
-  loading: boolean;
-}> = ({ climbers, loading }) => {
+const LeaderboardPreviewWidget: React.FC<{ climbers: { username: string; score: number }[]; loading: boolean }> = ({ climbers, loading }) => {
   const fallbacks = [
     { username: 'Mannu Kumar', score: 2450, rank: 1 },
     { username: 'CodeMaster', score: 2120, rank: 2 },
@@ -490,26 +486,23 @@ const LeaderboardPreviewWidget: React.FC<{
   const data = climbers.length > 0 ? climbers.map((c, i) => ({ ...c, rank: i + 1 })) : fallbacks;
 
   return (
-    <div className="mt-5 p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-2 select-none text-[11px] text-gray-400 font-medium">
-      <span className="font-bold text-gray-400 block mb-1">Top Coder Standings</span>
-      
+    <div className="p-3.5 bg-black/40 border border-white/[0.04] rounded-xl space-y-1.5 select-none text-[11px] text-gray-400 font-medium">
       {loading && climbers.length === 0 ? (
         <div className="space-y-1.5 animate-pulse">
           <div className="h-6 bg-white/5 rounded-lg" />
           <div className="h-6 bg-white/5 rounded-lg" />
-          <div className="h-6 bg-white/5 rounded-lg" />
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {data.map((c) => (
-            <div key={c.username} className="flex items-center justify-between px-2 py-1 bg-[#0f111a] border border-white/[0.03] rounded-lg">
+        <div className="space-y-1">
+          {data.slice(0, 2).map((c) => (
+            <div key={c.username} className="flex items-center justify-between px-2 py-1 bg-[#0a0d14] border border-white/[0.03] rounded-lg">
               <div className="flex items-center gap-2">
-                <span className={`w-4 text-center font-black ${
-                  c.rank === 1 ? 'text-amber-400' : c.rank === 2 ? 'text-slate-400' : 'text-orange-400'
+                <span className={`w-3.5 text-center font-black ${
+                  c.rank === 1 ? 'text-amber-400' : 'text-slate-400'
                 }`}>
                   {c.rank}
                 </span>
-                <span className="font-mono text-gray-300 font-bold truncate max-w-[100px]">{c.username}</span>
+                <span className="font-mono text-gray-300 font-bold truncate max-w-[80px]">{c.username}</span>
               </div>
               <span className="font-mono text-gray-500 font-black">{c.score} pts</span>
             </div>
@@ -521,13 +514,13 @@ const LeaderboardPreviewWidget: React.FC<{
 };
 
 /* ═══════════════════════════════════════════════════
-   Main Landing Page
+   Main Landing Page Component
    ═══════════════════════════════════════════════════ */
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
-  /* ── State ── */
+  /* ── States ── */
   const [importInput, setImportInput] = useState('');
   const [importing, setImporting] = useState(false);
   const [importStep, setImportStep] = useState('');
@@ -535,12 +528,12 @@ export const LandingPage: React.FC = () => {
   const [shaking, setShaking] = useState(false);
   const [sonicBoom, setSonicBoom] = useState(false);
 
-  /* ── Live backend stats data fetching ── */
   const [totalProblems, setTotalProblems] = useState<number | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [topClimbers, setTopClimbers] = useState<{ username: string; score: number }[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
 
+  // Live stats loading
   useEffect(() => {
     let active = true;
     const fetchLiveStats = async () => {
@@ -573,62 +566,59 @@ export const LandingPage: React.FC = () => {
     return () => { active = false; };
   }, []);
 
-  /* ── Hero typing ── */
-  const line1 = useTypingText('Code Faster.', 75, 400);
-  const line2 = useTypingText('Compete Smarter.', 55, 0, line1.done);
+  // Text Typing Effects
+  const line1 = useTypingText('WANT TO STAND OUT?', 70, 300);
+  const line2 = useTypingText('GREAT. COMPETE FIRST.', 50, 0, line1.done);
   const [subtitleVisible, setSubtitleVisible] = useState(false);
   const [glitch, setGlitch] = useState(false);
 
   useEffect(() => {
     if (line2.done) {
       setGlitch(true);
-      const t1 = setTimeout(() => setGlitch(false), 300);
-      const t2 = setTimeout(() => setSubtitleVisible(true), 400);
+      const t1 = setTimeout(() => setGlitch(false), 250);
+      const t2 = setTimeout(() => setSubtitleVisible(true), 350);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [line2.done]);
 
-  /* ── Mouse parallax for orbs ── */
+  // Mouse Reactive Orbs
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       setMouse({
-        x: (e.clientX / window.innerWidth - 0.5) * 30,
-        y: (e.clientY / window.innerHeight - 0.5) * 30,
+        x: (e.clientX / window.innerWidth - 0.5) * 35,
+        y: (e.clientY / window.innerHeight - 0.5) * 35,
       });
     };
     window.addEventListener('mousemove', handler);
     return () => window.removeEventListener('mousemove', handler);
   }, []);
 
-  /* ── Fetch & Solve with Rocket Launch ── */
+  // Importer Submission
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
     const slug = importInput.trim();
     if (!slug) { toast.error("Please enter a question name, URL, or keyword."); return; }
 
-    // 1) Shake
     setShaking(true);
     setTimeout(() => {
       setShaking(false);
-      // 2) Launch
       setRocketLaunched(true);
       setSonicBoom(true);
-      setTimeout(() => setSonicBoom(false), 1000);
+      setTimeout(() => setSonicBoom(false), 900);
     }, 150);
 
-    // 3) After rocket animation, run fetch
     setTimeout(async () => {
       setImporting(true);
       setImportStep("Connecting to repository...");
       try {
-        await new Promise(r => setTimeout(r, 500));
-        setImportStep("Extracting statements & syntax templates...");
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
+        setImportStep("Extracting syntax templates & testcases...");
+        await new Promise(r => setTimeout(r, 400));
         const problem = await api.problems.import(slug);
         setImportStep("Configuring Monaco Workspace...");
-        await new Promise(r => setTimeout(r, 400));
-        toast.success(`Successfully imported "${problem.title}"! Opening editor...`);
+        await new Promise(r => setTimeout(r, 300));
+        toast.success(`Successfully imported "${problem.title}"!`);
         navigate(`/problems/${problem.slug}`);
       } catch (err: any) {
         toast.error(err?.message || "Failed to import problem. Our backup engine synthesized a fallback workspace.");
@@ -638,97 +628,92 @@ export const LandingPage: React.FC = () => {
         setImportStep('');
         setRocketLaunched(false);
       }
-    }, 750);
+    }, 700);
   };
 
-
   return (
-    <div className="relative min-h-[calc(100vh-115px)] flex flex-col items-center overflow-hidden bg-[#07090e] select-none text-gray-200">
+    <div className="relative min-h-[calc(100vh-115px)] flex flex-col items-center overflow-hidden bg-[#030407] select-none text-gray-200">
+      
+      {/* Grid Background */}
+      <div className="grid-bg absolute inset-0 pointer-events-none opacity-45" />
 
-      {/* Grid bg */}
-      <div className="grid-bg absolute inset-0 pointer-events-none" />
-
-      {/* Floating code particles */}
+      {/* Background Floating Particles */}
       <FloatingCodeParticles />
 
-      {/* Mouse-reactive orbs */}
-      <div className="absolute top-[10%] left-[15%] w-[420px] h-[420px] rounded-full bg-blue-600/[0.07] blur-[140px] pointer-events-none transition-transform duration-[2500ms] ease-out"
-        style={{ transform: `translate(${mouse.x * 0.5}px, ${mouse.y * 0.5}px)` }} />
-      <div className="absolute top-[55%] right-[10%] w-[360px] h-[360px] rounded-full bg-indigo-500/[0.06] blur-[130px] pointer-events-none transition-transform duration-[2500ms] ease-out"
-        style={{ transform: `translate(${mouse.x * -0.3}px, ${mouse.y * -0.3}px)` }} />
-      <div className="absolute bottom-[5%] left-[30%] w-[300px] h-[300px] rounded-full bg-teal-500/[0.05] blur-[120px] pointer-events-none transition-transform duration-[2500ms] ease-out"
+      {/* Mouse Reactive Glowing Orbs */}
+      <div className="absolute top-[8%] left-[12%] w-[450px] h-[450px] rounded-full bg-blue-600/[0.06] blur-[150px] pointer-events-none transition-transform duration-[2500ms] ease-out"
         style={{ transform: `translate(${mouse.x * 0.4}px, ${mouse.y * 0.4}px)` }} />
-      <div className="absolute top-[30%] right-[35%] w-[200px] h-[200px] rounded-full bg-violet-500/[0.04] blur-[100px] pointer-events-none transition-transform duration-[2500ms] ease-out"
-        style={{ transform: `translate(${mouse.x * -0.6}px, ${mouse.y * -0.6}px)` }} />
+      <div className="absolute top-[45%] right-[8%] w-[400px] h-[400px] rounded-full bg-indigo-500/[0.05] blur-[130px] pointer-events-none transition-transform duration-[2500ms] ease-out"
+        style={{ transform: `translate(${mouse.x * -0.3}px, ${mouse.y * -0.3}px)` }} />
+      <div className="absolute bottom-[2%] left-[25%] w-[350px] h-[350px] rounded-full bg-teal-500/[0.04] blur-[120px] pointer-events-none transition-transform duration-[2500ms] ease-out"
+        style={{ transform: `translate(${mouse.x * 0.3}px, ${mouse.y * 0.3}px)` }} />
 
-      {/* Main content */}
-      <div className="max-w-6xl w-full mx-auto relative z-10 py-16 sm:py-24 px-4 space-y-20">
+      {/* Content wrapper */}
+      <div className="max-w-5xl w-full mx-auto relative z-10 py-16 sm:py-24 px-4 space-y-24">
 
-        {/* ────────── HERO SECTION ────────── */}
-        <section className="text-center space-y-8 max-w-4xl mx-auto">
-          {/* Badge with rotating border */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/[0.08] border border-blue-500/20 text-blue-400 text-[11px] font-bold tracking-widest uppercase animate-scale-in relative overflow-hidden"
+        {/* ────────── 1. HERO HEADER SECTION ────────── */}
+        <section className="text-center space-y-8 max-w-3xl mx-auto">
+          {/* Spark Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/[0.06] border border-blue-500/15 text-blue-400 text-[10px] font-black tracking-widest uppercase animate-scale-in relative overflow-hidden"
             style={{ animationDelay: '0.1s', opacity: 0 }}>
             <div className="absolute inset-[-1px] rounded-full animate-border-travel pointer-events-none"
               style={{
-                background: 'conic-gradient(from var(--border-angle, 0deg), transparent 70%, rgba(59,130,246,0.5) 100%)',
+                background: 'conic-gradient(from var(--border-angle, 0deg), transparent 70%, rgba(59,130,246,0.4) 100%)',
                 mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
                 WebkitMaskComposite: 'xor',
                 maskComposite: 'exclude',
                 padding: '1px',
               } as React.CSSProperties}
             />
-            <Sparkles className="w-3.5 h-3.5" style={{ animation: 'spin 3s linear infinite' }} />
+            <Sparkles className="w-3 h-3 text-blue-400 animate-pulse" />
             Competitive Coding Arena
           </div>
 
-          {/* Typing heading with dynamic light spotlight */}
+          {/* Heading */}
           <div className="relative inline-block w-full">
-            {/* Spotlight Ambient Glow */}
-            <div className="absolute inset-0 -z-10 flex items-center justify-center filter blur-[100px] pointer-events-none transition-all duration-1000 ease-out select-none">
+            <div className="absolute inset-0 -z-10 flex items-center justify-center filter blur-[100px] pointer-events-none select-none">
               <div className={`rounded-full transition-all duration-1000 ease-out ${
                 !line1.done
-                  ? 'w-[200px] h-[70px] bg-blue-500/10 scale-90'
+                  ? 'w-[180px] h-[60px] bg-blue-500/10 scale-90'
                   : !line2.done
-                  ? 'w-[270px] h-[90px] bg-indigo-500/12 scale-100'
-                  : 'w-[350px] h-[110px] bg-violet-600/10 scale-105 animate-glow-pulse'
+                  ? 'w-[250px] h-[80px] bg-indigo-500/10 scale-100'
+                  : 'w-[320px] h-[100px] bg-violet-600/10 scale-105 animate-glow-pulse'
               }`} />
             </div>
 
-            <h1 className={`text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.08] select-text ${glitch ? 'animate-glitch' : ''}`}>
+            <h1 className={`text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] select-text ${glitch ? 'animate-glitch' : ''}`}>
               <span className="block text-white">
                 {line1.displayed}
                 {!line1.done && (
-                  <span className="inline-block w-[3px] h-[0.85em] bg-blue-400 ml-1 align-middle animate-blink rounded-sm" />
+                  <span className="inline-block w-[2.5px] h-[0.85em] bg-blue-400 ml-1 align-middle animate-blink rounded-sm" />
                 )}
               </span>
               <span className="text-gradient-primary block mt-1">
                 {line2.displayed}
                 {line1.done && !line2.done && (
-                  <span className="inline-block w-[3px] h-[0.85em] bg-violet-400 ml-1 align-middle animate-blink rounded-sm" />
+                  <span className="inline-block w-[2.5px] h-[0.85em] bg-violet-400 ml-1 align-middle animate-blink rounded-sm" />
                 )}
               </span>
             </h1>
           </div>
 
           {/* Subtitle */}
-          <p className={`text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed font-medium transition-all duration-700 ease-out ${
+          <p className={`text-sm sm:text-base text-gray-400 max-w-xl mx-auto leading-relaxed font-medium transition-all duration-700 ease-out ${
             subtitleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}>
-            Fetch problems from LeetCode & GeeksforGeeks, solve them in a premium
-            Monaco editor, and battle rivals in real-time 1v1 arenas.
+            In an era of boilerplate portfolios and generated code, credentials lose their meaning. Elite developers stand out by competing under extreme time pressure.
           </p>
 
-          {/* CTA buttons */}
+          {/* CTA Buttons */}
           <div className={`flex flex-wrap items-center justify-center gap-4 pt-2 transition-all duration-700 ease-out delay-150 ${
             subtitleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}>
             <Link to="/battle">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold tracking-wide shadow-lg shadow-orange-600/20 border-0 hover:scale-[1.04] active:scale-[0.97] transition-all flex items-center gap-2.5 px-7 h-12 text-sm group"
+                className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold tracking-wider shadow-lg shadow-orange-600/15 border-0 hover:scale-[1.03] active:scale-[0.98] transition-all flex items-center gap-2.5 px-6 h-11 text-xs group"
               >
-                <Swords className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                <Swords className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
                 Enter 1v1 Arena
               </Button>
             </Link>
@@ -736,160 +721,230 @@ export const LandingPage: React.FC = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white/[0.08] hover:bg-white/[0.04] text-gray-200 hover:text-white tracking-wide hover:scale-[1.04] active:scale-[0.97] transition-all flex items-center gap-2.5 px-7 h-12 text-sm"
+                className="border-white/[0.08] hover:bg-white/[0.04] text-gray-200 hover:text-white tracking-wider hover:scale-[1.03] active:scale-[0.98] transition-all flex items-center gap-2.5 px-6 h-11 text-xs"
               >
-                <Terminal className="w-5 h-5 text-blue-400" />
+                <Terminal className="w-4 h-4 text-blue-400" />
                 Explore Problems
               </Button>
             </Link>
           </div>
         </section>
 
-        {/* ────────── FETCH & SOLVE ROCKET BAR ────────── */}
-        <section className="max-w-2xl w-full mx-auto relative">
-          {/* Sonic boom ring */}
-          {sonicBoom && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30">
-              <div className="w-2 h-2 rounded-full border-2 border-blue-400/60 animate-sonic-boom" />
-            </div>
-          )}
-
-          <div className={`glass-card relative p-6 sm:p-8 rounded-2xl border border-blue-500/[0.12] shadow-2xl shadow-blue-900/10 transition-transform ${
-            shaking ? 'animate-shake' : ''
-          } ${rocketLaunched ? 'animate-rocket-launch' : ''}`}>
-            {/* Exhaust particles */}
-            <ExhaustParticles boosted={rocketLaunched} />
-
-            {/* Glow accent */}
-            <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-blue-500/[0.08] to-transparent pointer-events-none -z-10" />
-
-            {/* Label */}
-            <div className="flex items-center gap-2 mb-5">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">Instant Fetch Engine</span>
+        {/* ────────── 2. THE MANIFESTO SECTION (Narrative Experience) ────────── */}
+        <section className="border-t border-b border-white/[0.04] py-14 bg-gradient-to-b from-white/[0.01] via-transparent to-white/[0.01]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            {/* Story block */}
+            <div className="space-y-6">
+              <div className="inline-flex items-center gap-2 text-[10px] font-bold text-orange-400 uppercase tracking-widest">
+                <Award className="w-4 h-4 text-orange-400" />
+                The Filtering Engine
               </div>
-              {!importInput.trim() && !importing && !rocketLaunched && (
-                <span className="ml-auto text-[10px] text-gray-500 font-medium animate-float" style={{ animationDuration: '3s' }}>
-                  Ready for liftoff 🚀
-                </span>
-              )}
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+                Boilerplate is cheap.<br />
+                Mastery is demonstrated.
+              </h2>
+              <div className="space-y-4 text-xs sm:text-sm text-gray-400 font-medium leading-relaxed">
+                <p>
+                  Today, credentials can be simulated. Portfolios are generated, resumes are polished by algorithms, and solutions are easily looked up.
+                </p>
+                <p className="border-l-2 border-orange-500/50 pl-3 italic text-gray-300">
+                  "Want to stand out? Great. Compete first."
+                </p>
+                <p>
+                  Real-time engineering requires deep algorithmic comprehension, memory optimization under stress, and split-second runtime efficiency. We do not provide a playground. We provide the crucible.
+                </p>
+              </div>
             </div>
 
-            <form onSubmit={handleImport} className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-center gap-3">
-                <div className="relative flex-1 w-full">
-                  <Input
-                    placeholder="Paste LeetCode/GFG URL or search keyword..."
-                    value={importInput}
-                    onChange={(e) => setImportInput(e.target.value)}
-                    disabled={importing || rocketLaunched}
-                    className="w-full !bg-[#07090e]/80 focus:!border-blue-500/60 focus:!ring-blue-500/15 placeholder:text-gray-500 !h-12 pl-11 text-sm text-gray-100 rounded-xl"
-                  />
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-500" />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={importing || !importInput.trim() || rocketLaunched}
-                  className="w-full sm:w-auto h-12 px-6 font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 rounded-xl border-0 group"
-                >
-                  {rocketLaunched ? (
-                    <span className="animate-pulse font-black tracking-wide">🚀 LAUNCHING...</span>
-                  ) : importing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                      Fetch & Solve
-                    </>
-                  )}
-                </Button>
+            {/* Graphic block */}
+            <div className="relative">
+              {/* Image Glow */}
+              <div className="absolute inset-0 bg-indigo-500/10 blur-[80px] rounded-2xl pointer-events-none -z-10" />
+              <div className="glass-card p-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] shadow-2xl overflow-hidden group">
+                <img
+                  src="/premium_developer_coding.png"
+                  alt="Elite Developer Space"
+                  className="rounded-xl w-full h-auto object-cover border border-white/[0.04] grayscale group-hover:grayscale-0 transition-all duration-700"
+                />
               </div>
-
-              {importing && (
-                <div className="flex items-center justify-between text-xs text-blue-400 font-semibold px-1 pt-1.5 animate-pulse">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin border-blue-400" />
-                    {importStep}
-                  </div>
-                  <span className="text-gray-500">Creating Sandbox...</span>
-                </div>
-              )}
-            </form>
+            </div>
           </div>
         </section>
 
-        {/* ────────── FEATURE CARDS ────────── */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          <FeatureCard
-            to="/battle"
-            icon={Swords}
-            color="orange"
-            title="1v1 Battle Arena"
-            desc="Challenge rivals in real-time coding duels with synchronized editors, instant judging, and live scoreboards."
-            borderHover="hover:border-orange-500/30"
-            iconBg="bg-orange-500/10 border-orange-500/20"
-            iconText="text-orange-400"
-            chevronColor="text-orange-400"
-            delay={0}
-          >
-            <BattleQueueWidget />
-          </FeatureCard>
+        {/* ────────── 3. ASYMMETRIC BENTO GRID FEATURE DISPLAY ────────── */}
+        <section className="space-y-8">
+          <div className="text-center">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">The Anatomy of Performance</span>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1">Engineered for Elite Solvers</h2>
+          </div>
 
-          <FeatureCard
-            to="/problems"
-            icon={Terminal}
-            color="blue"
-            title="Monaco Workspace"
-            desc="Write, compile, and execute code in a premium distraction-free editor with intelligent autocomplete."
-            borderHover="hover:border-blue-500/30"
-            iconBg="bg-blue-500/10 border-blue-500/20"
-            iconText="text-blue-400"
-            chevronColor="text-blue-400"
-            delay={200}
-          >
-            <WorkspaceStatsWidget count={totalProblems} loading={loadingStats} />
-          </FeatureCard>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+            {/* 1v1 card (Large / Double columns on desktop) */}
+            <BentoCard
+              to="/battle"
+              icon={Swords}
+              color="orange"
+              title="1v1 Battle Arena"
+              desc="Engage in synchronized coding battles with sub-second execution logic and live interactive scoreboards."
+              borderHover="hover:border-orange-500/30"
+              iconBg="bg-orange-500/10 border-orange-500/20"
+              iconText="text-orange-400"
+              chevronColor="text-orange-400"
+              className="md:col-span-2"
+            >
+              <BattleQueueWidget />
+            </BentoCard>
 
-          <FeatureCard
-            to="/leaderboard"
-            icon={Trophy}
-            color="emerald"
-            title="Global Leaderboard"
-            desc="Climb the competitive ladder, earn badges, and claim your rank among the world's best problem solvers."
-            borderHover="hover:border-emerald-500/30"
-            iconBg="bg-emerald-500/10 border-emerald-500/20"
-            iconText="text-emerald-400"
-            chevronColor="text-emerald-400"
-            delay={400}
-          >
-            <LeaderboardPreviewWidget climbers={topClimbers} loading={loadingLeaderboard} />
-          </FeatureCard>
+            {/* Global standings (Medium) */}
+            <BentoCard
+              to="/leaderboard"
+              icon={Trophy}
+              color="emerald"
+              title="Elo Leaderboard"
+              desc="Climb the ranks, secure points, and build your digital validation."
+              borderHover="hover:border-emerald-500/30"
+              iconBg="bg-emerald-500/10 border-emerald-500/20"
+              iconText="text-emerald-400"
+              chevronColor="text-emerald-400"
+            >
+              <LeaderboardPreviewWidget climbers={topClimbers} loading={loadingLeaderboard} />
+            </BentoCard>
+
+            {/* Monaco Card (Medium) */}
+            <BentoCard
+              to="/problems"
+              icon={Terminal}
+              color="blue"
+              title="Intelligent Compiler"
+              desc="Write and compile in a distraction-free, premium Monaco editor with autocompletes."
+              borderHover="hover:border-blue-500/30"
+              iconBg="bg-blue-500/10 border-blue-500/20"
+              iconText="text-blue-400"
+              chevronColor="text-blue-400"
+            >
+              <WorkspaceStatsWidget count={totalProblems} loading={loadingStats} />
+            </BentoCard>
+
+            {/* Importer Engine (Double / Full columns on Bento) */}
+            <div className="md:col-span-2 relative max-w-full">
+              {sonicBoom && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30">
+                  <div className="w-1.5 h-1.5 rounded-full border border-blue-400/60 animate-sonic-boom" />
+                </div>
+              )}
+
+              <div className={`glass-card p-6 h-full rounded-2xl border border-blue-500/[0.12] bg-white/[0.01] shadow-2xl relative overflow-hidden transition-transform ${
+                shaking ? 'animate-shake' : ''
+              } ${rocketLaunched ? 'animate-rocket-launch' : ''}`}>
+                <ExhaustParticles boosted={rocketLaunched} />
+                <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-blue-500/[0.04] to-transparent pointer-events-none -z-10" />
+
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/15">
+                    <Zap className="w-3 h-3 text-blue-400 animate-pulse" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400">Fetch Engine</span>
+                  </div>
+                  {!importInput.trim() && !importing && !rocketLaunched && (
+                    <span className="text-[9px] text-gray-500 font-medium animate-float">Ready for lift-off 🚀</span>
+                  )}
+                </div>
+
+                <form onSubmit={handleImport} className="space-y-3 relative z-10">
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <div className="relative flex-1 w-full">
+                      <Input
+                        placeholder="Paste LeetCode/GFG URL or problem name..."
+                        value={importInput}
+                        onChange={(e) => setImportInput(e.target.value)}
+                        disabled={importing || rocketLaunched}
+                        className="w-full !bg-[#07090e]/70 focus:!border-blue-500/40 focus:!ring-blue-500/10 placeholder:text-gray-600 !h-10 pl-10 text-xs text-gray-200 rounded-lg"
+                      />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={importing || !importInput.trim() || rocketLaunched}
+                      className="w-full sm:w-auto h-10 px-5 font-bold text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 rounded-lg border-0"
+                    >
+                      {rocketLaunched ? (
+                        <span className="animate-pulse">🚀 LAUNCHING...</span>
+                      ) : importing ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                          Crawling...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3" />
+                          Fetch & Solve
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {importing && (
+                    <div className="flex items-center justify-between text-[10px] text-blue-400 font-bold px-1.5 pt-1 animate-pulse">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3.5 h-3.5 border border-t-transparent rounded-full animate-spin border-blue-400" />
+                        {importStep}
+                      </div>
+                      <span className="text-gray-500 text-[9px]">Compiling Sandbox...</span>
+                    </div>
+                  )}
+                </form>
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* ────────── BATTLE SIMULATION PREVIEW ────────── */}
-        <section className="max-w-4xl mx-auto animate-slide-up" style={{ animationDelay: '0.6s', opacity: 0 }}>
-          <div className="text-center mb-6">
-            <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">See how battles work</span>
+        {/* ────────── 4. SYSTEM STATS ROW ────────── */}
+        <section className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+          <div className="glass-card p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] text-center">
+            <Cpu className="w-4.5 h-4.5 text-blue-400 mx-auto mb-1.5" />
+            <p className="text-lg font-black text-white leading-none">0.04s</p>
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Execution Latency</p>
+          </div>
+          <div className="glass-card p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] text-center">
+            <Shield className="w-4.5 h-4.5 text-orange-400 mx-auto mb-1.5" />
+            <p className="text-lg font-black text-white leading-none">100%</p>
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Secure Sandbox</p>
+          </div>
+          <div className="glass-card p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] text-center">
+            <Globe className="w-4.5 h-4.5 text-emerald-400 mx-auto mb-1.5" />
+            <p className="text-lg font-black text-white leading-none">Universal</p>
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Universal Crawler</p>
+          </div>
+          <div className="glass-card p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] text-center">
+            <Zap className="w-4.5 h-4.5 text-yellow-400 mx-auto mb-1.5" />
+            <p className="text-lg font-black text-white leading-none">Sub-second</p>
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Arena Sync</p>
+          </div>
+        </section>
+
+        {/* ────────── 5. LIVE CODE DUELS SIMULATOR ────────── */}
+        <section className="max-w-4xl mx-auto space-y-6">
+          <div className="text-center">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Under the Hood</span>
+            <h2 className="text-lg sm:text-xl font-extrabold text-white mt-0.5">Real-time Performance Validation</h2>
           </div>
           <BattleSimulation />
         </section>
 
-        {/* ────────── BOTTOM CTA ────────── */}
-        <section className="text-center space-y-5 pb-8 animate-slide-up" style={{ animationDelay: '0.8s', opacity: 0 }}>
-          <p className="text-gray-500 text-sm font-medium">Ready to level up your competitive coding?</p>
+        {/* ────────── 6. BOTTOM CTA MANIFESTO ────────── */}
+        <section className="text-center space-y-6 pb-8 border-t border-white/[0.04] pt-16">
+          <div className="space-y-2">
+            <h3 className="text-lg sm:text-xl font-black text-white">Do you have what it takes?</h3>
+            <p className="text-xs text-gray-500 font-medium">Step out of the noise. Validate your capability.</p>
+          </div>
           <div className="flex items-center justify-center gap-4">
             <Link to="/battle">
-              <Button className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold px-6 h-11 shadow-lg shadow-orange-600/15 border-0 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-2 text-sm group">
+              <Button className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold px-6 h-10 shadow-md border-0 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 text-xs group">
                 <Swords className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                 Start a Battle
               </Button>
             </Link>
             <Link to="/leaderboard">
-              <Button variant="outline" className="border-white/[0.08] hover:bg-white/[0.04] text-gray-300 hover:text-white font-bold px-6 h-11 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-2 text-sm">
+              <Button variant="outline" className="border-white/[0.08] hover:bg-white/[0.04] text-gray-300 hover:text-white font-bold px-6 h-10 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 text-xs">
                 <Award className="w-4 h-4 text-emerald-400" />
                 Leaderboard
               </Button>
