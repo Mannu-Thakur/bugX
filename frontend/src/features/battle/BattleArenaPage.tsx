@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { 
   Swords, Trophy, Clock, Play, Send, AlertTriangle, Terminal, 
-  Volume2, VolumeX, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
-  Minus, Plus
+  Volume2, VolumeX, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BookOpen,
+  Minus, Plus, BarChart3, Medal, Timer, Zap, Target, Award, RotateCcw
 } from 'lucide-react';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
 import { api } from '../../shared/lib/api';
@@ -145,22 +145,134 @@ export const BattleArenaPage: React.FC = () => {
 
   // General Battle States
   const [showWinnerModal, setShowWinnerModal] = useState(false);
+  const [showResultsPage, setShowResultsPage] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
   const [confetti, setConfetti] = useState<ConfettiParticle[]>([]);
+  const [battleResults, setBattleResults] = useState<any>(null);
   
   // Loading and error states
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Left Panel Tabs and Visibility States
-  const [leftActiveTab, setLeftActiveTab] = useState<'description' | 'constraints' | 'testcases'>('description');
+  // Left Panel Visibility States
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(true);
   
   // Terminal Panel Visibility States
   const [showP1Terminal, setShowP1Terminal] = useState(true);
   const [showP2Terminal, setShowP2Terminal] = useState(true);
+
+  // Terminal panel resizable heights
+  const [p1TerminalHeight, setP1TerminalHeight] = useState(120);
+  const [p2TerminalHeight, setP2TerminalHeight] = useState(120);
+  const [isResizingP1Term, setIsResizingP1Term] = useState(false);
+  const [isResizingP2Term, setIsResizingP2Term] = useState(false);
+  const termStartYRef = useRef(0);
+  const termStartHeightRef = useRef(0);
   
   // Split Workspace Toggle State (for multiplayer or local dual-workspace)
   const [workspaceViewMode, setWorkspaceViewMode] = useState<'split' | 'p1' | 'p2'>('split');
+
+  // Description resizing states
+  const [descriptionWidth, setDescriptionWidth] = useState(400); // default 400px
+  const [isResizingDesc, setIsResizingDesc] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingDesc(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = descriptionWidth;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startXRef.current;
+      const newWidth = startWidthRef.current + deltaX;
+      const clampedWidth = Math.max(250, Math.min(newWidth, window.innerWidth * 0.6));
+      setDescriptionWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingDesc(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Terminal panel vertical resize handlers
+  const handleTermResizeMouseDown = useCallback((e: React.MouseEvent, player: 1 | 2) => {
+    e.preventDefault();
+    if (player === 1) setIsResizingP1Term(true);
+    else setIsResizingP2Term(true);
+    termStartYRef.current = e.clientY;
+    termStartHeightRef.current = player === 1 ? p1TerminalHeight : p2TerminalHeight;
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const setHeight = player === 1 ? setP1TerminalHeight : setP2TerminalHeight;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = termStartYRef.current - moveEvent.clientY;
+      const newHeight = termStartHeightRef.current + deltaY;
+      const clampedHeight = Math.max(60, Math.min(newHeight, 400));
+      setHeight(clampedHeight);
+    };
+
+    const handleMouseUp = () => {
+      if (player === 1) setIsResizingP1Term(false);
+      else setIsResizingP2Term(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [p1TerminalHeight, p2TerminalHeight]);
+
+  // Debounced code synchronization
+  const codeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pushCodeUpdate = async (playerNum: 1 | 2, code: string, lang: string) => {
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('room');
+    if (!roomId) return;
+    try {
+      await api.battle.update(roomId, {
+        player: playerNum,
+        code,
+        lang,
+      });
+    } catch (err) {
+      console.error("Failed to push code update to server:", err);
+    }
+  };
+
+  const syncCodeDebounced = (playerNum: 1 | 2, code: string, lang: string) => {
+    if (codeSyncTimeoutRef.current) {
+      clearTimeout(codeSyncTimeoutRef.current);
+    }
+    codeSyncTimeoutRef.current = setTimeout(() => {
+      pushCodeUpdate(playerNum, code, lang);
+    }, 1000);
+  };
+
+  // Clean timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (codeSyncTimeoutRef.current) {
+        clearTimeout(codeSyncTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ─── Imperatively sync editor readOnly whenever battle/solved state changes ──
   // @monaco-editor/react doesn't reliably apply readOnly changes via the options
@@ -189,11 +301,12 @@ export const BattleArenaPage: React.FC = () => {
       const encodedConfig = params.get('config');
 
       let parsedConfig: any = null;
+      let roomState: any = null;
 
       try {
         if (roomId) {
           const playerNum = joinedPlayer === '2' ? 2 : 1;
-          const roomState = await api.battle.get(roomId, playerNum);
+          roomState = await api.battle.get(roomId, playerNum);
           if (cancelled) return;
 
           parsedConfig = {
@@ -212,10 +325,10 @@ export const BattleArenaPage: React.FC = () => {
           setOpponentActive(roomState.player2_active);
           setRoomPlayer(playerNum);
           
-          if (roomState.status === 'active' && roomState.start_time) {
-            const start = new Date(roomState.start_time).getTime();
-            const elapsed = Math.floor((Date.now() - start) / 1000);
-            const left = Math.max(0, roomState.time_limit * 60 - elapsed);
+          if (roomState.status === 'active') {
+            const left = roomState.time_left !== null && roomState.time_left !== undefined 
+              ? roomState.time_left 
+              : roomState.time_limit * 60;
             setTimeLeft(left);
             setBattleActive(left > 0);
           } else {
@@ -237,7 +350,7 @@ export const BattleArenaPage: React.FC = () => {
           parsedConfig = JSON.parse(rawConfig);
           if (cancelled) return;
 
-          setRoomPlayer(joinedPlayer === '2' ? 2 : 1);
+          setRoomPlayer(null); // Local duel workspace shows split view
           setTimeLeft(parsedConfig.timeLimit * 60);
           setBattleActive(true);
         }
@@ -283,10 +396,28 @@ export const BattleArenaPage: React.FC = () => {
         if (cancelled || !problemDetail) return;
         setProblem(problemDetail);
         
-        setP1Language('cpp');
-        setP2Language('cpp');
-        setP1Code(problemDetail.cppTemplate);
-        setP2Code(problemDetail.cppTemplate);
+        const getTemplate = (l: string, pd: BattleProblem) => {
+          if (l === 'javascript') return pd.jsTemplate;
+          if (l === 'python') return pd.pythonTemplate;
+          if (l === 'cpp') return pd.cppTemplate;
+          if (l === 'java') return pd.javaTemplate;
+          return '';
+        };
+
+        if (roomId && roomState) {
+          const p1L = (roomState.p1_lang as BattleLanguage) || 'cpp';
+          const p2L = (roomState.p2_lang as BattleLanguage) || 'cpp';
+          
+          setP1Language(p1L);
+          setP2Language(p2L);
+          setP1Code(roomState.p1_code || getTemplate(p1L, problemDetail));
+          setP2Code(roomState.p2_code || getTemplate(p2L, problemDetail));
+        } else {
+          setP1Language('cpp');
+          setP2Language('cpp');
+          setP1Code(problemDetail.cppTemplate);
+          setP2Code(problemDetail.cppTemplate);
+        }
       } catch (err: any) {
         console.error(err);
         if (!cancelled) {
@@ -370,26 +501,39 @@ export const BattleArenaPage: React.FC = () => {
         setHostActive(roomState.player1_active);
         setOpponentActive(roomState.player2_active);
 
-        // Synchronize player progress cards
+        // Synchronize player progress cards & opponent code/lang
         if (joinedPlayer === 1) {
           // Sync opponent's state (player 2)
           setP2Score(roomState.p2_score);
           setP2Solved(roomState.p2_solved);
           setP2Attempts(roomState.p2_attempts);
+          if (roomState.p2_code !== undefined && roomState.p2_code !== null) {
+            setP2Code(roomState.p2_code);
+          }
+          if (roomState.p2_lang) {
+            setP2Language(roomState.p2_lang);
+          }
         } else {
           // Sync host's state (player 1)
           setP1Score(roomState.p1_score);
           setP1Solved(roomState.p1_solved);
           setP1Attempts(roomState.p1_attempts);
+          if (roomState.p1_code !== undefined && roomState.p1_code !== null) {
+            setP1Code(roomState.p1_code);
+          }
+          if (roomState.p1_lang) {
+            setP1Language(roomState.p1_lang);
+          }
         }
 
-        // If the battle has just transitioned to active, start the timer
-        if (roomState.status === 'active' && roomState.start_time) {
-          const start = new Date(roomState.start_time).getTime();
-          const elapsed = Math.floor((Date.now() - start) / 1000);
-          const left = Math.max(0, roomState.time_limit * 60 - elapsed);
+        // If the battle is active, synchronize the timer
+        if (roomState.status === 'active') {
+          const left = roomState.time_left !== null && roomState.time_left !== undefined 
+            ? roomState.time_left 
+            : roomState.time_limit * 60;
           
-          setTimeLeft(left);
+          // Only update local timer if it diverges by more than 4 seconds to avoid jitter
+          setTimeLeft(prev => Math.abs(prev - left) > 4 ? left : prev);
           setBattleActive(left > 0);
 
           if (left <= 0) {
@@ -411,11 +555,11 @@ export const BattleArenaPage: React.FC = () => {
     pollInterval = setInterval(poll, 2000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);
-  }, [config, showWinnerModal]);
+  }, [config, showWinnerModal, showResultsPage]);
 
   // CSS Confetti Generator Effect
   useEffect(() => {
-    if (showWinnerModal) {
+    if (showWinnerModal || showResultsPage) {
       const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'];
       const particles: ConfettiParticle[] = Array.from({ length: 80 }).map((_, i) => ({
         id: i,
@@ -431,7 +575,7 @@ export const BattleArenaPage: React.FC = () => {
     } else {
       setConfetti([]);
     }
-  }, [showWinnerModal]);
+  }, [showWinnerModal, showResultsPage]);
 
   if (errorMsg) {
     return (
@@ -875,14 +1019,10 @@ export const BattleArenaPage: React.FC = () => {
         setScore(finalScore);
         pushStateUpdate(finalScore, true, attempts + 1);
 
-        // Check if both solved to auto-end battle
-        const otherSolved = isP1 ? p2Solved : p1Solved;
-        if (otherSolved) {
-          // Both solved, trigger instant end
-          setTimeout(() => {
-            handleEndBattle(false, finalScore, isP1);
-          }, 800);
-        }
+        // End battle immediately when any player solves (winner determined)
+        setTimeout(() => {
+          handleEndBattle(false, finalScore, isP1);
+        }, 800);
       }
     }, 900);
   };
@@ -940,7 +1080,7 @@ export const BattleArenaPage: React.FC = () => {
     }
   }
 
-  // End Battle and show Winner Modal
+  // End Battle and show full results page
   function handleEndBattle(isTimeout = false, overrideScore?: number, overridePlayer1?: boolean) {
     if (!config || !problem) return;
 
@@ -966,9 +1106,7 @@ export const BattleArenaPage: React.FC = () => {
       winnerName = 'Tie Match';
     }
 
-    setWinner(winnerName);
-    setShowWinnerModal(true);
-    saveBattleHistory({
+    const results = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       problemTitle: problem.title,
       player1: config.player1,
@@ -984,7 +1122,13 @@ export const BattleArenaPage: React.FC = () => {
       timeUsedSeconds: Math.max(0, config.timeLimit * 60 - timeLeft),
       endedByTimeout: isTimeout,
       endedAt: new Date().toISOString(),
-    });
+    };
+
+    setWinner(winnerName);
+    setBattleResults(results);
+    setShowResultsPage(true);
+    setShowWinnerModal(false);
+    saveBattleHistory(results);
 
     if (soundEnabled) {
       playSystemSound(winnerName === 'Tie Match' ? 'defeat' : 'victory');
@@ -1018,12 +1162,15 @@ export const BattleArenaPage: React.FC = () => {
       return '';
     };
 
+    const newCode = getTemplate(lang);
     if (player === 1) {
       setP1Language(lang);
-      setP1Code(getTemplate(lang));
+      setP1Code(newCode);
+      pushCodeUpdate(1, newCode, lang);
     } else {
       setP2Language(lang);
-      setP2Code(getTemplate(lang));
+      setP2Code(newCode);
+      pushCodeUpdate(2, newCode, lang);
     }
   };
 
@@ -1032,9 +1179,6 @@ export const BattleArenaPage: React.FC = () => {
   const showPlayer2Workspace = singleWorkspaceMode ? (roomPlayer === 2) : (workspaceViewMode === 'split' || workspaceViewMode === 'p2');
   
   const isSplitActive = !singleWorkspaceMode && workspaceViewMode === 'split';
-  const problemColumnClass = showDescriptionPanel 
-    ? (singleWorkspaceMode || !isSplitActive ? 'w-[34%]' : 'w-[25%]') 
-    : 'w-0 hidden';
   const playerColumnClass = (singleWorkspaceMode || !isSplitActive) ? 'flex-1' : 'w-[37.5%]';
   const currentRoomName = roomPlayer === 2 ? config.player2 : config.player1;
 
@@ -1329,14 +1473,19 @@ export const BattleArenaPage: React.FC = () => {
           </div>
         )}
 
-        {/* Column 1: Problem Description (Width 25% or 34%) */}
+        {/* Column 1: Problem Description */}
         {showDescriptionPanel && problem && (
-          <div className={cn(problemColumnClass, "border-r border-dark-border bg-dark-panel flex flex-col h-full overflow-hidden")}>
-            
+          <div 
+            style={{ width: `${descriptionWidth}px` }} 
+            className="border-r border-dark-border bg-dark-panel flex flex-col h-full overflow-hidden shrink-0"
+          >
             {/* Header: Title + Points */}
-            <div className="p-3 border-b border-dark-border select-none bg-dark-bg/25">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+            <div className="p-3 border-b border-dark-border select-none bg-dark-bg/25 flex items-center justify-between gap-2 shrink-0">
+              <h2 className="text-sm font-black text-gray-100 truncate flex-1" title={problem.title}>
+                {problem.title}
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
                   Base: {problem.scoreBase} PTS
                 </span>
                 {/* Collapse Button */}
@@ -1348,147 +1497,64 @@ export const BattleArenaPage: React.FC = () => {
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h2 className="text-sm font-black text-gray-100 mt-2 line-clamp-2" title={problem.title}>
-                {problem.title}
-              </h2>
-            </div>
-            
-            {/* Tab Navigation */}
-            <div className="flex border-b border-dark-border bg-dark-bg/50 select-none">
-              <button
-                onClick={() => setLeftActiveTab('description')}
-                className={cn(
-                  "flex-1 py-2 text-[10px] font-bold tracking-wider uppercase border-b-2 transition-all flex items-center justify-center gap-1.5",
-                  leftActiveTab === 'description'
-                    ? "border-amber-500 text-amber-400 bg-dark-panel/40"
-                    : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-dark-hover/30"
-                )}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                Description
-              </button>
-              <button
-                onClick={() => setLeftActiveTab('constraints')}
-                className={cn(
-                  "flex-1 py-2 text-[10px] font-bold tracking-wider uppercase border-b-2 transition-all flex items-center justify-center gap-1.5",
-                  leftActiveTab === 'constraints'
-                    ? "border-amber-500 text-amber-400 bg-dark-panel/40"
-                    : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-dark-hover/30"
-                )}
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Constraints
-              </button>
-              <button
-                onClick={() => setLeftActiveTab('testcases')}
-                className={cn(
-                  "flex-1 py-2 text-[10px] font-bold tracking-wider uppercase border-b-2 transition-all flex items-center justify-center gap-1.5",
-                  leftActiveTab === 'testcases'
-                    ? "border-amber-500 text-amber-400 bg-dark-panel/40"
-                    : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-dark-hover/30"
-                )}
-              >
-                <Terminal className="w-3.5 h-3.5" />
-                Tests
-              </button>
             </div>
 
-            {/* Scrollable Tab Content Container */}
-            <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+            {/* Scrollable Description Container (Unified View) */}
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6 select-text">
               
-              {/* Tab 1: Description */}
-              {leftActiveTab === 'description' && (
-                <div className="select-text pb-4">
-                  {/<[a-z][^>]*>/i.test(problem.description) ? (
-                    // Render HTML descriptions (from GFG/LeetCode imports)
-                    <div
-                      className="prose-battle text-[11.5px] leading-relaxed text-gray-300 space-y-2"
-                      style={{
-                        lineHeight: '1.7',
-                        wordBreak: 'break-word',
-                      }}
-                      dangerouslySetInnerHTML={{
-                        __html: problem.description
-                          .replace(/<style[^>]*>.*?<\/style>/gis, '')
-                          .replace(/<script[^>]*>.*?<\/script>/gis, '')
-                          .replace(/class="[^"]*"/g, '')
-                          .replace(/style="[^"]*"/g, '')
-                          .replace(/<p>/gi, '<p style="margin:0 0 8px 0">')
-                          .replace(/<li>/gi, '<li style="margin:2px 0;padding-left:4px">')
-                          .replace(/<ul>/gi, '<ul style="margin:6px 0 6px 16px;list-style:disc">')
-                          .replace(/<ol>/gi, '<ol style="margin:6px 0 6px 16px;list-style:decimal">')
-                          .replace(/<pre>/gi, '<pre style="background:#0b0d12;padding:10px;border-radius:8px;overflow-x:auto;font-size:10px;border:1px solid #2a2d35;margin:8px 0">')
-                          .replace(/<code>/gi, '<code style="background:#1a1d24;padding:2px 5px;border-radius:4px;font-size:10px;font-family:monospace;color:#a5f3fc">')
-                          .replace(/<strong>/gi, '<strong style="color:#f0f0f0;font-weight:700">')
-                          .replace(/<b>/gi, '<b style="color:#f0f0f0;font-weight:700">')
-                          .replace(/<em>/gi, '<em style="color:#fbbf24">')
-                      }}
-                    />
-                  ) : (
-                    // Render plain text descriptions
-                    <div className="text-gray-300 text-[11px] leading-relaxed whitespace-pre-wrap font-sans break-words">
-                      {problem.description}
-                    </div>
-                  )}
+              {/* Part 1: Description text */}
+              <div className="space-y-3 pb-5 border-b border-white/[0.04]">
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">Description</h4>
                 </div>
-              )}
+                {/<[a-z][^>]*>/i.test(problem.description) ? (
+                  <div
+                    className="prose-battle text-xs leading-relaxed text-gray-300 space-y-3"
+                    style={{ lineHeight: '1.7', wordBreak: 'break-word' }}
+                    dangerouslySetInnerHTML={{
+                      __html: problem.description
+                        .replace(/<style[^>]*>.*?<\/style>/gis, '')
+                        .replace(/<script[^>]*>.*?<\/script>/gis, '')
+                        .replace(/class="[^"]*"/g, '')
+                        .replace(/style="[^"]*"/g, '')
+                        .replace(/<p>/gi, '<p style="margin:0 0 8px 0">')
+                        .replace(/<li>/gi, '<li style="margin:2px 0;padding-left:4px">')
+                        .replace(/<ul>/gi, '<ul style="margin:6px 0 6px 16px;list-style:disc">')
+                        .replace(/<ol>/gi, '<ol style="margin:6px 0 6px 16px;list-style:decimal">')
+                        .replace(/<pre>/gi, '<pre style="background:#0b0d12;padding:12px;border-radius:8px;overflow-x:auto;font-size:11px;border:1px solid #2a2d35;margin:8px 0">')
+                        .replace(/<code>/gi, '<code style="background:#1a1d24;padding:2px 5px;border-radius:4px;font-size:11px;font-family:monospace;color:#a5f3fc">')
+                        .replace(/<strong>/gi, '<strong style="color:#f0f0f0;font-weight:700">')
+                        .replace(/<b>/gi, '<b style="color:#f0f0f0;font-weight:700">')
+                        .replace(/<em>/gi, '<em style="color:#fbbf24">')
+                    }}
+                  />
+                ) : (
+                  <div className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-sans break-words">
+                    {problem.description}
+                  </div>
+                )}
+              </div>
 
-              {/* Tab 2: Constraints */}
-              {leftActiveTab === 'constraints' && (
-                <div className="space-y-3 select-text pb-4 animate-fade-in">
+              {/* Part 2: Examples */}
+              {problem.testCases && problem.testCases.length > 0 && (
+                <div className="space-y-3 pb-5 border-b border-white/[0.04]">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                    <h4 className="text-[11px] font-black text-gray-200 uppercase tracking-wider">Complexity & Limits</h4>
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">Examples</h4>
                   </div>
-                  {problem.constraints ? (
-                    <div className="bg-[#0b0d12] border border-dark-border rounded-xl p-3.5">
-                      <pre className="text-[10.5px] font-mono text-gray-300 leading-relaxed whitespace-pre-wrap break-all">
-                        {problem.constraints}
-                      </pre>
-                    </div>
-                  ) : (
-                    <div className="bg-dark-bg/40 border border-dark-border border-dashed rounded-xl p-6 text-center text-gray-500">
-                      <AlertTriangle className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                      <span className="text-[10px] font-medium block">No explicit constraints provided for this problem.</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 3: Test Cases */}
-              {leftActiveTab === 'testcases' && (
-                <div className="space-y-3 select-text pb-4 animate-fade-in">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                      <h4 className="text-[11px] font-black text-gray-200 uppercase tracking-wider">Sample Inputs & Outputs</h4>
-                    </div>
-                    <span className="text-[9px] font-bold text-gray-500 bg-dark-bg border border-dark-border px-2 py-0.5 rounded-full">
-                      {problem.testCases.length} Available
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {problem.testCases.map((tc: any, index: number) => (
-                      <div key={index} className="bg-[#0b0d12] border border-dark-border rounded-xl overflow-hidden shadow-sm hover:border-dark-border/80 transition-all">
-                        <div className="px-3 py-2 border-b border-dark-border bg-dark-panel/40 flex justify-between items-center">
-                          <span className="text-[10px] font-bold text-gray-400">Sample Case {index + 1}</span>
-                          <span className="text-[8px] uppercase font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
-                            Verified
-                          </span>
-                        </div>
-                        <div className="p-3 space-y-2.5">
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Input</span>
-                            <pre className="text-[10px] font-mono text-gray-300 bg-dark-bg p-2 border border-dark-border/50 rounded-lg leading-normal whitespace-pre-wrap break-all">
-                              {tc.input}
-                            </pre>
+                      <div key={index} className="bg-[#0b0d12]/50 border border-dark-border rounded-xl p-3.5 space-y-2.5">
+                        <div className="text-xs font-bold text-gray-400">Example {index + 1}</div>
+                        <div className="font-mono text-xs space-y-2 pl-3 border-l-2 border-blue-500/50">
+                          <div className="break-all whitespace-pre-wrap">
+                            <span className="text-gray-500 font-bold">Input: </span>
+                            <span className="text-gray-300">{tc.input}</span>
                           </div>
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Expected Output</span>
-                            <pre className="text-[10px] font-mono text-emerald-400 bg-dark-bg p-2 border border-dark-border/50 rounded-lg leading-normal whitespace-pre-wrap break-all">
-                              {tc.expectedOutput}
-                            </pre>
+                          <div className="break-all whitespace-pre-wrap">
+                            <span className="text-gray-500 font-bold">Output: </span>
+                            <span className="text-gray-300">{tc.expectedOutput}</span>
                           </div>
                         </div>
                       </div>
@@ -1499,6 +1565,18 @@ export const BattleArenaPage: React.FC = () => {
 
             </div>
           </div>
+        )}
+
+        {/* Vertical Resize Handle */}
+        {showDescriptionPanel && problem && (
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className={cn(
+              "w-1 bg-dark-border cursor-col-resize h-full transition-all shrink-0 select-none hover:bg-blue-500/40",
+              isResizingDesc && "bg-blue-500/50 w-1.5"
+            )}
+            title="Drag to resize description panel"
+          />
         )}
 
         {/* Column 2: Player 1 Workspace */}
@@ -1551,7 +1629,11 @@ export const BattleArenaPage: React.FC = () => {
               height="100%"
               language={p1Language}
               value={p1Code}
-              onChange={(val) => setP1Code(val || '')}
+              onChange={(val) => {
+                const nextCode = val || '';
+                setP1Code(nextCode);
+                syncCodeDebounced(1, nextCode, p1Language);
+              }}
               theme={editorTheme}
               onMount={(editor, monaco) => {
                 p1EditorRef.current = editor;
@@ -1648,38 +1730,58 @@ export const BattleArenaPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Terminal Logs Panel */}
+          {/* Terminal Logs Panel - Resizable */}
           {showP1Terminal && (
-            <div className="h-[120px] bg-[#0c0f16] border-t border-dark-border flex flex-col font-mono text-[10px] shrink-0">
-              <div className="px-3 py-1.5 border-b border-dark-border bg-dark-panel/50 text-gray-500 font-bold uppercase select-none flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Terminal className="w-3.5 h-3.5" /> P1 Output Log
-                </div>
-                <button
-                  onClick={() => setShowP1Terminal(false)}
-                  className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
-                  title="Collapse Terminal"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex-1 p-3 overflow-y-auto space-y-1.5 select-text select-none">
-                {p1Terminal.logs.map((log, idx) => (
-                  <div 
-                    key={idx} 
-                    className={cn(
-                      "leading-relaxed", 
-                      log.includes('[PASS]') ? 'text-emerald-400 font-bold' : 
-                      log.includes('[FAIL]') ? 'text-rose-400 font-bold' :
-                      log.includes('[ERROR]') ? 'text-orange-400 font-bold' : 
-                      'text-gray-400'
-                    )}
-                  >
-                    {log}
+            <>
+              {/* Resize handle */}
+              <div
+                onMouseDown={(e) => handleTermResizeMouseDown(e, 1)}
+                className={cn(
+                  "h-1 bg-dark-border cursor-row-resize w-full transition-all shrink-0 select-none hover:bg-blue-500/40",
+                  isResizingP1Term && "bg-blue-500/50 h-1.5"
+                )}
+                title="Drag to resize terminal"
+              />
+              <div style={{ height: `${p1TerminalHeight}px` }} className="bg-[#0c0f16] flex flex-col font-mono text-[10px] shrink-0">
+                <div className="px-3 py-1.5 border-b border-dark-border bg-dark-panel/50 text-gray-500 font-bold uppercase select-none flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Terminal className="w-3.5 h-3.5" /> P1 Output Log
                   </div>
-                ))}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setP1TerminalHeight(h => Math.min(400, h + 60))}
+                      className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
+                      title="Expand Terminal"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setShowP1Terminal(false)}
+                      className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
+                      title="Collapse Terminal"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 p-3 overflow-y-auto space-y-1.5 select-text">
+                  {p1Terminal.logs.map((log, idx) => (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "leading-relaxed", 
+                        log.includes('[PASS]') ? 'text-emerald-400 font-bold' : 
+                        log.includes('[FAIL]') ? 'text-rose-400 font-bold' :
+                        log.includes('[ERROR]') ? 'text-orange-400 font-bold' : 
+                        'text-gray-400'
+                      )}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
         )}
@@ -1694,6 +1796,24 @@ export const BattleArenaPage: React.FC = () => {
               {config.player2} Workspace
             </span>
             <div className="flex items-center gap-1.5 ml-auto">
+              {/* Font size control */}
+              <div className="flex items-center gap-1 bg-dark-bg border border-dark-border rounded px-1 py-0.5">
+                <button onClick={() => setEditorFontSize(s => Math.max(10, s - 1))} className="text-gray-500 hover:text-gray-200 p-0.5 transition-colors" title="Decrease font size">
+                  <Minus className="w-2.5 h-2.5" />
+                </button>
+                <span className="text-[9px] font-mono text-gray-400 w-5 text-center">{editorFontSize}</span>
+                <button onClick={() => setEditorFontSize(s => Math.min(20, s + 1))} className="text-gray-500 hover:text-gray-200 p-0.5 transition-colors" title="Increase font size">
+                  <Plus className="w-2.5 h-2.5" />
+                </button>
+              </div>
+              {/* Theme toggle */}
+              <button
+                onClick={() => setEditorTheme(t => t === 'vs-dark' ? 'light' : 'vs-dark')}
+                className="px-1.5 py-0.5 rounded border border-dark-border bg-dark-bg text-[9px] font-bold text-gray-400 hover:text-gray-200 transition-colors"
+                title="Toggle editor theme"
+              >
+                {editorTheme === 'vs-dark' ? '☀' : '🌙'}
+              </button>
               {/* Lang Dropdown */}
               <select
                 value={p2Language}
@@ -1715,7 +1835,11 @@ export const BattleArenaPage: React.FC = () => {
               height="100%"
               language={p2Language}
               value={p2Code}
-              onChange={(val) => setP2Code(val || '')}
+              onChange={(val) => {
+                const nextCode = val || '';
+                setP2Code(nextCode);
+                syncCodeDebounced(2, nextCode, p2Language);
+              }}
               theme={editorTheme}
               onMount={(editor) => {
                 p2EditorRef.current = editor;
@@ -1789,116 +1913,337 @@ export const BattleArenaPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Terminal Logs Panel */}
+          {/* Terminal Logs Panel - Resizable */}
           {showP2Terminal && (
-            <div className="h-[120px] bg-[#0c0f16] border-t border-dark-border flex flex-col font-mono text-[10px] shrink-0">
-              <div className="px-3 py-1.5 border-b border-dark-border bg-dark-panel/50 text-gray-500 font-bold uppercase select-none flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Terminal className="w-3.5 h-3.5" /> P2 Output Log
-                </div>
-                <button
-                  onClick={() => setShowP2Terminal(false)}
-                  className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
-                  title="Collapse Terminal"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex-1 p-3 overflow-y-auto space-y-1.5 select-text select-none">
-                {p2Terminal.logs.map((log, idx) => (
-                  <div 
-                    key={idx} 
-                    className={cn(
-                      "leading-relaxed", 
-                      log.includes('[PASS]') ? 'text-emerald-400 font-bold' : 
-                      log.includes('[FAIL]') ? 'text-rose-400 font-bold' :
-                      log.includes('[ERROR]') ? 'text-orange-400 font-bold' : 
-                      'text-gray-400'
-                    )}
-                  >
-                    {log}
+            <>
+              {/* Resize handle */}
+              <div
+                onMouseDown={(e) => handleTermResizeMouseDown(e, 2)}
+                className={cn(
+                  "h-1 bg-dark-border cursor-row-resize w-full transition-all shrink-0 select-none hover:bg-rose-500/40",
+                  isResizingP2Term && "bg-rose-500/50 h-1.5"
+                )}
+                title="Drag to resize terminal"
+              />
+              <div style={{ height: `${p2TerminalHeight}px` }} className="bg-[#0c0f16] flex flex-col font-mono text-[10px] shrink-0">
+                <div className="px-3 py-1.5 border-b border-dark-border bg-dark-panel/50 text-gray-500 font-bold uppercase select-none flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Terminal className="w-3.5 h-3.5" /> P2 Output Log
                   </div>
-                ))}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setP2TerminalHeight(h => Math.min(400, h + 60))}
+                      className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
+                      title="Expand Terminal"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setShowP2Terminal(false)}
+                      className="p-0.5 rounded hover:bg-dark-hover text-gray-500 hover:text-gray-300 transition-colors"
+                      title="Collapse Terminal"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 p-3 overflow-y-auto space-y-1.5 select-text">
+                  {p2Terminal.logs.map((log, idx) => (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "leading-relaxed", 
+                        log.includes('[PASS]') ? 'text-emerald-400 font-bold' : 
+                        log.includes('[FAIL]') ? 'text-rose-400 font-bold' :
+                        log.includes('[ERROR]') ? 'text-orange-400 font-bold' : 
+                        'text-gray-400'
+                      )}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
         )}
 
       </main>
 
-      {/* Battle Results Premium Modal overlay */}
-      {showWinnerModal && (
-        <div className="fixed inset-0 z-50 bg-[#020305]/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in select-none">
-          <div className="bg-dark-panel border border-dark-border max-w-lg w-full rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden select-none animate-scale-up">
-            
-            {/* Hologram top lighting banner */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-orange-500 to-rose-500" />
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* FULL-SCREEN BATTLE RESULTS PAGE                                   */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {showResultsPage && battleResults && (
+        <div className="fixed inset-0 z-50 bg-[#07090e] overflow-y-auto">
+          {/* Confetti particles */}
+          {confetti.map((p) => (
+            <div 
+              key={p.id}
+              className="absolute rounded-sm pointer-events-none z-50 animate-confetti-fall"
+              style={{
+                left: `${p.x}%`,
+                top: `${p.y}%`,
+                width: `${p.size}px`,
+                height: `${p.size * 1.6}px`,
+                backgroundColor: p.color,
+                animationDelay: `${p.delay}s`,
+                animationDuration: `${p.duration}s`,
+                transform: `rotate(${p.angle}deg)`,
+                opacity: 0.85
+              }}
+            />
+          ))}
 
-            <div className="text-center space-y-4">
-              <div className="inline-flex p-4 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 mx-auto animate-bounce">
-                <Trophy className="w-10 h-10" />
+          {/* Ambient background glow */}
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange-500/3 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="max-w-4xl mx-auto px-6 py-10 relative z-10">
+            {/* Header */}
+            <div className="text-center mb-10 space-y-4">
+              <div className="inline-flex p-5 rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/30 text-orange-400 mx-auto shadow-lg shadow-orange-500/10">
+                <Trophy className="w-12 h-12" />
               </div>
-              
-              <div className="space-y-1">
-                <h3 className="text-2xl font-black text-gray-100 uppercase tracking-tight">Battle Concluded!</h3>
-                <p className="text-xs text-gray-400 font-semibold tracking-wider uppercase">Scores & Standings</p>
-              </div>
+              <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-300 to-yellow-400 uppercase tracking-tight">
+                Battle Results
+              </h1>
+              <p className="text-sm text-gray-400 font-semibold tracking-wider uppercase">
+                {battleResults.problemTitle}
+              </p>
             </div>
 
-            {/* Score comparison grid */}
-            <div className="bg-dark-bg border border-dark-border rounded-xl p-4 divide-y divide-dark-border">
-              {/* Player 1 summary */}
-              <div className="flex justify-between items-center py-2.5">
-                <span className="text-sm font-black text-blue-400">{config.player1}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-gray-500 uppercase font-bold">{p1Solved ? 'Solved' : 'Incomplete'}</span>
-                  <span className="font-mono font-black text-lg text-blue-300">{p1Score} pts</span>
-                </div>
-              </div>
-              
-              {/* Player 2 summary */}
-              <div className="flex justify-between items-center py-2.5">
-                <span className="text-sm font-black text-rose-400">{config.player2}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-gray-500 uppercase font-bold">{p2Solved ? 'Solved' : 'Incomplete'}</span>
-                  <span className="font-mono font-black text-lg text-rose-300">{p2Score} pts</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Victory banner */}
-            <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/20 to-orange-500/10 border border-orange-500/20 p-4 rounded-xl text-center space-y-1 select-none">
+            {/* Winner Banner */}
+            <div className="mb-8 bg-gradient-to-r from-orange-500/5 via-orange-500/15 to-orange-500/5 border border-orange-500/20 rounded-2xl p-6 text-center space-y-2 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-t from-transparent to-orange-500/5 pointer-events-none" />
               {winner === 'Tie Match' ? (
                 <>
-                  <div className="text-amber-400 font-black text-lg uppercase">Tie Match</div>
-                  <div className="text-[11px] text-gray-400">Both players scored the exact same points! Excellent challenge.</div>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Swords className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div className="text-2xl font-black text-amber-400 uppercase tracking-wide">It's a Tie!</div>
+                  <div className="text-sm text-gray-400">Both combatants matched each other blow for blow. Respect!</div>
                 </>
               ) : (
                 <>
-                  <div className="text-[10px] text-amber-500 uppercase font-extrabold tracking-widest">Victory Champion</div>
-                  <div className="text-orange-400 font-black text-xl tracking-wide uppercase drop-shadow-[0_0_10px_rgba(249,115,22,0.3)]">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Award className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div className="text-xs text-amber-500 uppercase font-extrabold tracking-[0.25em]">🏆 Victory Champion 🏆</div>
+                  <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 uppercase tracking-wide drop-shadow-[0_0_20px_rgba(249,115,22,0.4)]">
                     {winner}
                   </div>
-                  <div className="text-[11px] text-gray-400 mt-1">Conquered the battlefield using pure algorithmic speed!</div>
+                  <div className="text-sm text-gray-400 mt-1">Conquered the battlefield with superior algorithmic prowess!</div>
                 </>
               )}
             </div>
 
-            {/* Modal actions */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* Player Comparison Cards */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              {/* Player 1 Card */}
+              <div className={cn(
+                "bg-dark-panel border rounded-2xl p-6 space-y-5 relative overflow-hidden transition-all",
+                winner === config.player1 
+                  ? "border-blue-500/40 shadow-lg shadow-blue-500/10" 
+                  : "border-dark-border"
+              )}>
+                {winner === config.player1 && (
+                  <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-400" />
+                )}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-600/20 border-2 border-blue-500/40 rounded-xl flex items-center justify-center text-lg font-black text-blue-400">
+                    P1
+                  </div>
+                  <div>
+                    <div className="text-lg font-black text-blue-400 flex items-center gap-2">
+                      {config.player1}
+                      {winner === config.player1 && <Medal className="w-5 h-5 text-amber-400" />}
+                    </div>
+                    <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
+                      {p1Solved ? '✅ Problem Solved' : '❌ Incomplete'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center py-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+                  <div className="text-4xl font-black text-blue-300 font-mono">{battleResults.p1Score}</div>
+                  <div className="text-[10px] text-gray-500 uppercase font-bold mt-1">Total Points</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-dark-bg border border-dark-border rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Target className="w-3 h-3 text-gray-500" />
+                    </div>
+                    <div className="text-lg font-black text-gray-200 font-mono">{battleResults.p1Attempts}</div>
+                    <div className="text-[9px] text-gray-500 uppercase font-bold">Attempts</div>
+                  </div>
+                  <div className="bg-dark-bg border border-dark-border rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Zap className="w-3 h-3 text-gray-500" />
+                    </div>
+                    <div className="text-lg font-black text-gray-200 font-mono">{p1Solved ? '✓' : '✗'}</div>
+                    <div className="text-[9px] text-gray-500 uppercase font-bold">Status</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Player 2 Card */}
+              <div className={cn(
+                "bg-dark-panel border rounded-2xl p-6 space-y-5 relative overflow-hidden transition-all",
+                winner === config.player2 
+                  ? "border-rose-500/40 shadow-lg shadow-rose-500/10" 
+                  : "border-dark-border"
+              )}>
+                {winner === config.player2 && (
+                  <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 to-pink-400" />
+                )}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-rose-600/20 border-2 border-rose-500/40 rounded-xl flex items-center justify-center text-lg font-black text-rose-400">
+                    P2
+                  </div>
+                  <div>
+                    <div className="text-lg font-black text-rose-400 flex items-center gap-2">
+                      {config.player2}
+                      {winner === config.player2 && <Medal className="w-5 h-5 text-amber-400" />}
+                    </div>
+                    <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
+                      {p2Solved ? '✅ Problem Solved' : '❌ Incomplete'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center py-4 bg-rose-500/5 border border-rose-500/10 rounded-xl">
+                  <div className="text-4xl font-black text-rose-300 font-mono">{battleResults.p2Score}</div>
+                  <div className="text-[10px] text-gray-500 uppercase font-bold mt-1">Total Points</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-dark-bg border border-dark-border rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Target className="w-3 h-3 text-gray-500" />
+                    </div>
+                    <div className="text-lg font-black text-gray-200 font-mono">{battleResults.p2Attempts}</div>
+                    <div className="text-[9px] text-gray-500 uppercase font-bold">Attempts</div>
+                  </div>
+                  <div className="bg-dark-bg border border-dark-border rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Zap className="w-3 h-3 text-gray-500" />
+                    </div>
+                    <div className="text-lg font-black text-gray-200 font-mono">{p2Solved ? '✓' : '✗'}</div>
+                    <div className="text-[9px] text-gray-500 uppercase font-bold">Status</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Match Statistics */}
+            <div className="bg-dark-panel border border-dark-border rounded-2xl p-6 mb-8">
+              <div className="flex items-center gap-2 mb-5">
+                <BarChart3 className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-sm font-black text-gray-200 uppercase tracking-wider">Match Statistics</h3>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-dark-bg border border-dark-border rounded-xl p-4 text-center">
+                  <Timer className="w-5 h-5 text-amber-400 mx-auto mb-2" />
+                  <div className="text-xl font-black text-gray-200 font-mono">
+                    {Math.floor(battleResults.timeUsedSeconds / 60)}:{(battleResults.timeUsedSeconds % 60).toString().padStart(2, '0')}
+                  </div>
+                  <div className="text-[9px] text-gray-500 uppercase font-bold mt-1">Time Used</div>
+                </div>
+                <div className="bg-dark-bg border border-dark-border rounded-xl p-4 text-center">
+                  <Clock className="w-5 h-5 text-blue-400 mx-auto mb-2" />
+                  <div className="text-xl font-black text-gray-200 font-mono">{battleResults.timeLimitMinutes}:00</div>
+                  <div className="text-[9px] text-gray-500 uppercase font-bold mt-1">Time Limit</div>
+                </div>
+                <div className="bg-dark-bg border border-dark-border rounded-xl p-4 text-center">
+                  <Target className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
+                  <div className="text-xl font-black text-gray-200 font-mono">{battleResults.p1Attempts + battleResults.p2Attempts}</div>
+                  <div className="text-[9px] text-gray-500 uppercase font-bold mt-1">Total Attempts</div>
+                </div>
+                <div className="bg-dark-bg border border-dark-border rounded-xl p-4 text-center">
+                  <AlertTriangle className="w-5 h-5 text-rose-400 mx-auto mb-2" />
+                  <div className="text-xl font-black text-gray-200 font-mono">{battleResults.endedByTimeout ? 'Yes' : 'No'}</div>
+                  <div className="text-[9px] text-gray-500 uppercase font-bold mt-1">Timeout</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Leaderboard Section */}
+            <div className="bg-dark-panel border border-dark-border rounded-2xl p-6 mb-8">
+              <div className="flex items-center gap-2 mb-5">
+                <Trophy className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-black text-gray-200 uppercase tracking-wider">Leaderboard</h3>
+              </div>
+              <div className="space-y-2">
+                {/* Rank them by score */}
+                {[{ 
+                  rank: 1, 
+                  name: battleResults.p1Score >= battleResults.p2Score ? config.player1 : config.player2, 
+                  score: Math.max(battleResults.p1Score, battleResults.p2Score),
+                  solved: battleResults.p1Score >= battleResults.p2Score ? p1Solved : p2Solved,
+                  attempts: battleResults.p1Score >= battleResults.p2Score ? battleResults.p1Attempts : battleResults.p2Attempts,
+                  color: battleResults.p1Score >= battleResults.p2Score ? 'blue' : 'rose'
+                }, {
+                  rank: 2, 
+                  name: battleResults.p1Score >= battleResults.p2Score ? config.player2 : config.player1, 
+                  score: Math.min(battleResults.p1Score, battleResults.p2Score),
+                  solved: battleResults.p1Score >= battleResults.p2Score ? p2Solved : p1Solved,
+                  attempts: battleResults.p1Score >= battleResults.p2Score ? battleResults.p2Attempts : battleResults.p1Attempts,
+                  color: battleResults.p1Score >= battleResults.p2Score ? 'rose' : 'blue'
+                }].map((entry) => (
+                  <div key={entry.rank} className={cn(
+                    "flex items-center gap-4 p-4 rounded-xl border transition-all",
+                    entry.rank === 1 
+                      ? "bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20" 
+                      : "bg-dark-bg border-dark-border"
+                  )}>
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center text-lg font-black",
+                      entry.rank === 1 
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                        : "bg-gray-700/20 text-gray-500 border border-gray-600/30"
+                    )}>
+                      #{entry.rank}
+                    </div>
+                    <div className="flex-1">
+                      <div className={cn(
+                        "text-sm font-black",
+                        entry.color === 'blue' ? 'text-blue-400' : 'text-rose-400'
+                      )}>
+                        {entry.name}
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        {entry.solved ? 'Solved' : 'Incomplete'} · {entry.attempts} attempt{entry.attempts !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn(
+                        "text-2xl font-black font-mono",
+                        entry.rank === 1 ? 'text-amber-300' : 'text-gray-400'
+                      )}>
+                        {entry.score}
+                      </div>
+                      <div className="text-[9px] text-gray-500 uppercase font-bold">Points</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-4">
               <button 
                 onClick={() => {
-                  setShowWinnerModal(false);
+                  setShowResultsPage(false);
                   navigate('/battle');
                 }}
-                className="py-3 px-4 bg-dark-bg border border-dark-border hover:bg-dark-hover text-gray-300 text-sm font-black rounded-xl transition-all"
+                className="py-4 px-6 bg-dark-panel border border-dark-border hover:bg-dark-hover text-gray-300 text-sm font-black rounded-xl transition-all flex items-center justify-center gap-2 group"
               >
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Back to Lobby
               </button>
               <button 
                 onClick={() => {
-                  setShowWinnerModal(false);
+                  setShowResultsPage(false);
+                  setBattleResults(null);
                   // Quick remount / re-initialize the battle!
                   setTimeLeft(config.timeLimit * 60);
                   setIsTimeLow(false);
@@ -1913,13 +2258,19 @@ export const BattleArenaPage: React.FC = () => {
                   setP2Terminal({ status: 'idle', logs: ['Arena reset. Ready for opponent rematch.'] });
                   setP2TestResults([]);
                   setBattleActive(true);
+                  setWinner(null);
                 }}
-                className="py-3 px-4 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white text-sm font-black rounded-xl transition-all shadow-md shadow-orange-500/20"
+                className="py-4 px-6 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 group"
               >
+                <RotateCcw className="w-4 h-4 group-hover:rotate-[-180deg] transition-transform duration-500" />
                 Play Rematch
               </button>
             </div>
 
+            {/* Match Timestamp */}
+            <div className="text-center mt-6 text-[10px] text-gray-600">
+              Match ended at {new Date(battleResults.endedAt).toLocaleString()} · ID: {battleResults.id}
+            </div>
           </div>
         </div>
       )}

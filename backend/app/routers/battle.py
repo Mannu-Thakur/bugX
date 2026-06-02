@@ -99,6 +99,11 @@ async def get_battle(
         except Exception:
             pass
             
+    time_left = None
+    if battle.status == "active" and battle.start_time:
+        elapsed = (now - _ensure_aware(battle.start_time)).total_seconds()
+        time_left = max(0, int(battle.time_limit * 60 - elapsed))
+
     return {
         "id": str(battle.id),
         "player1_username": battle.player1_username,
@@ -121,6 +126,7 @@ async def get_battle(
         "p2_lang": battle.p2_lang,
         "status": battle.status,
         "start_time": battle.start_time.isoformat() if battle.start_time else None,
+        "time_left": time_left,
         "created_at": battle.created_at.isoformat()
     }
 

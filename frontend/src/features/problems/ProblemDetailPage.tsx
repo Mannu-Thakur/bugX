@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, ChevronUp, Lightbulb, Clock } from 'lucide-react';
+import { ArrowLeft, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, ChevronUp, Lightbulb, Clock, GripHorizontal } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../shared/lib/api';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
@@ -14,6 +14,7 @@ import { CodeEditor } from './components/CodeEditor';
 import { TestCasePanel } from './components/TestCasePanel';
 import { BestSubmissionDetails } from './components/BestSubmissionDetails';
 import { getHintsForProblem } from './hints';
+import { cn } from '../../shared/lib/cn';
 
 export const ProblemDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +29,62 @@ export const ProblemDetailPage: React.FC = () => {
   const [activeSubmission, setActiveSubmission] = useState<SubmissionResponse | null>(null);
   const [results, setResults] = useState<SubmissionResultResponse[] | null>(null);
   const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false);
+  const [testPanelHeight, setTestPanelHeight] = useState(340);
+  const [isResizing, setIsResizing] = useState(false);
+  const startYRef = useRef<number>(0);
+  const startHeightRef = useRef<number>(0);
+  const hasDraggedRef = useRef<boolean>(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    startYRef.current = e.clientY;
+    startHeightRef.current = testPanelHeight;
+    hasDraggedRef.current = false;
+    
+    // Visual feedback for dragging
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (isTestPanelCollapsed) {
+        const deltaY = moveEvent.clientY - startYRef.current;
+        if (deltaY < -10) {
+          setIsTestPanelCollapsed(false);
+          startYRef.current = moveEvent.clientY;
+          startHeightRef.current = 150;
+          hasDraggedRef.current = true;
+        }
+        return;
+      }
+      
+      const deltaY = moveEvent.clientY - startYRef.current;
+      if (Math.abs(deltaY) > 4) {
+        hasDraggedRef.current = true;
+      }
+      
+      const newHeight = startHeightRef.current - deltaY;
+      const clampedHeight = Math.max(150, Math.min(newHeight, 600));
+      setTestPanelHeight(clampedHeight);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      
+      if (!hasDraggedRef.current) {
+        setIsTestPanelCollapsed(prev => !prev);
+      }
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   const [isLoadingLastSub, setIsLoadingLastSub] = useState(false);
   const [lastSubmissionData, setLastSubmissionData] = useState<{ source_code: string; language: string } | null>(null);
 
@@ -260,6 +317,11 @@ export const ProblemDetailPage: React.FC = () => {
           setActiveSubmission(finalSub);
           
           if (finalSub.status !== 'PENDING' && finalSub.status !== 'RUNNING') {
+            // Invalidate user stats and submissions immediately on any terminal status
+            queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
+            queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
+
             if (finalSub.status === 'ACCEPTED' && finalSub.score > 0) {
               setIsPolling(false);
               setIsSubmitting(false);
@@ -285,6 +347,9 @@ export const ProblemDetailPage: React.FC = () => {
           // Scoring finished completely
           setIsPolling(false);
           setIsSubmitting(false);
+          queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
+          queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
           queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug] });
           queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug, 'best-submission'] });
 
@@ -488,9 +553,9 @@ export const ProblemDetailPage: React.FC = () => {
           <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Hints
         </h2>
         <div className="space-y-2">
-          {getHintsForProblem(problem.slug).map((hintText, idx) => (
-            <details key={idx} className="group border border-dark-border/40 rounded-lg overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-              <summary className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 hover:text-gray-200 bg-dark-bg/30 hover:bg-dark-bg/60 cursor-pointer transition-all select-none">
+          {getHintsForProblem(problem.slug).map((hintText: string, idx: number) => (
+            <details key={idx} className="group rounded-lg overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex items-center justify-between py-2 text-xs font-bold text-gray-400 hover:text-gray-200 bg-transparent cursor-pointer transition-all select-none">
                 <span className="flex items-center gap-1.5">
                   <span className="w-4 h-4 flex items-center justify-center rounded-full bg-dark-bg text-[9px] font-mono text-gray-500">
                     {idx + 1}
@@ -499,7 +564,7 @@ export const ProblemDetailPage: React.FC = () => {
                 </span>
                 <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
               </summary>
-              <div className="px-3 py-2 text-xs text-gray-400 leading-relaxed border-t border-dark-border/40 bg-dark-panel/40 whitespace-pre-wrap select-text">
+              <div className="py-2 text-xs text-gray-400 leading-relaxed whitespace-pre-wrap select-text">
                 {hintText}
               </div>
             </details>
@@ -514,7 +579,7 @@ export const ProblemDetailPage: React.FC = () => {
   const renderEditorWorkspace = () => (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Code Editor */}
-      <div className={isTestPanelCollapsed ? 'flex-1' : 'flex-1 min-h-[400px]'}>
+      <div className={isTestPanelCollapsed ? 'flex-1' : 'flex-1 min-h-[200px]'}>
         <CodeEditor
           problemSlug={problem.slug}
           templates={problem.templates}
@@ -543,25 +608,28 @@ export const ProblemDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Toggle bar for Test Case Panel */}
-      <button
-        onClick={() => setIsTestPanelCollapsed(!isTestPanelCollapsed)}
-        className="w-full px-4 py-1.5 border-t border-dark-border bg-dark-bg/60 flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-all select-none cursor-pointer group"
-        title={isTestPanelCollapsed ? 'Show Test Cases' : 'Hide Test Cases'}
+      {/* Toggle bar / Resize handle for Test Case Panel */}
+      <div
+        onMouseDown={handleMouseDown}
+        className={`w-full px-4 py-1.5 border-t border-dark-border bg-dark-bg/60 flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-all select-none group ${
+          isTestPanelCollapsed ? 'cursor-pointer' : 'cursor-ns-resize'
+        }`}
+        title={isTestPanelCollapsed ? 'Show Test Cases' : 'Drag up/down to resize or click to hide'}
       >
+        <GripHorizontal className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-400 transition-colors" />
         {isTestPanelCollapsed ? (
           <ChevronUp className="w-3.5 h-3.5 group-hover:text-blue-400 transition-colors" />
         ) : (
           <ChevronDown className="w-3.5 h-3.5 group-hover:text-blue-400 transition-colors" />
         )}
         <span className="font-semibold group-hover:text-blue-400 transition-colors">
-          {isTestPanelCollapsed ? 'Show Test Cases & Results' : 'Hide Test Cases'}
+          {isTestPanelCollapsed ? 'Show Test Cases & Results' : 'Test Cases & Results'}
         </span>
-      </button>
+      </div>
 
       {/* Test Case & Result Panel */}
       {!isTestPanelCollapsed && (
-        <div className="h-[340px] border-t border-dark-border">
+        <div className="overflow-hidden" style={{ height: `${testPanelHeight}px` }}>
           <TestCasePanel
             testCases={problem.sample_test_cases.map(tc => ({
               id: tc.id,
@@ -579,7 +647,7 @@ export const ProblemDetailPage: React.FC = () => {
   );
 
   return (
-    <div className="w-full px-2 py-2 space-y-2">
+    <div className={cn("w-full px-2 py-2 space-y-2", isResizing && "select-none")}>
       {/* Back button header */}
       <div className="flex items-center justify-between select-none flex-wrap gap-3">
         <Link to="/problems" className="inline-flex items-center text-xs text-gray-400 hover:text-gray-200 font-semibold transition-colors">

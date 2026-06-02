@@ -85,6 +85,9 @@ export const SubmissionResultPage: React.FC = () => {
   useEffect(() => {
     if (submission && submission.status === 'ACCEPTED' && !isScoreSyncing) {
       refetchStats();
+      queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
       queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug] });
     }
   }, [submission, isScoreSyncing, refetchStats, queryClient, slug]);
@@ -442,20 +445,16 @@ export const SubmissionResultPage: React.FC = () => {
             </p>
 
             <div className="space-y-3 pt-1">
-              {hints.map((hintText, idx) => {
+              {hints.map((hintText: string, idx: number) => {
                 const isRevealed = revealedHints[idx];
                 return (
                   <div 
                     key={idx} 
-                    className={`border rounded-lg overflow-hidden transition-all duration-200 ${
-                      isRevealed 
-                        ? 'border-dark-border bg-dark-bg/40' 
-                        : 'border-dark-border/60 bg-dark-panel hover:bg-dark-hover/30'
-                    }`}
+                    className="overflow-hidden transition-all duration-200"
                   >
                     <button
                       onClick={() => toggleHint(idx)}
-                      className="w-full px-4 py-3 flex items-center justify-between text-left text-xs font-bold text-gray-300 hover:text-gray-200 select-none cursor-pointer"
+                      className="w-full py-3 flex items-center justify-between text-left text-xs font-bold text-gray-300 hover:text-gray-200 select-none cursor-pointer"
                     >
                       <span className="flex items-center gap-2">
                         <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-mono font-bold ${
@@ -473,7 +472,7 @@ export const SubmissionResultPage: React.FC = () => {
                     </button>
                     
                     {isRevealed && (
-                      <div className="px-4 pb-3.5 pt-1 text-xs text-gray-400 leading-relaxed border-t border-dark-border/40 animate-fadeIn whitespace-pre-wrap select-text">
+                      <div className="pb-3.5 pt-1 text-xs text-gray-400 leading-relaxed animate-fadeIn whitespace-pre-wrap select-text">
                         {hintText}
                       </div>
                     )}

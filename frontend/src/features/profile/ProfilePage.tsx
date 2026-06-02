@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -98,12 +98,25 @@ export const ProfilePage: React.FC = () => {
   const medStrokeOffset = circumference - (circumference * medRatio);
   const hardStrokeOffset = circumference - (circumference * hardRatio);
 
-  // Generate 52 weeks heatmap grid
-  const WEEKS = 52;
+  // ─── Heatmap: Sunday-aligned 53-week grid (matches GitHub contribution graph) ───
+  // Today (end anchor)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Find the Saturday of the current week (day 6)
+  // JS getDay(): 0=Sun, 1=Mon … 6=Sat
+  const todayDow = today.getDay(); // 0–6
+  const daysToSaturday = 6 - todayDow; // how many days until this week's Saturday
+  const gridEnd = new Date(today);
+  gridEnd.setDate(today.getDate() + daysToSaturday);
+
+  // The grid covers 53 full Sun-to-Sat columns.
+  // gridStart = 53 weeks before gridEnd's Sunday, i.e. 53*7 - 1 days before gridEnd
+  const COLS = 53;
   const DAYS = 7;
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - (WEEKS * DAYS) + 1);
+  const gridStart = new Date(gridEnd);
+  gridStart.setDate(gridEnd.getDate() - (COLS * DAYS - 1));
+  // gridStart is now a Sunday
 
   const formatYYYYMMDD = (d: Date): string => {
     const yyyy = d.getFullYear();
@@ -112,15 +125,37 @@ export const ProfilePage: React.FC = () => {
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  const getHeatmapColor = (count: number) => {
-    if (count === 0) return 'bg-[#161b22]/30 border border-white/[0.01]';
-    if (count === 1) return 'bg-emerald-600/30 border border-emerald-500/10 hover:bg-emerald-600/50';
-    if (count === 2) return 'bg-emerald-500/50 border border-emerald-400/20 hover:bg-emerald-500/70';
-    if (count === 3) return 'bg-emerald-400/80 border border-emerald-400/30 hover:bg-emerald-400';
-    return 'bg-emerald-400 border border-emerald-300 hover:bg-emerald-300';
+  // Color tiers
+  const getHeatmapColor = (count: number, isFuture: boolean) => {
+    if (isFuture) return ''; // transparent — rendered as invisible
+    if (count === 0) return 'bg-[#161b22]/50 border border-white/[0.03]';
+    if (count === 1) return 'bg-emerald-900/70 border border-emerald-700/30';
+    if (count === 2) return 'bg-emerald-700/70 border border-emerald-600/40';
+    if (count === 3) return 'bg-emerald-500/80 border border-emerald-400/50';
+    if (count <= 6)  return 'bg-emerald-400 border border-emerald-300/60';
+    return 'bg-emerald-300 border border-emerald-200/80'; // 7+ submissions/day
   };
 
-  const heatmapMonths = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
+  // Month labels: placed at the Sunday column where a new month starts
+  const monthLabels: { col: number; label: string }[] = [];
+  let prevMonthStr = '';
+  for (let w = 0; w < COLS; w++) {
+    const sunday = new Date(gridStart);
+    sunday.setDate(gridStart.getDate() + w * 7);
+    const mStr = sunday.toLocaleDateString('en-US', { month: 'short' });
+    if (mStr !== prevMonthStr) {
+      // Only add if there is enough space from the previous label (at least 2 cols gap)
+      const prev = monthLabels[monthLabels.length - 1];
+      if (!prev || (w - prev.col) >= 2) {
+        monthLabels.push({ col: w, label: mStr });
+        prevMonthStr = mStr;
+      }
+    }
+  }
+
+  // Tooltip state for heatmap cells
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const heatmapRef = useRef<HTMLDivElement>(null);
 
   // Sum actual database submissions in past year
   const activeSubmissionsCount = stats?.submission_activity 
@@ -461,8 +496,8 @@ export const ProfilePage: React.FC = () => {
 
           </div>
 
-          {/* BOTTOM ROW: HEATMAP CALENDAR */}
-          <div className="bg-dark-panel border border-white/[0.04] rounded-2xl p-5 flex flex-col gap-4 shadow-xl select-none">
+          {/* BOTTOM ROW: HEATMAP CALENDAR — Sunday-aligned 53-week grid */}
+          <div className="bg-dark-panel border border-white/[0.04] rounded-2xl p-5 flex flex-col gap-3 shadow-xl select-none">
             
             {/* Heatmap header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -470,59 +505,131 @@ export const ProfilePage: React.FC = () => {
                 <h3 className="text-sm font-bold text-gray-200">
                   <span className="text-gray-100 font-black font-mono">
                     {activeSubmissionsCount.toLocaleString()}
-                  </span> submissions in the past one year
+                  </span>{' '}submissions in the past one year
                 </h3>
               </div>
 
               <div className="flex items-center gap-4 text-xs font-semibold text-gray-500 select-none">
                 <span>Total active days: <strong className="text-gray-300 font-mono">{realActiveDays}</strong></span>
                 <span>Max streak: <strong className="text-gray-300 font-mono">{bestStreak}</strong></span>
-                
-                {/* Mini dropdown visual */}
                 <div className="px-2 py-0.5 rounded bg-white/[0.02] border border-white/[0.04] text-[10px] text-gray-400">Current</div>
               </div>
             </div>
 
-            {/* Heatmap Grid */}
-            <div className="overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-white/[0.06] scrollbar-track-transparent">
-              <div className="flex gap-1 min-w-max">
-                {Array.from({ length: WEEKS }).map((_, w) => (
-                  <div key={w} className="flex flex-col gap-1">
-                    {Array.from({ length: DAYS }).map((_, d) => {
-                      const cellDate = new Date(startDate.getTime());
-                      cellDate.setDate(startDate.getDate() + (w * 7) + d);
-                      const dateStr = formatYYYYMMDD(cellDate);
-                      
-                      // Plot submission marks ONLY for dates the user actually did a submission, else empty
-                      const count = stats?.submission_activity?.[dateStr] ?? 0;
+            {/* Grid wrapper: weekday labels + columns */}
+            <div
+              ref={heatmapRef}
+              className="overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/[0.06] scrollbar-track-transparent relative"
+              onMouseLeave={() => setTooltip(null)}
+            >
+              {/* Floating tooltip */}
+              {tooltip && (
+                <div
+                  className="pointer-events-none fixed z-50 px-2.5 py-1.5 rounded-lg bg-[#1c1d27] border border-white/[0.08] text-[11px] font-semibold text-gray-200 shadow-xl whitespace-nowrap"
+                  style={{ left: tooltip.x + 12, top: tooltip.y - 36 }}
+                >
+                  {tooltip.text}
+                </div>
+              )}
 
-                      const dateLabel = cellDate.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      });
+              <div className="flex gap-0 min-w-max">
+                {/* Weekday labels column */}
+                <div className="flex flex-col gap-[3px] mr-[5px] pt-[0px]">
+                  {/* 7 rows: Sun Mon Tue Wed Thu Fri Sat — show Mon, Wed, Fri */}
+                  {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
+                    <div
+                      key={i}
+                      className="h-[11px] text-[8.5px] font-bold text-gray-600 leading-[11px]"
+                      style={{ lineHeight: '11px' }}
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
 
-                      return (
-                        <div
-                          key={d}
-                          className={cn(
-                            'w-[11px] h-[11px] rounded-sm transition-all duration-150 cursor-pointer',
-                            getHeatmapColor(count)
-                          )}
-                          title={`${count} submission${count !== 1 ? 's' : ''} on ${dateLabel}`}
-                        />
-                      );
-                    })}
+                {/* 53 week columns */}
+                <div className="flex flex-col">
+                  {/* Month labels row — sits above the grid columns */}
+                  <div className="relative h-[14px] mb-[3px]">
+                    {monthLabels.map((lbl, idx) => (
+                      <span
+                        key={idx}
+                        className="absolute text-[9px] font-bold text-gray-600 uppercase leading-none"
+                        style={{ left: `${lbl.col * 14}px` }}
+                      >
+                        {lbl.label}
+                      </span>
+                    ))}
                   </div>
-                ))}
+
+                  {/* The actual grid: columns x rows */}
+                  <div className="flex gap-[3px]">
+                    {Array.from({ length: COLS }).map((_, w) => (
+                      <div key={w} className="flex flex-col gap-[3px]">
+                        {Array.from({ length: DAYS }).map((_, d) => {
+                          // Cell date = gridStart + (w * 7 + d) days
+                          const cellDate = new Date(gridStart);
+                          cellDate.setDate(gridStart.getDate() + w * 7 + d);
+
+                          const isFuture = cellDate > today;
+                          const dateStr = formatYYYYMMDD(cellDate);
+                          const count = isFuture ? 0 : (stats?.submission_activity?.[dateStr] ?? 0);
+
+                          const dateLabel = cellDate.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          });
+
+                          if (isFuture) {
+                            return (
+                              <div
+                                key={d}
+                                className="w-[11px] h-[11px] rounded-sm opacity-0"
+                              />
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={d}
+                              className={cn(
+                                'w-[11px] h-[11px] rounded-sm transition-all duration-100 cursor-pointer hover:ring-1 hover:ring-white/20',
+                                getHeatmapColor(count, false)
+                              )}
+                              onMouseEnter={(e) => {
+                                const text = count === 0
+                                  ? `No submissions on ${dateLabel}`
+                                  : `${count} submission${count !== 1 ? 's' : ''} on ${dateLabel}`;
+                                setTooltip({ text, x: e.clientX, y: e.clientY });
+                              }}
+                              onMouseMove={(e) => {
+                                setTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                              }}
+                              onMouseLeave={() => setTooltip(null)}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Month Labels Bar */}
-            <div className="flex justify-between px-1 text-[9px] font-bold text-gray-600 uppercase select-none">
-              {heatmapMonths.map((m, idx) => (
-                <span key={idx} className="w-[8.33%] text-center">{m}</span>
-              ))}
+            {/* Legend */}
+            <div className="flex items-center justify-between text-[10px] text-gray-600 font-semibold pt-1 border-t border-white/[0.04]">
+              <span>Less</span>
+              <div className="flex items-center gap-[3px]">
+                <div className="w-[11px] h-[11px] rounded-sm bg-[#161b22]/50 border border-white/[0.03]" />
+                <div className="w-[11px] h-[11px] rounded-sm bg-emerald-900/70 border border-emerald-700/30" />
+                <div className="w-[11px] h-[11px] rounded-sm bg-emerald-700/70 border border-emerald-600/40" />
+                <div className="w-[11px] h-[11px] rounded-sm bg-emerald-500/80 border border-emerald-400/50" />
+                <div className="w-[11px] h-[11px] rounded-sm bg-emerald-400 border border-emerald-300/60" />
+                <div className="w-[11px] h-[11px] rounded-sm bg-emerald-300 border border-emerald-200/80" />
+              </div>
+              <span>More</span>
             </div>
 
           </div>

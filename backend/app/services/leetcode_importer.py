@@ -9,6 +9,17 @@ from app.models.tag import Tag
 from app.models.problem_template import ProblemTemplate, ArgStyleEnum
 from app.models.test_case import TestCase
 
+# Common aliases for frequently searched problem names
+SLUG_ALIASES = {
+    "2sum": "two-sum",
+    "twosum": "two-sum",
+    "2-sum": "two-sum",
+    "3sum": "3sum",
+    "threesum": "3sum",
+    "4sum": "4sum",
+    "foursum": "4sum",
+}
+
 TAG_MAP = {
     "array": "Arrays",
     "string": "Strings",
@@ -127,17 +138,17 @@ class LeetCodeImporter:
         # If query is empty, fallback
         if not query:
             return "unknown-problem"
+
+        # Check common aliases first
+        alias = SLUG_ALIASES.get(query.lower().replace(" ", "").replace("-", ""))
+        if alias:
+            return alias
             
         # Check if query is purely digits (question ID) or has spaces/punctuation
         is_id = query.isdigit()
         has_spaces = " " in query or "." in query or ":" in query
         
-        # If it is a clean slug (no spaces, not purely digits, e.g., "two-sum"),
-        # we can assume it's already a slug and return it directly.
-        # But if it has spaces or is an ID, we resolve it.
-        if not is_id and not has_spaces:
-            return query.lower()
-            
+        # Always try REST API search for better accuracy, even for single-word queries
         # Resolve via LeetCode REST algorithms list
         url = "https://leetcode.com/api/problems/algorithms/"
         headers = {
@@ -194,7 +205,12 @@ class LeetCodeImporter:
         existing = res.scalar_one_or_none()
         if existing:
             # Auto-purge/overwrite placeholder problems
+            is_stale = False
             if existing.description and "Google-style problem placeholder created while external problem lookup was unavailable" in existing.description:
+                is_stale = True
+            if existing.description and "backup compiler engine" in existing.description:
+                is_stale = True
+            if is_stale:
                 print(f"[LeetCodeImporter] Purging stale placeholder problem '{slug}' to allow real import...")
                 await session.delete(existing)
                 await session.flush()
@@ -210,6 +226,7 @@ class LeetCodeImporter:
             titleSlug
             content
             difficulty
+            hints
             exampleTestcases
             topicTags {
               name
@@ -448,6 +465,7 @@ class LeetCodeImporter:
             memory_limit_kb=262144,
             score_base=score_base,
             runtime_bonus_max=20,
+            hints=json.dumps(question.get("hints", [])),
             is_published=True,
             tags=tags_list,
             templates=templates_list,

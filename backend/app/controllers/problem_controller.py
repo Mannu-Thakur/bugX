@@ -71,6 +71,14 @@ class ProblemController:
         sample_test_cases = [tc for tc in problem.test_cases if tc.is_sample]
 
         # Convert to schema fields properly
+        import json
+        hints_list = []
+        if problem.hints:
+            try:
+                hints_list = json.loads(problem.hints)
+            except Exception:
+                hints_list = []
+
         return {
             "id": problem.id,
             "slug": problem.slug,
@@ -86,7 +94,8 @@ class ProblemController:
             "tags": problem.tags,
             "templates": problem.templates,
             "sample_test_cases": sample_test_cases,
-            "user_status": user_status
+            "user_status": user_status,
+            "hints": hints_list
         }
 
     async def get_random_problem(

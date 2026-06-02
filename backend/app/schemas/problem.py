@@ -151,6 +151,7 @@ class ProblemDetail(BaseModel):
     # Sample test cases only for public view; hidden test I/O never exposed
     sample_test_cases: List[TestCaseResponse] = []
     user_status: Optional[UserStatusEmbed] = None
+    hints: List[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 

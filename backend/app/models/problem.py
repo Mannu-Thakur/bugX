@@ -33,6 +33,7 @@ class Problem(Base):
     expected_complexity = Column(String(20), nullable=True)
     is_published = Column(Boolean, nullable=False, default=False)
     acceptance_rate = Column(Float, nullable=True)
+    hints = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     tags = relationship("Tag", secondary=problem_tags, lazy="selectin")
