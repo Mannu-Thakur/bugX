@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RotateCcw, WifiOff, Check, Shuffle } from 'lucide-react';
+import { Search, RotateCcw, WifiOff, Check, Shuffle, ChevronRight } from 'lucide-react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/lib/api';
-import type { ProblemListItem } from '../../shared/lib/api';
 import { MOCK_PROBLEMS, MOCK_TAGS } from '../../shared/lib/mockData';
 import { useDebounce } from '../../shared/hooks/useDebounce';
-import { DataTable } from '../../shared/ui/table/DataTable';
-import type { Column } from '../../shared/ui/table/DataTable';
-import { Badge } from '../../shared/ui/badge/Badge';
 import { Input } from '../../shared/ui/input/Input';
 import { Select } from '../../shared/ui/select/Select';
 import { Button } from '../../shared/ui/button/Button';
@@ -228,81 +224,7 @@ export const ProblemListPage: React.FC = () => {
 
   const usingMockData = data ? data.items.some(p => p.id.startsWith('prob-')) : false;
 
-  // Table columns definition
-  const columns: Column<ProblemListItem>[] = [
-    {
-      key: 'title',
-      header: 'Title',
-      className: 'w-[40%]',
-      render: (p) => (
-        <div className="flex items-center gap-2">
-          <Link 
-            to={`/problems/${p.slug}`}
-            className="text-gray-200 hover:text-blue-400 font-semibold cursor-pointer transition-colors hover:underline flex items-center gap-2 group-hover:text-blue-400"
-          >
-            {p.title}
-          </Link>
-          {p.user_status?.solved && (
-            <span className="inline-flex items-center gap-0.5 text-[9px] font-black tracking-wider uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded select-none shadow-sm animate-fade-in">
-              <Check className="w-2.5 h-2.5" /> Solved
-            </span>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'difficulty',
-      header: 'Difficulty',
-      className: 'w-[15%]',
-      render: (p) => (
-        <Badge variant={p.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
-          {p.difficulty}
-        </Badge>
-      )
-    },
-    {
-      key: 'tags',
-      header: 'Tags',
-      className: 'w-[25%] hidden md:table-cell',
-      render: (p) => (
-        <div className="flex flex-wrap gap-1">
-          {p.tags.map((t) => (
-            <button
-              key={t.id}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                updateFilter('tag', t.name);
-              }}
-              className="text-[10px] px-2 py-0.5 bg-dark-input hover:bg-dark-hover rounded border border-dark-border text-gray-400 hover:text-gray-200 transition-colors"
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      key: 'acceptance_rate',
-      header: 'Acceptance',
-      className: 'w-[10%] text-right font-mono',
-      render: (p) => (
-        <span className="text-xs text-gray-400">
-          {typeof p.acceptance_rate === 'number' ? p.acceptance_rate.toFixed(1) : '0.0'}%
-        </span>
-      )
-    },
-    {
-      key: 'score_base',
-      header: 'Points',
-      className: 'w-[10%] text-right font-mono',
-      render: (p) => (
-        <span className="text-xs text-amber-400 font-semibold">
-          {p.score_base} pts
-        </span>
-      )
-    }
-  ];
+  // Map database categories to Select options
 
   // Map database categories to Select options
   const tagOptions = [
@@ -314,69 +236,53 @@ export const ProblemListPage: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       
       {/* Title Header with sleek stats */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-dark-border pb-6 select-none gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/[0.04] pb-6 select-none gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-100 tracking-tight bg-gradient-to-r from-gray-100 to-gray-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold text-gray-100 tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-gray-200 bg-clip-text text-transparent">
             Problems Catalog
           </h1>
           <p className="text-sm text-gray-400 mt-1.5 max-w-2xl leading-relaxed">
             Enhance your programmatic skills, master algorithms, and prepare for high-performance assessments.
           </p>
         </div>
-        {data && (
-          <div className="flex gap-3 bg-dark-panel border border-dark-border px-4 py-2.5 rounded-lg shadow-sm">
-            <div className="text-center px-3 border-r border-dark-border">
-              <span className="block text-xs text-gray-500 uppercase font-semibold">Total</span>
-              <span className="text-lg font-bold text-gray-200">{data.total}</span>
-            </div>
-            <div className="text-center px-3">
-              <span className="block text-xs text-gray-500 uppercase font-semibold">Pages</span>
-              <span className="text-lg font-bold text-gray-200">{data.pages}</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Dynamic Online Problem Importer */}
-      <div className="bg-gradient-to-r from-emerald-950/30 via-[#0a0c10] to-[#0c1017] border border-emerald-500/20 p-5 rounded-xl shadow-xl relative overflow-hidden select-none">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-r from-emerald-950/20 via-[#0a0c10] to-[#0c1017] border border-emerald-500/15 p-3 rounded-lg shadow-lg relative overflow-hidden select-none">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <h3 className="text-sm font-black text-gray-100 flex items-center gap-2 tracking-wide uppercase">
-                Fetch Online
-              </h3>
-              <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                Interview Prep
-              </span>
-            </div>
-            
-            <p className="text-xs text-gray-400 max-w-xl leading-relaxed">
-              Search any <b>LeetCode / Google coding interview question</b> (e.g., <i>two-sum</i>, <i>Fruit Into Baskets</i>) or <b>GeeksforGeeks problem/URL</b> (e.g., <i>second-largest3735</i>). AlgoAxis will dynamically fetch, refactor class signatures into clean standalone templates, synthesize test cases, and ready your Monaco workspace!
-            </p>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10 min-w-0">
+          <div className="flex items-center gap-3 shrink-0 min-w-0 flex-wrap">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <h3 className="text-xs font-black text-gray-200 tracking-wider uppercase">
+              Fetch Online
+            </h3>
+            <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+              LeetCode & GFG
+            </span>
+            <span className="text-[10px] text-gray-500 hidden xl:inline font-medium">
+              Search keyword or paste URL. bugX auto-synthesizes clean templates and test cases!
+            </span>
           </div>
           
-          <form onSubmit={handleImport} className="flex-1 max-w-md w-full flex gap-2">
+          <form onSubmit={handleImport} className="flex flex-col sm:flex-row flex-1 lg:max-w-md w-full gap-2 lg:ml-auto min-w-0">
             <Input 
               placeholder="Search online (LeetCode, GFG, slug, url, or keyword)" 
               value={importInput}
               onChange={(e) => setImportInput(e.target.value)}
               disabled={importing}
-              className="flex-1 !bg-gray-950 !text-gray-100 placeholder:!text-gray-500 !caret-emerald-400 border-dark-border focus:!border-emerald-500/50 focus:!ring-emerald-500/20"
+              className="flex-1 min-w-0 !bg-gray-950/90 !text-gray-100 placeholder:!text-gray-500 !caret-emerald-400 focus:!border-emerald-500/50 focus:!ring-emerald-500/20 !h-9 text-xs"
             />
             <Button 
               type="submit" 
               disabled={importing || !importInput.trim()}
-              className="shrink-0 shadow-lg active:scale-95 transition-all text-xs font-bold px-4 h-9 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/10 border-0"
+              className="w-full sm:w-auto shrink-0 shadow-lg active:scale-95 transition-all text-xs font-bold px-3.5 h-9 flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/10 border-0"
             >
               {importing ? (
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Search className="w-3.5 h-3.5" />
               )}
@@ -387,9 +293,9 @@ export const ProblemListPage: React.FC = () => {
 
         {/* Step Loader Feedbacks */}
         {importing && (
-          <div className="mt-4 pt-4 border-t border-dark-border/40 flex items-center justify-between text-xs animate-pulse">
+          <div className="mt-2.5 pt-2.5 border-t border-white/[0.04] flex items-center justify-between text-xs animate-pulse">
             <div className="flex items-center gap-2 font-semibold text-emerald-400">
-              <div className="w-3.5 h-3.5 border border-t-transparent rounded-full animate-spin border-emerald-400" />
+              <div className="w-3 h-3 border border-t-transparent rounded-full animate-spin border-emerald-400" />
               {importStep}
             </div>
             <span className="text-gray-500 font-medium">Readying Monaco workspace...</span>
@@ -398,7 +304,7 @@ export const ProblemListPage: React.FC = () => {
       </div>
 
       {/* Catalog Filters Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-dark-panel p-4 rounded-lg border border-dark-border select-none">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-dark-panel/50 p-3 rounded-xl border border-white/[0.04] select-none shadow-md">
         
         {/* Search */}
         <div className="md:col-span-3">
@@ -458,7 +364,7 @@ export const ProblemListPage: React.FC = () => {
             variant="outline" 
             onClick={handleRandomProblem}
             loading={shuffling}
-            className="w-full h-9 flex items-center justify-center shrink-0 border-dark-border hover:bg-dark-hover text-blue-400 hover:text-blue-300"
+            className="w-full h-9 flex items-center justify-center shrink-0 border-white/[0.08] hover:bg-dark-hover text-blue-400 hover:text-blue-300"
             title="Shuffle (Pick Random)"
           >
             {!shuffling && <Shuffle className="w-4 h-4" />}
@@ -470,7 +376,7 @@ export const ProblemListPage: React.FC = () => {
           <Button 
             variant="outline" 
             onClick={handleResetFilters}
-            className="w-full h-9 flex items-center justify-center shrink-0 border-dark-border hover:bg-dark-hover"
+            className="w-full h-9 flex items-center justify-center shrink-0 border-white/[0.08] hover:bg-dark-hover"
             title="Reset Filters"
           >
             <RotateCcw className="w-4 h-4" />
@@ -488,17 +394,121 @@ export const ProblemListPage: React.FC = () => {
         </div>
       )}
 
-      {/* Problems Data Table */}
-      <DataTable 
-        columns={columns} 
-        data={data?.items || []} 
-        loading={isLoading}
-        emptyMessage="No problems found matching the filters."
-      />
+      {/* Problems List Catalog */}
+      {isLoading ? (
+        <div className="space-y-3 select-none">
+          {[...Array(6)].map((_, idx) => (
+            <div key={idx} className="h-16 w-full bg-[#0b0d13] border border-white/[0.04] rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : (data?.items || []).length === 0 ? (
+        <div className="text-center py-12 bg-dark-panel rounded-xl border border-white/[0.08] select-none">
+          <p className="text-gray-500 text-sm">No problems found matching the filters.</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5 select-none">
+          {(data?.items || []).map((p, idx) => {
+            const isSolved = p.user_status?.solved;
+            const diffText = p.difficulty === 'MEDIUM' ? 'Med.' : p.difficulty === 'EASY' ? 'Easy' : 'Hard';
+            const diffColorClass = 
+              p.difficulty === 'HARD' 
+                ? 'text-rose-500 font-extrabold' 
+                : p.difficulty === 'MEDIUM' 
+                ? 'text-amber-500 font-extrabold' 
+                : 'text-teal-400 font-extrabold';
+            
+            const displayIndex = (page - 1) * limit + idx + 1;
+
+            const borderAccent =
+              p.difficulty === 'HARD'
+                ? 'border-l-rose-500'
+                : p.difficulty === 'MEDIUM'
+                ? 'border-l-amber-500'
+                : 'border-l-teal-400';
+
+            return (
+              <div 
+                key={p.id}
+                className={`flex items-center justify-between px-5 py-3.5 rounded-xl border border-l-2 transition-all duration-300 group hover:-translate-y-0.5 ${borderAccent} ${
+                  isSolved 
+                    ? 'bg-[#0f141d]/40 border-emerald-500/10 hover:border-emerald-500/25 hover:bg-[#121924]/60' 
+                    : 'bg-[#0b0d13] border-white/[0.04] hover:border-blue-500/15 hover:bg-[#0e111a]'
+                }`}
+              >
+                {/* Left side: checkmark & title */}
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {isSolved ? (
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                      </div>
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-700/60" />
+                    )}
+                  </div>
+
+                  <span className="text-xs font-mono text-gray-600 w-8 text-right shrink-0">{displayIndex}</span>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <Link 
+                        to={`/problems/${p.slug}`}
+                        className="text-sm font-semibold text-gray-200 hover:text-blue-400 transition-colors truncate block group-hover:text-blue-400 cursor-pointer"
+                      >
+                        {p.title}
+                      </Link>
+                    </div>
+
+                    <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-medium">
+                      <span className="font-mono">{typeof p.acceptance_rate === 'number' ? p.acceptance_rate.toFixed(1) : '0.0'}% Acceptance</span>
+                      <span className="text-gray-700 select-none">•</span>
+                      <span className="text-amber-500/90 font-semibold font-mono">{p.score_base} pts</span>
+                      {p.tags && p.tags.length > 0 && (
+                        <>
+                          <span className="text-gray-700 select-none">•</span>
+                          <div className="hidden sm:flex items-center gap-1.5">
+                            {p.tags.slice(0, 2).map(t => (
+                              <button 
+                                key={t.id}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  updateFilter('tag', t.name);
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-dark-bg/60 border border-white/[0.04] text-[9px] text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-colors font-semibold"
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                            {p.tags.length > 2 && (
+                              <span className="text-[9px] text-gray-500">+{p.tags.length - 2} tags</span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side: difficulty badge & enter button */}
+                <div className="flex items-center gap-4 shrink-0">
+                  <span className={`text-xs uppercase tracking-wider font-bold select-none ${diffColorClass}`}>
+                    {diffText}
+                  </span>
+                  
+                  <Link to={`/problems/${p.slug}`} className="hidden sm:inline-flex items-center justify-center w-8 h-8 rounded-lg bg-dark-bg group-hover:bg-blue-600/10 border border-white/[0.08] group-hover:border-blue-500/25 transition-all text-gray-500 group-hover:text-blue-400">
+                    <ChevronRight className="w-4.5 h-4.5" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pagination Controls */}
       {data && data.pages > 1 && (
-        <div className="flex justify-between items-center bg-dark-panel p-4 rounded-lg border border-dark-border select-none">
+        <div className="flex justify-between items-center bg-dark-panel p-4 rounded-lg border border-white/[0.08] select-none">
           <div className="text-xs text-gray-500">
             Showing page {data.page} of {data.pages}
           </div>

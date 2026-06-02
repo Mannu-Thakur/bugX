@@ -49,6 +49,8 @@ class Judge0Client:
                 try:
                     return await self._execute_locally(language, source_code, stdin)
                 except Exception as fallback_exc:
+                    fallback_exc.__context__ = None
+                    fallback_exc.__cause__ = None
                     return {
                         "status": {"id": 13, "description": "Internal Error"},
                         "stderr": f"Request failed: {str(exc)}. Fallback execution failed: {str(fallback_exc)}",
@@ -64,8 +66,8 @@ class Judge0Client:
     ) -> Dict[str, Any]:
         import sys
         import os
-        import tempfile
         import asyncio
+        import subprocess as _sp
         import time
         from pathlib import Path
 
@@ -97,6 +99,11 @@ class Judge0Client:
             if _mingw_bin.lower() not in current_path.lower():
                 cpp_env["PATH"] = _mingw_bin + os.pathsep + current_path
 
+        # Use run_in_executor + subprocess.run instead of asyncio.create_subprocess_exec.
+        # On Windows, asyncio.create_subprocess_exec requires ProactorEventLoop, but
+        # some ASGI frameworks (e.g. uvicorn with --loop=asyncio) use SelectorEventLoop
+        # which raises NotImplementedError. run_in_executor is safe on all event loops.
+        loop = asyncio.get_event_loop()
 
         if lang == "python":
             file_path = Path(temp_dir) / f"sol_{file_id}.py"
@@ -104,19 +111,22 @@ class Judge0Client:
             cmd = [sys.executable, str(file_path)]
             try:
                 start_time = time.perf_counter()
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: _sp.run(
+                        cmd,
+                        input=stdin.encode("utf-8"),
+                        stdout=_sp.PIPE,
+                        stderr=_sp.PIPE,
+                        timeout=30
+                    )
                 )
-                stdout_bytes, stderr_bytes = await proc.communicate(stdin.encode("utf-8"))
                 elapsed = time.perf_counter() - start_time
-                stdout = stdout_bytes.decode("utf-8", errors="replace")
-                stderr = stderr_bytes.decode("utf-8", errors="replace")
+                stdout = result.stdout.decode("utf-8", errors="replace")
+                stderr = result.stderr.decode("utf-8", errors="replace")
                 
-                status_id = 3 if proc.returncode == 0 else 11
-                status_desc = "Accepted" if proc.returncode == 0 else "Runtime Error (NZEC)"
+                status_id = 3 if result.returncode == 0 else 11
+                status_desc = "Accepted" if result.returncode == 0 else "Runtime Error (NZEC)"
                 
                 return {
                     "status": {"id": status_id, "description": status_desc},
@@ -145,19 +155,22 @@ class Judge0Client:
             cmd = ["node", str(file_path)]
             try:
                 start_time = time.perf_counter()
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: _sp.run(
+                        cmd,
+                        input=stdin.encode("utf-8"),
+                        stdout=_sp.PIPE,
+                        stderr=_sp.PIPE,
+                        timeout=30
+                    )
                 )
-                stdout_bytes, stderr_bytes = await proc.communicate(stdin.encode("utf-8"))
                 elapsed = time.perf_counter() - start_time
-                stdout = stdout_bytes.decode("utf-8", errors="replace")
-                stderr = stderr_bytes.decode("utf-8", errors="replace")
+                stdout = result.stdout.decode("utf-8", errors="replace")
+                stderr = result.stderr.decode("utf-8", errors="replace")
                 
-                status_id = 3 if proc.returncode == 0 else 11
-                status_desc = "Accepted" if proc.returncode == 0 else "Runtime Error (NZEC)"
+                status_id = 3 if result.returncode == 0 else 11
+                status_desc = "Accepted" if result.returncode == 0 else "Runtime Error (NZEC)"
                 
                 return {
                     "status": {"id": status_id, "description": status_desc},
@@ -191,15 +204,18 @@ class Judge0Client:
 
             compile_cmd = [gpp_cmd, "-O3", "-std=c++17", "-o", str(exe_path), str(cpp_path)]
             try:
-                comp_proc = await asyncio.create_subprocess_exec(
-                    *compile_cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=cpp_env
+                comp_result = await loop.run_in_executor(
+                    None,
+                    lambda: _sp.run(
+                        compile_cmd,
+                        stdout=_sp.PIPE,
+                        stderr=_sp.PIPE,
+                        env=cpp_env,
+                        timeout=30
+                    )
                 )
-                comp_stdout_b, comp_stderr_b = await comp_proc.communicate()
-                if comp_proc.returncode != 0:
-                    comp_stderr = comp_stderr_b.decode("utf-8", errors="replace")
+                if comp_result.returncode != 0:
+                    comp_stderr = comp_result.stderr.decode("utf-8", errors="replace")
                     return {
                         "status": {"id": 6, "description": "Compilation Error"},
                         "stdout": "",
@@ -209,24 +225,27 @@ class Judge0Client:
                     }
                 
                 start_time = time.perf_counter()
-                proc = await asyncio.create_subprocess_exec(
-                    str(exe_path),
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=cpp_env
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: _sp.run(
+                        [str(exe_path)],
+                        input=stdin.encode("utf-8"),
+                        stdout=_sp.PIPE,
+                        stderr=_sp.PIPE,
+                        env=cpp_env,
+                        timeout=30
+                    )
                 )
-                stdout_bytes, stderr_bytes = await proc.communicate(stdin.encode("utf-8"))
                 elapsed = time.perf_counter() - start_time
-                stdout = stdout_bytes.decode("utf-8", errors="replace")
-                stderr = stderr_bytes.decode("utf-8", errors="replace")
+                stdout = result.stdout.decode("utf-8", errors="replace")
+                stderr = result.stderr.decode("utf-8", errors="replace")
                 
-                status_id = 3 if proc.returncode == 0 else 11
-                status_desc = "Accepted" if proc.returncode == 0 else "Runtime Error (NZEC)"
+                status_id = 3 if result.returncode == 0 else 11
+                status_desc = "Accepted" if result.returncode == 0 else "Runtime Error (NZEC)"
                 
                 # Translate Windows exit codes to human-readable messages
-                if proc.returncode != 0 and not stderr.strip():
-                    rc = proc.returncode
+                if result.returncode != 0 and not stderr.strip():
+                    rc = result.returncode
                     # Convert negative codes to unsigned 32-bit for Windows status matching
                     urc = rc & 0xFFFFFFFF if rc < 0 else rc
                     win_codes = {
@@ -249,6 +268,8 @@ class Judge0Client:
                 }
             except Exception as e:
                 import traceback
+                e.__context__ = None
+                e.__cause__ = None
                 tb_str = traceback.format_exc()
                 print(f"[Offline Execute Error] C++ traceback: {tb_str}")
                 return {

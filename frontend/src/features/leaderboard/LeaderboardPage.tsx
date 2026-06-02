@@ -83,7 +83,7 @@ export const LeaderboardPage: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       
       {/* Header */}
-      <div className="border-b border-dark-border pb-4 select-none">
+      <div className="border-b border-white/[0.04] pb-4 select-none">
         <h1 className="text-2xl font-bold text-gray-100 tracking-tight flex items-center gap-2">
           <Award className="w-6 h-6 text-amber-500" />
           Global Leaderboard
@@ -94,8 +94,8 @@ export const LeaderboardPage: React.FC = () => {
       </div>
 
       {/* Segmented Period Selection controls */}
-      <div className="flex justify-between items-center bg-dark-panel p-3.5 rounded-lg border border-dark-border select-none">
-        <div className="flex gap-1 bg-dark-bg p-1 rounded-md border border-dark-border">
+      <div className="flex justify-between items-center bg-dark-panel p-3.5 rounded-lg border border-white/[0.08] select-none">
+        <div className="flex gap-1 bg-dark-bg p-1 rounded-md border border-white/[0.08]">
           <button
             onClick={() => handlePeriodChange('ALL')}
             className={`px-4 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all ${
@@ -128,21 +128,21 @@ export const LeaderboardPage: React.FC = () => {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2 animate-pulse select-none">
           {/* 2nd Place Skeleton */}
-          <div className="bg-dark-panel border border-dark-border/40 p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
+          <div className="bg-dark-panel border border-white/[0.04] p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
             <div className="w-12 h-12 rounded-full bg-dark-hover"></div>
             <div className="w-24 h-4 bg-dark-hover rounded"></div>
             <div className="w-16 h-3 bg-dark-hover rounded"></div>
             <div className="w-16 h-5 bg-dark-hover rounded-full"></div>
           </div>
           {/* 1st Place Skeleton */}
-          <div className="bg-dark-panel border border-dark-border/40 p-6 h-48 rounded-lg flex flex-col items-center justify-center gap-2.5">
+          <div className="bg-dark-panel border border-white/[0.04] p-6 h-48 rounded-lg flex flex-col items-center justify-center gap-2.5">
             <div className="w-14 h-14 rounded-full bg-dark-hover"></div>
             <div className="w-28 h-4 bg-dark-hover rounded"></div>
             <div className="w-20 h-3 bg-dark-hover rounded"></div>
             <div className="w-20 h-5 bg-dark-hover rounded-full"></div>
           </div>
           {/* 3rd Place Skeleton */}
-          <div className="bg-dark-panel border border-dark-border/40 p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
+          <div className="bg-dark-panel border border-white/[0.04] p-5 h-44 rounded-lg flex flex-col items-center justify-center gap-2.5">
             <div className="w-12 h-12 rounded-full bg-dark-hover"></div>
             <div className="w-24 h-4 bg-dark-hover rounded"></div>
             <div className="w-16 h-3 bg-dark-hover rounded"></div>
@@ -152,9 +152,9 @@ export const LeaderboardPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2 select-none">
           {/* 2nd Place Podium */}
-          <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
+          <div className="bg-dark-panel border border-white/[0.06] p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-white/[0.12] transition-colors">
             <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#2 Rank</div>
-            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥈</div>
+            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-white/[0.08] text-gray-400">🥈</div>
             {secondPlace ? (
               <>
                 <div>
@@ -198,9 +198,9 @@ export const LeaderboardPage: React.FC = () => {
           </div>
 
           {/* 3rd Place Podium */}
-          <div className="bg-dark-panel border border-dark-border/60 p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-gray-500 transition-colors">
+          <div className="bg-dark-panel border border-white/[0.06] p-5 rounded-lg flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group hover:border-white/[0.12] transition-colors">
             <div className="absolute top-2 left-2 text-[10px] uppercase font-bold text-gray-500">#3 Rank</div>
-            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-dark-border text-gray-400">🥉</div>
+            <div className="w-12 h-12 rounded-full bg-dark-hover flex items-center justify-center text-xl shadow border border-white/[0.08] text-gray-400">🥉</div>
             {thirdPlace ? (
               <>
                 <div>

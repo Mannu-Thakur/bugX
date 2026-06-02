@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, ChevronUp, Lightbulb, Clock } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../shared/lib/api';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
@@ -13,9 +13,11 @@ import { SplitPane } from './components/SplitPane';
 import { CodeEditor } from './components/CodeEditor';
 import { TestCasePanel } from './components/TestCasePanel';
 import { BestSubmissionDetails } from './components/BestSubmissionDetails';
+import { getHintsForProblem } from './hints';
 
 export const ProblemDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { error: showToastError, success: showToastSuccess } = useToast();
@@ -264,6 +266,7 @@ export const ProblemDetailPage: React.FC = () => {
               showToastSuccess("Solution accepted! Score awarded.");
               queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug] });
               queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug, 'best-submission'] });
+              navigate(`/problems/${slug}/submissions/${response.id}`);
             } else if (finalSub.status !== 'ACCEPTED') {
               setIsPolling(false);
               setIsSubmitting(false);
@@ -274,6 +277,7 @@ export const ProblemDetailPage: React.FC = () => {
               } catch (err) {
                 console.error("Failed to load results", err);
               }
+              navigate(`/problems/${slug}/submissions/${response.id}`);
             }
           }
         },
@@ -290,6 +294,7 @@ export const ProblemDetailPage: React.FC = () => {
           } catch (err) {
             console.error("Failed to load results", err);
           }
+          navigate(`/problems/${slug}/submissions/${response.id}`);
         }
       );
 
@@ -476,6 +481,31 @@ export const ProblemDetailPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Hints Section */}
+      <div className="bg-dark-panel border border-dark-border rounded-xl p-4 shadow-sm space-y-3">
+        <h2 className="text-xs font-extrabold uppercase text-gray-400 border-b border-dark-border pb-1.5 flex items-center gap-1.5 select-none">
+          <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Hints
+        </h2>
+        <div className="space-y-2">
+          {getHintsForProblem(problem.slug).map((hintText, idx) => (
+            <details key={idx} className="group border border-dark-border/40 rounded-lg overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <summary className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 hover:text-gray-200 bg-dark-bg/30 hover:bg-dark-bg/60 cursor-pointer transition-all select-none">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 flex items-center justify-center rounded-full bg-dark-bg text-[9px] font-mono text-gray-500">
+                    {idx + 1}
+                  </span>
+                  Reveal Hint {idx + 1}
+                </span>
+                <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="px-3 py-2 text-xs text-gray-400 leading-relaxed border-t border-dark-border/40 bg-dark-panel/40 whitespace-pre-wrap select-text">
+                {hintText}
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
@@ -495,6 +525,11 @@ export const ProblemDetailPage: React.FC = () => {
           onLoadLastSubmission={user ? handleLoadLastSubmission : undefined}
           isLoadingLastSubmission={isLoadingLastSub}
           lastSubmission={lastSubmissionData}
+          timerSeconds={timerSeconds}
+          timerIsActive={timerIsActive}
+          onTimerToggle={() => setTimerIsActive(!timerIsActive)}
+          onTimerReset={() => { setTimerIsActive(false); setTimerSeconds(0); }}
+          formatTimerTime={formatTimerTime}
         />
       </div>
 
@@ -545,52 +580,12 @@ export const ProblemDetailPage: React.FC = () => {
 
   return (
     <div className="w-full px-2 py-2 space-y-2">
-      {/* Back button header with sleek Coding Timer */}
+      {/* Back button header */}
       <div className="flex items-center justify-between select-none flex-wrap gap-3">
-        <div className="flex items-center gap-4">
-          <Link to="/problems" className="inline-flex items-center text-xs text-gray-400 hover:text-gray-200 font-semibold transition-colors">
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Back to Catalog
-          </Link>
-          
-          {/* Coding Timer */}
-          <div className="flex items-center gap-2 bg-dark-panel border border-dark-border px-3 py-1 rounded-full shadow-inner select-none font-sans text-xs">
-            <div className="flex items-center gap-1 border-r border-dark-border/60 pr-2">
-              <span className={`relative flex h-1.5 w-1.5 ${timerIsActive ? 'animate-pulse' : ''}`}>
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${timerIsActive ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${timerIsActive ? 'bg-emerald-500' : 'bg-gray-500'}`}></span>
-              </span>
-              <span className="text-[9px] font-black uppercase tracking-wider text-gray-500">Stopwatch</span>
-            </div>
-            
-            <span className={`font-mono font-black tracking-widest text-xs ${timerIsActive ? 'text-emerald-400' : 'text-gray-400'}`}>
-              {formatTimerTime(timerSeconds)}
-            </span>
-            
-            <div className="flex items-center gap-1.5 pl-1.5 border-l border-dark-border/60 text-[10px]">
-              <button
-                type="button"
-                onClick={() => setTimerIsActive(!timerIsActive)}
-                className="hover:text-emerald-400 font-black uppercase tracking-wider transition-colors cursor-pointer select-none px-1 py-0.5 rounded hover:bg-dark-hover"
-                title={timerIsActive ? 'Pause' : 'Start'}
-              >
-                {timerIsActive ? 'Pause' : 'Start'}
-              </button>
-              <span className="text-dark-border/60 font-sans">|</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setTimerIsActive(false);
-                  setTimerSeconds(0);
-                }}
-                className="hover:text-rose-400 font-black uppercase tracking-wider transition-colors cursor-pointer select-none px-1 py-0.5 rounded hover:bg-dark-hover"
-                title="Reset"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
+        <Link to="/problems" className="inline-flex items-center text-xs text-gray-400 hover:text-gray-200 font-semibold transition-colors">
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back to Catalog
+        </Link>
         
         {/* Mobile Tab Control */}
         {!isLargeScreen && (

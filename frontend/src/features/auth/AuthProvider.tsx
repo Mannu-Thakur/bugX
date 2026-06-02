@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, setToken, clearToken, getToken } from '../../shared/lib/api';
 import type { User, ApiError, UserUpdatePayload } from '../../shared/lib/api';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
+import { BugXLogo } from '../../shared/ui/logo/BugXLogo';
 
 export interface AuthContextType {
   user: User | null;
@@ -180,15 +181,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {loading ? (
         <div className="min-h-screen flex flex-col items-center justify-center bg-dark-bg text-gray-200 select-none">
           <div className="flex flex-col items-center gap-4 animate-pulse">
-            <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-blue-500/20 overflow-hidden border border-blue-500/20">
-              <img
-                src="https://www.svgrepo.com/show/249746/coding-code.svg"
-                alt="AlgoAxis logo"
-                className="w-9 h-9 object-contain"
-              />
+            <div className="w-12 h-12 rounded-xl bg-gray-900/80 flex items-center justify-center shadow-lg shadow-blue-500/20 overflow-hidden border border-dark-border text-gray-300 p-2">
+              <BugXLogo className="w-full h-full" />
             </div>
-            <span className="font-sans font-bold text-sm tracking-widest text-gray-400 uppercase">
-              Loading AlgoAxis...
+            <span className="font-sans font-bold text-xs tracking-widest text-gray-400 uppercase">
+              Loading bug<span className="text-blue-500 font-extrabold uppercase">X</span>...
             </span>
           </div>
         </div>

@@ -43,6 +43,15 @@ class Submission(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     results = relationship("SubmissionResult", back_populates="submission", cascade="all, delete-orphan")
+    problem = relationship("Problem", lazy="selectin")
+
+    @property
+    def problem_slug(self) -> str | None:
+        return self.problem.slug if self.problem else None
+
+    @property
+    def problem_title(self) -> str | None:
+        return self.problem.title if self.problem else None
 
     __table_args__ = (
         Index('idx_submissions_user_problem', 'user_id', 'problem_id'),

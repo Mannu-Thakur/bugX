@@ -300,5 +300,23 @@ async def test_leetcode_importer_resolve_slug():
     slug4 = await LeetCodeImporter.resolve_slug("3sum")
     assert slug4 == "3sum"
 
+@pytest.mark.asyncio
+async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession):
+    # This slug definitely doesn't exist on LeetCode or GFG practice portal
+    non_existent_slug = "non-existent-problem-slug-999"
+    
+    resp = await client.post(
+        "/api/v1/problems/import",
+        json={"url_or_slug": non_existent_slug}
+    )
+    
+    # It should successfully fall back and return 201 Created!
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["slug"] == "non-existent-problem-slug-999"
+    assert "non-existent-problem-slug-999" in data["slug"]
+    # It should have templates generated
+    assert len(data["templates"]) > 0
+
 
 

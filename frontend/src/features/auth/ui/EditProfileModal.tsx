@@ -22,6 +22,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   const [githubUrl, setGithubUrl] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [portfolioUrl, setPortfolioUrl] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [bio, setBio] = useState('');
+  const [location, setLocation] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +39,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       setGithubUrl(user.githubUrl || '');
       setLinkedinUrl(user.linkedinUrl || '');
       setPortfolioUrl(user.portfolioUrl || '');
+      setFullName(localStorage.getItem('profile_fullname') || 'Mannu Kumar thakur');
+      setBio(localStorage.getItem('profile_bio') || 'B.Tech CE | I breathe brackets & bugs | From Brute Force to Optimised one.');
+      setLocation(localStorage.getItem('profile_location') || 'India');
       setErrors({});
     }
   }, [user, isOpen]);
@@ -110,6 +116,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         linkedinUrl: linkedinUrl || null,
         portfolioUrl: portfolioUrl || null,
       });
+
+      // Save local items
+      localStorage.setItem('profile_fullname', fullName);
+      localStorage.setItem('profile_bio', bio);
+      localStorage.setItem('profile_location', location);
+
+      // Trigger custom event to notify ProfilePage to re-read localStorage
+      window.dispatchEvent(new Event('profile_local_updated'));
+
       onClose();
     } catch {
       // Handled by updateProfile toast
@@ -175,6 +190,35 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           icon={<User className="w-4 h-4" />}
           placeholder="New username"
         />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Full Name"
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            icon={<User className="w-4 h-4" />}
+            placeholder="Mannu Kumar thakur"
+          />
+          <Input
+            label="Location"
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            icon={<User className="w-4 h-4" />}
+            placeholder="India"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-gray-400">Bio</label>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className="w-full bg-[#0a0a0c] border border-white/[0.08] rounded px-3 py-2 text-sm text-gray-300 resize-none h-20 focus:border-blue-500/60 focus:outline-none"
+            placeholder="Tell us about yourself..."
+          />
+        </div>
 
         <Input
           label="Profile Image URL"

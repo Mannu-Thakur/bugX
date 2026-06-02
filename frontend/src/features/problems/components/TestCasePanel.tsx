@@ -44,7 +44,7 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
       input: firstFailingHidden.test_case_input,
       expected_output: firstFailingHidden.expected_output,
       is_sample: false,
-      label: '❌ Failing Hidden Case',
+      label: 'Failing Hidden Case',
     });
   }
 
@@ -177,13 +177,13 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                   <div className={cn("grid gap-3", res ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2")}>
                     <div>
                       <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Input</div>
-                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-auto text-gray-300 max-h-32">
                         {selectedCase.input ?? res?.test_case_input ?? '(hidden)'}
                       </pre>
                     </div>
                     <div>
                       <div className="text-[10px] text-gray-500 uppercase font-sans font-bold mb-1 select-none">Expected Output</div>
-                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-x-auto text-gray-300 max-h-32">
+                      <pre className="bg-dark-bg border border-dark-border p-2.5 rounded-lg overflow-auto text-gray-300 max-h-32">
                         {selectedCase.expected_output ?? res?.expected_output ?? '(hidden)'}
                       </pre>
                     </div>
@@ -193,10 +193,10 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                           "text-[10px] uppercase font-sans font-bold mb-1 select-none",
                           res.passed ? "text-emerald-500" : "text-rose-500"
                         )}>
-                          Your Output {res.passed ? '✓' : '✗'}
+                          Your Output {res.passed ? 'OK' : 'Mismatch'}
                         </div>
                         <pre className={cn(
-                          "border p-2.5 rounded-lg overflow-x-auto max-h-32",
+                          "border p-2.5 rounded-lg overflow-auto max-h-32",
                           res.passed
                             ? "bg-emerald-500/5 border-emerald-500/25 text-emerald-400"
                             : "bg-rose-500/5 border-rose-500/25 text-rose-400"
@@ -213,7 +213,7 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                       <div className="text-[10px] text-amber-500 uppercase font-sans font-bold mb-1 select-none flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" /> Stderr / Error Log
                       </div>
-                      <pre className="bg-[#1f1618] border border-amber-950/40 p-3 rounded-lg overflow-x-auto text-amber-200 max-h-32">
+                      <pre className="bg-[#1f1618] border border-amber-950/40 p-3 rounded-lg overflow-auto text-amber-200 max-h-32">
                         {res.stderr}
                       </pre>
                     </div>
@@ -273,13 +273,74 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                   )}
                 </div>
 
+                {/* Pass/Fail Button Window */}
+                {results && results.length > 0 && (
+                  <div className="bg-dark-bg/60 border border-dark-border rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between select-none">
+                      <span className="text-[10px] text-gray-500 uppercase font-sans font-bold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        Test Results
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px] font-mono select-none">
+                        <span className="flex items-center gap-1 text-emerald-400">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {results.filter(r => r.passed).length} passed
+                        </span>
+                        <span className="text-dark-border/60">|</span>
+                        <span className="flex items-center gap-1 text-rose-400">
+                          <XCircle className="w-3 h-3" />
+                          {results.filter(r => !r.passed).length} failed
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {results.map((r, idx) => {
+                        const isSample = testCases.some(tc => tc.id === r.test_case_id);
+                        const canOpenDetails = isSample || r.is_first_failing_hidden;
+                        const hiddenIndex = hiddenResults.findIndex(hr => hr.id === r.id);
+                        const caseLabel = isSample
+                          ? `Sample ${testCases.findIndex(tc => tc.id === r.test_case_id) + 1}`
+                          : `Hidden ${hiddenIndex + 1}`;
+                        return (
+                          <button
+                            key={r.id}
+                            disabled={!canOpenDetails}
+                            onClick={() => {
+                              const caseIdx = displayCases.findIndex(dc => dc.id === r.test_case_id);
+                              if (caseIdx >= 0) {
+                                setSelectedCaseIdx(caseIdx);
+                                setActiveTab('cases');
+                              }
+                            }}
+                            className={cn(
+                              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border transition-all",
+                              r.passed
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20",
+                              canOpenDetails ? "cursor-pointer" : "cursor-default opacity-75"
+                            )}
+                            title={`${caseLabel}: ${r.passed ? 'Passed' : 'Failed'} (${r.runtime_ms}ms)`}
+                          >
+                            {r.passed ? (
+                              <CheckCircle2 className="w-3 h-3" />
+                            ) : (
+                              <XCircle className="w-3 h-3" />
+                            )}
+                            <span>{idx + 1}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Compilation / Runtime Errors */}
                 {submission.error_message && (
                   <div className="space-y-2">
                     <div className="text-[10px] text-amber-500 uppercase font-sans font-bold flex items-center gap-1.5 select-none">
                       <AlertTriangle className="w-3.5 h-3.5" /> Log output
                     </div>
-                    <pre className="bg-[#1f1618] border border-amber-950/40 p-4 rounded-xl overflow-x-auto text-xs font-mono text-amber-200 leading-relaxed max-h-60">
+                    <pre className="bg-[#1f1618] border border-amber-950/40 p-4 rounded-xl overflow-auto text-xs font-mono text-amber-200 leading-relaxed max-h-60">
                       {submission.error_message}
                     </pre>
                   </div>

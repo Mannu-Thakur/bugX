@@ -349,23 +349,45 @@ export const BattleLobbyPage: React.FC = () => {
           </div>
 
           {/* Custom Input */}
-          <div className="flex items-center gap-3 pt-2 border-t border-dark-border bg-dark-bg/25 p-2 rounded-xl border border-dark-border">
+          <div className="flex items-center gap-4 pt-2 border-t border-dark-border bg-dark-bg/25 p-2 rounded-xl border border-dark-border select-none">
             <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider shrink-0 pl-1 select-none">
               Custom Duration:
             </label>
-            <div className="relative flex items-center flex-1 max-w-[140px]">
-              <input
-                type="number"
-                min={1}
-                max={240}
-                value={timeLimit}
-                onChange={e => setTimeLimit(Number(e.target.value))}
-                onBlur={() => setTimeLimit(prev => Math.max(1, Math.min(240, Number(prev) || 15)))}
-                className="w-full bg-dark-input border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-amber-400 font-extrabold focus:outline-none focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-inner"
-              />
-              <span className="absolute right-2.5 text-[9px] uppercase text-gray-500 font-bold select-none">
-                min
-              </span>
+            <div className="flex items-center bg-dark-input border border-dark-border rounded-lg p-0.5 max-w-[150px] shadow-inner">
+              {/* Decrement Button */}
+              <button
+                type="button"
+                onClick={() => setTimeLimit(prev => Math.max(1, prev - 1))}
+                className="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-amber-400 hover:bg-dark-hover transition-colors font-bold text-sm focus:outline-none cursor-pointer"
+              >
+                &minus;
+              </button>
+              
+              {/* Value Input Area */}
+              <div className="flex-1 flex items-center justify-center px-1.5 min-w-[50px] text-center">
+                <input
+                  type="text"
+                  value={timeLimit}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setTimeLimit(val === '' ? 1 : Math.max(1, Math.min(240, Number(val))));
+                  }}
+                  onBlur={() => setTimeLimit(prev => Math.max(1, Math.min(240, Number(prev) || 15)))}
+                  className="w-full bg-transparent border-0 text-center text-xs text-amber-400 font-extrabold focus:outline-none focus:ring-0 p-0"
+                />
+                <span className="text-[9px] uppercase text-gray-500 font-bold ml-1">
+                  min
+                </span>
+              </div>
+              
+              {/* Increment Button */}
+              <button
+                type="button"
+                onClick={() => setTimeLimit(prev => Math.min(240, prev + 1))}
+                className="w-8 h-8 flex items-center justify-center rounded text-gray-400 hover:text-amber-400 hover:bg-dark-hover transition-colors font-bold text-sm focus:outline-none cursor-pointer"
+              >
+                +
+              </button>
             </div>
             <span className="text-xs text-gray-500 font-medium select-none">Maximum 240m</span>
           </div>
@@ -393,13 +415,12 @@ export const BattleLobbyPage: React.FC = () => {
         {/* Start Local Split Workspace Button */}
         <button
           onClick={handleStartBattle}
-          className="py-3 px-4 bg-gradient-to-r from-red-600 via-orange-600 to-yellow-600 hover:from-red-500 hover:via-orange-500 hover:to-yellow-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-orange-500/15 hover:shadow-orange-500/25 border border-transparent active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
+          className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-sm rounded-xl border border-slate-700 shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
         >
-          <Zap className="w-4 h-4 text-yellow-300 animate-bounce" />
+          <Zap className="w-4 h-4 text-amber-400" />
           Start Local Arena
-          <ChevronRight className="w-4 h-4 shrink-0" />
+          <ChevronRight className="w-4 h-4 shrink-0 text-slate-500" />
         </button>
-
       </div>
 
       {/* Generated Invite URL Display Section */}

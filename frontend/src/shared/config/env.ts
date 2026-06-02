@@ -1,4 +1,4 @@
 export const ENV = {
   API_URL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
-  APP_NAME: import.meta.env.VITE_APP_NAME || 'AlgoAxis',
+  APP_NAME: import.meta.env.VITE_APP_NAME || 'bugX',
 };

@@ -7,6 +7,7 @@ import { useAuth } from '../../../features/auth/useAuth';
 import { UserMenu } from '../../../features/auth/ui/UserMenu';
 import { EditProfileModal } from '../../../features/auth/ui/EditProfileModal';
 import { ENV } from '../../config/env';
+import { BugXLogo } from '../logo/BugXLogo';
 
 export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolean }> = ({ children, fullWidth = false }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -73,22 +74,18 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
   return (
     <div className="min-h-screen flex flex-col bg-dark-bg text-gray-200">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-dark-panel/85 backdrop-blur border-b border-dark-border select-none">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
+      <header className="sticky top-0 z-40 w-screen max-w-full bg-dark-panel/85 backdrop-blur border-b border-white/[0.06] select-none relative">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 w-full min-w-0 gap-3">
             
             {/* Logo */}
-            <div className="flex items-center gap-6">
-              <Link to="/problems" className="flex items-center gap-2 group">
-                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-blue-500/10 group-hover:scale-105 transition-transform duration-150 overflow-hidden border border-blue-500/20">
-                  <img
-                    src="https://www.svgrepo.com/show/249746/coding-code.svg"
-                    alt="AlgoAxis logo"
-                    className="w-7 h-7 object-contain"
-                  />
+            <div className="flex items-center gap-6 min-w-0">
+              <Link to="/problems" className="flex items-center gap-2 group shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-gray-900/60 flex items-center justify-center shadow-lg shadow-blue-500/10 group-hover:scale-105 transition-all duration-150 overflow-hidden border border-white/[0.08] text-gray-300 group-hover:text-blue-400 p-1.5">
+                  <BugXLogo className="w-full h-full" />
                 </div>
-                <span className="font-sans font-bold text-base tracking-wide text-gray-100 group-hover:text-white transition-colors duration-150">
-                  Algo<span className="text-blue-500 font-normal">Axis</span>
+                <span className="font-sans font-bold text-lg tracking-tight text-gray-100 group-hover:text-white transition-colors duration-150 lowercase">
+                  bug<span className="text-blue-500 font-extrabold uppercase">X</span>
                 </span>
               </Link>
 
@@ -120,7 +117,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
               {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
-                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-dark-border/40 select-none cursor-pointer"
+                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-white/[0.08] select-none cursor-pointer"
                 aria-label="Toggle theme"
                 title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
@@ -165,10 +162,10 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
             </div>
 
             {/* Mobile Actions */}
-            <div className="flex items-center gap-2 md:hidden">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 md:hidden shrink-0">
               <button
                 onClick={toggleTheme}
-                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-dark-border/40 select-none cursor-pointer"
+                className="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-white/[0.08] select-none cursor-pointer"
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -189,7 +186,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-dark-border bg-dark-panel/95 animate-fade-in">
+          <div className="md:hidden border-t border-white/[0.06] bg-dark-panel/95 animate-fade-in">
             <div className="px-4 pt-2 pb-4 space-y-1.5 select-none">
               {navLinks.map((link) => (
                 <NavLink
@@ -210,7 +207,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                 </NavLink>
               ))}
 
-              <div className="border-t border-dark-border/60 my-2 pt-2">
+              <div className="border-t border-white/[0.04] my-2 pt-2">
                 {user ? (
                   <div className="space-y-2">
                     {user.role === 'ADMIN' && (
@@ -224,7 +221,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                       </Link>
                     )}
                     
-                    <div className="px-3 py-2 flex flex-col gap-0.5 border border-dark-border/40 bg-dark-bg/30 rounded-md">
+                    <div className="px-3 py-2 flex flex-col gap-0.5 border border-white/[0.04] bg-dark-bg/30 rounded-md">
                       <span className="text-xs text-gray-500">Signed in as</span>
                       <span className="text-sm font-bold text-gray-200 truncate">{user.username}</span>
                       <span className="text-[11px] text-gray-400 truncate">{user.email}</span>
@@ -257,7 +254,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                     <Link
                       to="/login"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center justify-center py-2 text-center text-gray-400 hover:text-gray-200 hover:bg-dark-hover border border-dark-border rounded-md text-sm font-medium"
+                      className="flex items-center justify-center py-2 text-center text-gray-400 hover:text-gray-200 hover:bg-dark-hover border border-white/[0.08] rounded-md text-sm font-medium"
                     >
                       Login
                     </Link>
@@ -287,11 +284,11 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
       </main>
 
       {/* App Sticky Footer */}
-      <footer className="bg-dark-panel border-t border-dark-border select-none mt-auto py-3">
+      <footer className="bg-dark-panel border-t border-white/[0.06] select-none mt-auto py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
           
           <p className="text-[11px] text-gray-500 tracking-wide font-sans">
-            &copy; {new Date().getFullYear()} AlgoAxis. All rights reserved. Built with React, Vite & Tailwind CSS.
+            &copy; {new Date().getFullYear()} bugX. All rights reserved. Built with React, Vite & Tailwind CSS.
           </p>
 
           {/* Health Status Indicator */}

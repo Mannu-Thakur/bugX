@@ -34,7 +34,8 @@ class UserController:
     async def get_my_stats(self, current_user: User) -> dict:
         from app.repositories.user_stats_repo import UserStatsRepo
         from app.models.submission import Submission
-        from sqlalchemy import select
+        from app.models.battle import Battle
+        from sqlalchemy import select, or_
         from collections import Counter
         from datetime import datetime, timedelta
 
@@ -52,12 +53,40 @@ class UserController:
         timestamps = res.scalars().all()
         activity = Counter(t.strftime("%Y-%m-%d") for t in timestamps if t)
 
+        # Query battles played and won
+        battle_stmt = select(Battle).where(
+            or_(
+                Battle.player1_username == current_user.username,
+                Battle.player2_username == current_user.username
+            )
+        )
+        battle_res = await self.db.execute(battle_stmt)
+        battles = list(battle_res.scalars().all())
+
+        battles_played = 0
+        battles_won = 0
+        for b in battles:
+            if b.status == "finished":
+                battles_played += 1
+                if b.player1_username == current_user.username:
+                    if b.p1_score > b.p2_score:
+                        battles_won += 1
+                    elif b.p1_score == b.p2_score and b.p1_solved and not b.p2_solved:
+                        battles_won += 1
+                elif b.player2_username == current_user.username:
+                    if b.p2_score > b.p1_score:
+                        battles_won += 1
+                    elif b.p2_score == b.p1_score and b.p2_solved and not b.p1_solved:
+                        battles_won += 1
+
         if not stats:
             return {
                 "total_solved": 0, "easy_solved": 0, "medium_solved": 0, "hard_solved": 0,
                 "total_score": 0, "current_streak": 0, "best_streak": 0,
                 "last_active_date": None,
-                "submission_activity": dict(activity)
+                "submission_activity": dict(activity),
+                "battles_played": battles_played,
+                "battles_won": battles_won
             }
         return {
             "total_solved": stats.total_solved,
@@ -68,7 +97,9 @@ class UserController:
             "current_streak": stats.current_streak,
             "best_streak": stats.best_streak,
             "last_active_date": stats.last_active_date,
-            "submission_activity": dict(activity)
+            "submission_activity": dict(activity),
+            "battles_played": battles_played,
+            "battles_won": battles_won
         }
 
     async def get_my_submissions(self, current_user: User, page: int, limit: int) -> dict:

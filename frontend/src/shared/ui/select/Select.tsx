@@ -89,7 +89,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           aria-controls={`${selectId}-listbox`}
           onClick={() => setIsOpen((open) => !open)}
           className={cn(
-            'relative h-9 w-full min-w-0 bg-dark-input border border-dark-border text-sm text-gray-200 rounded-md py-2 pl-3 pr-9 text-left transition-colors focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer',
+            'relative h-9 w-full min-w-0 bg-dark-input border border-white/[0.08] text-sm text-gray-200 rounded-md py-2 pl-3 pr-9 text-left transition-colors focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer',
             error && 'border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/50',
             className,
           )}
@@ -107,7 +107,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <div
             id={`${selectId}-listbox`}
             role="listbox"
-            className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-52 overflow-y-auto overscroll-contain rounded-md border border-dark-border bg-dark-panel shadow-2xl shadow-black/40"
+            className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-52 overflow-y-auto overscroll-contain rounded-md border border-white/[0.08] bg-dark-panel shadow-2xl shadow-black/40"
           >
             {options.map((option) => {
               const selected = option.value === selectedValue;

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Award, BookOpen, Clock, Download, FileText, History, StickyNote, Swords, Trash2, Trophy, Upload } from 'lucide-react';
+import { Award, BookOpen, Clock, Download, FileText, History, Swords, Trash2, Trophy, Upload } from 'lucide-react';
 import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { api } from '../../shared/lib/api';
@@ -36,6 +36,15 @@ const SUBJECTS: { key: SubjectKey; label: string; hint: string }[] = [
   { key: 'dsa', label: 'DSA', hint: 'Patterns, formulas, edge cases' },
 ];
 
+const SUBJECT_THEMES: Record<SubjectKey, { color: string; bg: string; border: string; glow: string }> = {
+  dbms: { color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', glow: 'shadow-[0_0_15px_rgba(99,102,241,0.06)]' },
+  sql: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/30', glow: 'shadow-[0_0_15px_rgba(139,92,246,0.06)]' },
+  os: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', glow: 'shadow-[0_0_15px_rgba(59,130,246,0.06)]' },
+  cn: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.06)]' },
+  oop: { color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/30', glow: 'shadow-[0_0_15px_rgba(244,63,94,0.06)]' },
+  dsa: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', glow: 'shadow-[0_0_15px_rgba(16,185,129,0.06)]' },
+};
+
 const createEmptyStudyFiles = (): Record<SubjectKey, StudyFile[]> => ({
   dbms: [],
   sql: [],
@@ -70,11 +79,15 @@ const formatFileSize = (bytes: number) => {
 export const SettingsPage: React.FC = () => {
   const { error, success } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dropZoneRef = useRef<HTMLButtonElement | null>(null);
 
+  const [activeTab, setActiveTab] = useState<'vault' | 'battles'>('vault');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeSubject, setActiveSubject] = useState<SubjectKey>('dbms');
   const [studyFiles, setStudyFiles] = useState<Record<SubjectKey, StudyFile[]>>(createEmptyStudyFiles);
   const [filesLoading, setFilesLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [battleHistory, setBattleHistory] = useState<BattleHistoryItem[]>(() => {
     try {
@@ -177,193 +190,395 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const activeFiles = studyFiles[activeSubject] || [];
+  const activeFiles = useMemo(() => {
+    const rawFiles = studyFiles[activeSubject] || [];
+    if (!searchQuery.trim()) return rawFiles;
+    return rawFiles.filter(file => file.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [studyFiles, activeSubject, searchQuery]);
+
+  // ─── Drag-and-drop handlers ────────────────────────────────────────────────
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (uploading) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+    // Re-use the existing upload logic by creating a synthetic event-like object
+    const uploadedFiles: StudyFile[] = [];
+    setUploading(true);
+    try {
+      for (const file of files) {
+        uploadedFiles.push(await api.files.upload(activeSubject, file));
+      }
+      setStudyFiles(prev => ({
+        ...prev,
+        [activeSubject]: [...uploadedFiles, ...(prev[activeSubject] || [])],
+      }));
+      success(`${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'} dropped into ${SUBJECTS.find(s => s.key === activeSubject)?.label}.`);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      error(apiErr.message || 'Upload failed. Please try a smaller file or confirm the backend is running.');
+      await loadStudyFiles();
+    } finally {
+      setUploading(false);
+    }
+  }, [uploading, activeSubject, loadStudyFiles, error, success]);
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* Title */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-          <StickyNote className="w-5 h-5 text-blue-400" />
+        <div className="w-10 h-10 rounded-lg bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center">
+          <BookOpen className="w-5 h-5 text-emerald-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Vault</h1>
-          <p className="text-sm text-gray-500">Subject files and battle history</p>
+          <p className="text-sm text-gray-500">Access and organize subject study materials and view dual archives</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <section className="xl:col-span-2 bg-dark-panel border border-dark-border rounded-lg p-5">
-          <div className="flex items-center justify-between gap-3 mb-5">
-            <div className="flex items-center gap-2.5">
-              <History className="w-5 h-5 text-orange-400" />
-              <div>
-                <h2 className="text-base font-semibold text-gray-100">Battle History</h2>
-                <p className="text-xs text-gray-500">Last 50 local 1v1 matches</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" onClick={clearBattleHistory} disabled={battleHistory.length === 0}>
-              Clear
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
-              <Swords className="w-4 h-4 text-orange-400 mb-2" />
-              <div className="text-xl font-black text-gray-100">{battleStats.total}</div>
-              <div className="text-[11px] text-gray-500 uppercase font-bold">Battles</div>
-            </div>
-            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
-              <Award className="w-4 h-4 text-emerald-400 mb-2" />
-              <div className="text-xl font-black text-gray-100">{battleStats.solved}</div>
-              <div className="text-[11px] text-gray-500 uppercase font-bold">Solves</div>
-            </div>
-            <div className="bg-dark-bg border border-dark-border rounded-lg p-3">
-              <Trophy className="w-4 h-4 text-amber-400 mb-2" />
-              <div className="text-xl font-black text-gray-100">{battleStats.ties}</div>
-              <div className="text-[11px] text-gray-500 uppercase font-bold">Ties</div>
-            </div>
-          </div>
-
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-            {battleHistory.length === 0 ? (
-              <div className="border border-dashed border-dark-border rounded-lg p-8 text-center text-sm text-gray-500">
-                No battles recorded yet. Finish a 1v1 match and it will appear here.
-              </div>
-            ) : (
-              battleHistory.map(item => (
-                <div key={item.id} className="bg-dark-bg border border-dark-border rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-gray-100">{item.problemTitle || 'Battle Match'}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {item.endedAt ? new Date(item.endedAt).toLocaleString() : 'Unknown time'}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase text-gray-500 font-bold">Winner</div>
-                      <div className="text-sm text-amber-400 font-black">{item.winner || 'Pending'}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                    <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3">
-                      <div className="text-xs text-blue-400 font-bold">{item.player1 || 'Participant 1'}</div>
-                      <div className="text-lg font-mono font-black text-blue-200">{item.p1Score ?? 0} pts</div>
-                      <div className="text-[11px] text-gray-500">Attempts {item.p1Attempts ?? 0} - {item.p1Solved ? 'Solved' : 'Incomplete'}</div>
-                    </div>
-                    <div className="border border-rose-500/20 bg-rose-500/5 rounded-lg p-3">
-                      <div className="text-xs text-rose-400 font-bold">{item.player2 || 'Participant 2'}</div>
-                      <div className="text-lg font-mono font-black text-rose-200">{item.p2Score ?? 0} pts</div>
-                      <div className="text-[11px] text-gray-500">Attempts {item.p2Attempts ?? 0} - {item.p2Solved ? 'Solved' : 'Incomplete'}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDuration(item.timeUsedSeconds)}</span>
-                    <span>Limit {item.timeLimitMinutes ?? '-'} min</span>
-                    {item.endedByTimeout && <span className="text-amber-400">Timeout finish</span>}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="bg-dark-panel border border-dark-border rounded-lg p-5">
-          <div className="flex items-center gap-2.5 mb-5">
-            <BookOpen className="w-5 h-5 text-emerald-400" />
-            <div>
-              <h2 className="text-base font-semibold text-gray-100">Subject File Vault</h2>
-              <p className="text-xs text-gray-500">Upload PDFs, images, docs, markdown, or text notes</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {SUBJECTS.map(subject => (
-              <button
-                key={subject.key}
-                type="button"
-                onClick={() => setActiveSubject(subject.key)}
-                className={`text-left border rounded-lg p-3 transition-colors ${
-                  activeSubject === subject.key
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    : 'bg-dark-bg border-dark-border text-gray-300 hover:border-gray-600'
-                }`}
-              >
-                <div className="text-xs font-black">{subject.label}</div>
-                <div className="text-[10px] text-gray-500 mt-1 leading-snug">{subject.hint}</div>
-              </button>
-            ))}
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="w-full border border-dashed border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg p-5 flex flex-col items-center justify-center gap-2 text-center transition-colors"
-          >
-            <Upload className="w-6 h-6 text-emerald-400" />
-            <span className="text-sm font-bold text-gray-100">
-              {uploading ? 'Uploading...' : `Upload notes for ${SUBJECTS.find(s => s.key === activeSubject)?.label}`}
-            </span>
-            <span className="text-xs text-gray-500">Stored on the backend. Max file size: 25 MB.</span>
-          </button>
-
-          <div className="mt-4 space-y-2 max-h-[340px] overflow-y-auto pr-1">
-            {filesLoading ? (
-              <div className="border border-dark-border rounded-lg p-5 text-center text-sm text-gray-500">
-                Loading files...
-              </div>
-            ) : activeFiles.length === 0 ? (
-              <div className="border border-dark-border rounded-lg p-5 text-center text-sm text-gray-500">
-                No files uploaded for this subject yet.
-              </div>
-            ) : (
-              activeFiles.map(file => (
-                <div key={file.id} className="bg-dark-bg border border-dark-border rounded-lg p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold text-gray-200 truncate">{file.name}</div>
-                    <div className="text-[11px] text-gray-500">
-                      {formatFileSize(file.size)} - {new Date(file.uploadedAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => downloadStudyFile(file)}
-                    disabled={downloadingId === file.id}
-                    className="p-2 rounded-lg border border-dark-border text-gray-400 hover:text-gray-200 hover:bg-dark-hover transition-colors"
-                    title="Download file"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeStudyFile(file.id)}
-                    className="p-2 rounded-lg border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    title="Remove file"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-          <p className="text-[11px] text-gray-600 mt-2">Files are saved through the backend and can be downloaded from this vault.</p>
-        </section>
+      {/* Tabs */}
+      <div className="flex border-b border-dark-border gap-6 select-none">
+        <button
+          type="button"
+          onClick={() => setActiveTab('vault')}
+          className={`pb-3 text-sm font-bold tracking-tight border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'vault'
+              ? 'border-emerald-500 text-emerald-400 font-extrabold shadow-[inset_0_-2px_0_0_rgba(16,185,129,1)]'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          Subject Vault
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('battles')}
+          className={`pb-3 text-sm font-bold tracking-tight border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'battles'
+              ? 'border-orange-500 text-orange-400 font-extrabold shadow-[inset_0_-2px_0_0_rgba(249,115,22,1)]'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Battle History
+        </button>
       </div>
 
+      {/* Tab Contents */}
+      {activeTab === 'vault' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+          {/* Left panel: Subjects List */}
+          <div className="space-y-2 lg:col-span-1">
+            <h3 className="text-xs font-extrabold uppercase text-gray-500 tracking-wider mb-2 select-none px-1">
+              Study Subjects
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-1 gap-2">
+              {SUBJECTS.map(subject => {
+                const isActive = activeSubject === subject.key;
+                const theme = SUBJECT_THEMES[subject.key];
+                const count = studyFiles[subject.key]?.length || 0;
+                return (
+                  <button
+                    key={subject.key}
+                    type="button"
+                    onClick={() => setActiveSubject(subject.key)}
+                    className={`text-left border rounded-xl p-3.5 transition-all flex flex-col justify-between gap-1.5 ${
+                      isActive
+                        ? `${theme.bg} ${theme.border} ${theme.glow} ring-1 ring-emerald-500/10`
+                        : 'bg-dark-panel border-dark-border hover:border-gray-500/50 hover:bg-dark-hover/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`text-xs font-black ${isActive ? theme.color : 'text-gray-300'}`}>
+                        {subject.label}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ${
+                        isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-dark-bg text-gray-500'
+                      }`}>
+                        {count} file{count === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 leading-snug line-clamp-1">
+                      {subject.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right panel: Active Subject Workspace */}
+          <div className="lg:col-span-3 bg-dark-panel border border-dark-border rounded-2xl p-5 md:p-6 space-y-6 shadow-xl">
+            {/* Subject details header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dark-border pb-4">
+              <div>
+                <h2 className="text-lg font-black text-gray-100 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                  {SUBJECTS.find(s => s.key === activeSubject)?.label} Study Vault
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  {SUBJECTS.find(s => s.key === activeSubject)?.hint}
+                </p>
+              </div>
+              
+              {/* Search input */}
+              <div className="relative max-w-xs w-full">
+                <input
+                  type="text"
+                  placeholder="Search files by name..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-gray-500"
+                />
+              </div>
+            </div>
+
+            {/* Upload Area */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <button
+              ref={dropZoneRef}
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              disabled={uploading}
+              className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 text-center transition-all duration-200 select-none disabled:opacity-60 disabled:cursor-not-allowed ${
+                isDragging
+                  ? 'border-emerald-400 bg-emerald-500/15 scale-[1.01] shadow-lg shadow-emerald-500/10'
+                  : 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/50'
+              }`}
+            >
+              <Upload className={`w-6 h-6 transition-transform duration-200 ${isDragging ? 'text-emerald-300 scale-125' : 'text-emerald-400 animate-pulse'}`} />
+              <span className="text-sm font-bold text-gray-100">
+                {uploading ? 'Uploading...' : isDragging ? 'Drop files here!' : `Upload notes for ${SUBJECTS.find(s => s.key === activeSubject)?.label}`}
+              </span>
+              <span className="text-xs text-gray-500">
+                {isDragging ? 'Release to upload' : 'Click to browse or drag & drop files here'}
+              </span>
+              {!isDragging && !uploading && (
+                <span className="text-[10px] text-gray-600">Max 25 MB · PDF, Docs, Markdown, Images, Text</span>
+              )}
+            </button>
+
+            {/* Files List Table */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase text-gray-500 tracking-wider px-1">
+                Uploaded Resources
+              </h3>
+              
+              <div className="overflow-x-auto border border-dark-border rounded-xl bg-dark-bg/25 max-h-[360px] overflow-y-auto pr-1">
+                {filesLoading ? (
+                  <div className="p-8 text-center text-xs text-gray-500 animate-pulse">
+                    Loading files...
+                  </div>
+                ) : activeFiles.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-gray-500 italic">
+                    {searchQuery ? 'No matching files found.' : 'No files uploaded for this subject yet.'}
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs text-gray-300">
+                    <thead className="bg-dark-hover/40 border-b border-dark-border font-bold uppercase tracking-wider text-[10px] text-gray-500 select-none">
+                      <tr>
+                        <th className="px-4 py-2.5">Name</th>
+                        <th className="px-4 py-2.5">Size</th>
+                        <th className="px-4 py-2.5">Date</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-dark-border font-medium">
+                      {activeFiles.map(file => {
+                        const ext = file.name.split('.').pop()?.toLowerCase();
+                        let iconColor = 'text-gray-400';
+                        if (ext === 'pdf') iconColor = 'text-rose-400';
+                        else if (ext === 'doc' || ext === 'docx') iconColor = 'text-blue-400';
+                        else if (ext === 'txt' || ext === 'md') iconColor = 'text-emerald-400';
+                        else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext || '')) iconColor = 'text-purple-400';
+
+                        return (
+                          <tr key={file.id} className="hover:bg-dark-hover/20 transition-colors">
+                            <td className="px-4 py-3 flex items-center gap-2 min-w-0">
+                              <FileText className={`w-4 h-4 shrink-0 ${iconColor}`} />
+                              <span className="font-bold text-gray-200 truncate max-w-[200px] md:max-w-xs" title={file.name}>
+                                {file.name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 font-mono text-[10px] whitespace-nowrap">
+                              {formatFileSize(file.size)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
+                              {new Date(file.uploadedAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => downloadStudyFile(file)}
+                                  disabled={downloadingId === file.id}
+                                  className="p-1.5 rounded-lg border border-dark-border text-gray-400 hover:text-emerald-400 hover:border-emerald-500/25 hover:bg-emerald-500/5 transition-all"
+                                  title="Download File"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeStudyFile(file.id)}
+                                  className="p-1.5 rounded-lg border border-dark-border text-gray-400 hover:text-rose-400 hover:border-rose-500/25 hover:bg-rose-500/5 transition-all"
+                                  title="Delete File"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+            
+            <p className="text-[10px] text-gray-600 italic">
+              Resources are securely persisted on the server and synced across your active workspaces.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Stats Bar */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-dark-panel border border-dark-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 shrink-0">
+                <Swords className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black text-gray-100 leading-none">{battleStats.total}</div>
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">Total Battles</div>
+              </div>
+            </div>
+            <div className="bg-dark-panel border border-dark-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black text-gray-100 leading-none">{battleStats.solved}</div>
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">Total Solves</div>
+              </div>
+            </div>
+            <div className="bg-dark-panel border border-dark-border rounded-xl p-4 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black text-gray-100 leading-none">{battleStats.ties}</div>
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">Ties</div>
+              </div>
+            </div>
+          </div>
+
+          {/* List of Battles */}
+          <div className="bg-dark-panel border border-dark-border rounded-2xl p-5 md:p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-dark-border pb-3">
+              <div>
+                <h2 className="text-sm font-black text-gray-100 flex items-center gap-2">
+                  <History className="w-4 h-4 text-orange-400" />
+                  Duel Log Book
+                </h2>
+                <p className="text-xs text-gray-500">History of your recent split-screen or remote duels</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={clearBattleHistory} disabled={battleHistory.length === 0}>
+                Clear All Logs
+              </Button>
+            </div>
+
+            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+              {battleHistory.length === 0 ? (
+                <div className="border border-dashed border-dark-border rounded-xl p-8 text-center text-xs text-gray-500">
+                  No matches recorded. Complete a 1v1 battle to see it here!
+                </div>
+              ) : (
+                battleHistory.map(item => (
+                  <div key={item.id} className="bg-dark-bg/40 border border-dark-border rounded-xl p-4 hover:border-dark-border/80 transition-colors">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-bold text-gray-100">{item.problemTitle || 'Battle Match'}</div>
+                        <div className="text-[10px] text-gray-500 mt-1 font-medium">
+                          {item.endedAt ? new Date(item.endedAt).toLocaleString() : 'Unknown time'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 bg-dark-panel border border-dark-border/60 rounded-xl px-4 py-2 shrink-0">
+                        <div className="text-left pr-4 border-r border-dark-border/60">
+                          <div className="text-[9px] uppercase text-gray-500 font-bold">Winner</div>
+                          <div className="text-xs text-amber-400 font-black">{item.winner || 'Pending'}</div>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[9px] uppercase text-gray-500 font-bold">Duration</div>
+                          <div className="text-xs text-gray-300 font-mono font-bold flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-gray-500" /> {formatDuration(item.timeUsedSeconds)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                      <div className="border border-blue-500/10 bg-blue-500/5 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+                        <div className="flex justify-between items-center w-full">
+                          <span className="text-xs text-blue-400 font-bold">{item.player1 || 'Participant 1'}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase ${
+                            item.p1Solved ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
+                          }`}>
+                            {item.p1Solved ? 'Solved' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-end mt-2">
+                          <div className="text-lg font-mono font-black text-blue-200">{item.p1Score ?? 0} <span className="text-[10px] text-gray-400 font-bold">pts</span></div>
+                          <span className="text-[10px] text-gray-500">Attempts: {item.p1Attempts ?? 0}</span>
+                        </div>
+                      </div>
+                      <div className="border border-rose-500/10 bg-rose-500/5 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+                        <div className="flex justify-between items-center w-full">
+                          <span className="text-xs text-rose-400 font-bold">{item.player2 || 'Participant 2'}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase ${
+                            item.p2Solved ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
+                          }`}>
+                            {item.p2Solved ? 'Solved' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-end mt-2">
+                          <div className="text-lg font-mono font-black text-rose-200">{item.p2Score ?? 0} <span className="text-[10px] text-gray-400 font-bold">pts</span></div>
+                          <span className="text-[10px] text-gray-500">Attempts: {item.p2Attempts ?? 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

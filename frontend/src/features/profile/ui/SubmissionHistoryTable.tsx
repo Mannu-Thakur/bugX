@@ -45,22 +45,25 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
   </span>
 );
 
-const LangBadge: React.FC<{ lang: string }> = ({ lang }) => (
-  <span
-    className={cn(
-      'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold',
-      lang === 'python'
-        ? 'bg-blue-500/15 text-blue-400'
-        : 'bg-yellow-500/15 text-yellow-400',
-    )}
-  >
-    {lang === 'python' ? 'PY' : 'JS'}
-  </span>
-);
+const LANG_CONFIG: Record<string, { label: string; color: string }> = {
+  python:     { label: 'Python',     color: 'bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/20' },
+  javascript: { label: 'JavaScript', color: 'bg-yellow-500/15 text-yellow-400 ring-1 ring-yellow-500/20' },
+  cpp:        { label: 'C++',        color: 'bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/20' },
+  java:       { label: 'Java',       color: 'bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/20' },
+};
+
+const LangBadge: React.FC<{ lang: string }> = ({ lang }) => {
+  const cfg = LANG_CONFIG[lang.toLowerCase()] ?? { label: lang, color: 'bg-gray-500/15 text-gray-400 ring-1 ring-gray-500/20' };
+  return (
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold', cfg.color)}>
+      {cfg.label}
+    </span>
+  );
+};
 
 const SkeletonRow: React.FC = () => (
   <tr className="animate-pulse">
-    {Array.from({ length: 8 }).map((_, i) => (
+    {Array.from({ length: 7 }).map((_, i) => (
       <td key={i} className="px-4 py-3">
         <div className="h-3 rounded bg-dark-hover w-full max-w-[80px]" />
       </td>
@@ -86,17 +89,17 @@ export const SubmissionHistoryTable: React.FC<SubmissionHistoryTableProps> = ({
 }) => {
   const thClass = 'px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500';
   const tdClass = 'px-4 py-3 text-sm text-gray-300 whitespace-nowrap';
+  const colSpan = 7;
 
   return (
     <div className="bg-dark-panel border border-dark-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[700px]">
+        <table className="w-full min-w-[640px]">
           <thead className="border-b border-dark-border bg-dark-hover/50">
             <tr>
               <th className={thClass}>#</th>
               <th className={thClass}>Problem</th>
-              <th className={thClass}>Type</th>
-              <th className={thClass}>Lang</th>
+              <th className={thClass}>Language</th>
               <th className={thClass}>Status</th>
               <th className={thClass}>Score</th>
               <th className={thClass}>Runtime</th>
@@ -108,7 +111,7 @@ export const SubmissionHistoryTable: React.FC<SubmissionHistoryTableProps> = ({
 
             {!isLoading && !!error && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-rose-400">
+                <td colSpan={colSpan} className="px-4 py-8 text-center text-sm text-rose-400">
                   Failed to load submission history. Please try again.
                 </td>
               </tr>
@@ -116,7 +119,7 @@ export const SubmissionHistoryTable: React.FC<SubmissionHistoryTableProps> = ({
 
             {!isLoading && !error && items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-500">
+                <td colSpan={colSpan} className="px-4 py-12 text-center text-sm text-gray-500">
                   No submissions yet — solve your first problem!
                 </td>
               </tr>
@@ -143,20 +146,6 @@ export const SubmissionHistoryTable: React.FC<SubmissionHistoryTableProps> = ({
                       {sub.problem_id.slice(0, 8)}…
                     </span>
                   )}
-                </td>
-
-                {/* Type */}
-                <td className={tdClass}>
-                  <span
-                    className={cn(
-                      'text-[11px] font-semibold px-2 py-0.5 rounded',
-                      sub.run_samples_only
-                        ? 'bg-gray-500/15 text-gray-400'
-                        : 'bg-blue-500/15 text-blue-400',
-                    )}
-                  >
-                    {sub.run_samples_only ? 'Run' : 'Submit'}
-                  </span>
                 </td>
 
                 <td className={tdClass}><LangBadge lang={sub.language} /></td>

@@ -15,6 +15,8 @@ export interface UserStats {
   best_streak: number;
   last_active_date: string | null;
   submission_activity?: Record<string, number> | null;
+  battles_played?: number;
+  battles_won?: number;
 }
 
 export interface SubmissionSummary {

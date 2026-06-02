@@ -1,13 +1,15 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import { PageShell } from '../shared/ui/layout/PageShell';
 import { ProblemListPage } from '../features/problems/ProblemListPage';
 import { ProblemDetailPage } from '../features/problems/ProblemDetailPage';
+import { SubmissionResultPage } from '../features/problems/SubmissionResultPage';
 import { LeaderboardPage } from '../features/leaderboard/LeaderboardPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { LandingPage } from '../pages/LandingPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
 import { BattleLobbyPage } from '../features/battle/BattleLobbyPage';
@@ -18,7 +20,7 @@ export const router = createBrowserRouter([
     path: '/',
     element: (
       <PageShell>
-        <Navigate to="/problems" replace />
+        <LandingPage />
       </PageShell>
     ),
   },
@@ -35,6 +37,14 @@ export const router = createBrowserRouter([
     element: (
       <PageShell fullWidth>
         <ProblemDetailPage />
+      </PageShell>
+    ),
+  },
+  {
+    path: '/problems/:slug/submissions/:id',
+    element: (
+      <PageShell>
+        <SubmissionResultPage />
       </PageShell>
     ),
   },

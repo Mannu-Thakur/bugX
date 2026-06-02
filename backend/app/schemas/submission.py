@@ -32,7 +32,10 @@ class SubmissionResponse(BaseModel):
     runtime_ms: Optional[int] = None
     memory_kb: Optional[int] = None
     error_message: Optional[str] = None
+    source_code: str
     run_samples_only: bool
+    problem_slug: Optional[str] = None
+    problem_title: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -49,5 +52,7 @@ class SubmissionResultResponse(BaseModel):
     expected_output: Optional[str] = None
     stdout: Optional[str] = None
     stderr: Optional[str] = None
+    is_sample: Optional[bool] = None
+    is_first_failing_hidden: Optional[bool] = None
 
     model_config = {"from_attributes": True}

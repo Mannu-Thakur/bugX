@@ -40,7 +40,9 @@ class GFGImporter:
                 if idx + 1 < len(parts):
                     return parts[idx + 1]
             return parts[-1]
-        return url_or_slug
+        # Format text with spaces/symbols into a clean slug (e.g. "find the product of all subarray" -> "find-the-product-of-all-subarray")
+        slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", url_or_slug)).strip("-")
+        return slug if slug else url_or_slug
 
     @staticmethod
     def _clean_python_template(raw_code: str) -> tuple[str, str]:
@@ -224,24 +226,43 @@ class GFGImporter:
             else:
                 return existing
 
-        # Fetch problem from GFG
-        url = f"https://www.geeksforgeeks.org/problems/{slug}/1"
+        # Fetch problem from GFG — try multiple URL patterns
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.geeksforgeeks.org/",
         }
-        
+        url_candidates = [
+            f"https://www.geeksforgeeks.org/problems/{slug}/1",
+            f"https://www.geeksforgeeks.org/problems/{slug}/",
+            f"https://www.geeksforgeeks.org/problems/{slug}",
+        ]
+        html = None
+        last_status = None
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers, timeout=15.0, follow_redirects=True)
-            if resp.status_code != 200:
-                raise Exception(f"Failed to contact GeeksforGeeks API (status {resp.status_code})")
-            html = resp.text
+            for url_candidate in url_candidates:
+                try:
+                    resp = await client.get(url_candidate, headers=headers, timeout=20.0, follow_redirects=True)
+                    last_status = resp.status_code
+                    if resp.status_code == 200:
+                        html = resp.text
+                        print(f"[GFGImporter] Successfully fetched '{slug}' from {url_candidate}")
+                        break
+                    else:
+                        print(f"[GFGImporter] URL {url_candidate} returned {resp.status_code}, trying next...")
+                except Exception as fetch_err:
+                    print(f"[GFGImporter] Failed to fetch {url_candidate}: {fetch_err}")
+        
+        if not html:
+            raise Exception(f"Failed to contact GeeksforGeeks for problem '{slug}' (last status: {last_status}). The problem slug may be incorrect or GFG may be temporarily unavailable.")
 
         # Extract __NEXT_DATA__
         match = re.search(r'<script\s+id="__NEXT_DATA__"\s+type="application/json">(.*?)</script>', html, re.DOTALL)
         if not match:
             match = re.search(r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
         if not match:
-            raise Exception("Could not find __NEXT_DATA__ script tag on the GeeksforGeeks page.")
+            raise Exception(f"Could not find problem data on GeeksforGeeks page for slug '{slug}'. The page structure may have changed.")
 
         next_data = json.loads(match.group(1).strip())
         
@@ -249,18 +270,53 @@ class GFGImporter:
         if "props" in next_data:
             initial_state = next_data.get("props", {}).get("pageProps", {}).get("initialState", next_data.get("props", {}).get("pageProps", {}))
 
-        queries = initial_state.get("problemApi", {}).get("queries", {})
+        # Try multiple paths to find prob_data
         prob_data = None
+        
+        # Path 1: problemApi queries
+        queries = initial_state.get("problemApi", {}).get("queries", {})
         for q_key, q_val in queries.items():
-            if "getProblemDetails" in q_key:
-                prob_data = q_val.get("data", {})
-                break
+            if "getProblemDetails" in q_key or "problem" in q_key.lower():
+                candidate = q_val.get("data", {})
+                if candidate and candidate.get("problem_name"):
+                    prob_data = candidate
+                    break
+        
+        # Path 2: problemData.allData.probData
+        if not prob_data:
+            prob_data = initial_state.get("problemData", {}).get("allData", {}).get("probData") or None
+
+        # Path 3: direct pageProps data
+        if not prob_data:
+            page_props = next_data.get("props", {}).get("pageProps", {})
+            for key in ["problem", "probData", "problemData", "data"]:
+                if isinstance(page_props.get(key), dict) and page_props[key].get("problem_name"):
+                    prob_data = page_props[key]
+                    break
+
+        # Path 4: Deep search for any dict with problem_name
+        if not prob_data:
+            def deep_find_problem(d: dict, depth: int = 0) -> dict | None:
+                if depth > 6:
+                    return None
+                if isinstance(d, dict):
+                    if d.get("problem_name") and d.get("problem_question"):
+                        return d
+                    for v in d.values():
+                        result = deep_find_problem(v, depth + 1)
+                        if result:
+                            return result
+                elif isinstance(d, list):
+                    for item in d:
+                        result = deep_find_problem(item, depth + 1)
+                        if result:
+                            return result
+                return None
+            prob_data = deep_find_problem(next_data)
 
         if not prob_data:
-            prob_data = initial_state.get("problemData", {}).get("allData", {}).get("probData", {})
+            raise Exception(f"Problem details not found in GFG page data for slug '{slug}'. The problem may not exist on GeeksforGeeks.")
 
-        if not prob_data:
-            raise Exception("Problem details not found in GFG page data.")
 
         title = prob_data.get("problem_name", slug.replace("-", " ").title())
         description = prob_data.get("problem_question", "No description provided.")

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { 
   Swords, Trophy, Clock, Play, Send, AlertTriangle, Terminal, 
-  Volume2, VolumeX, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, BookOpen
+  Volume2, VolumeX, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
+  Minus, Plus
 } from 'lucide-react';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
 import { api } from '../../shared/lib/api';
@@ -94,10 +95,15 @@ const decodeBattleConfig = (encoded: string) => {
 
 export const BattleArenaPage: React.FC = () => {
   const navigate = useNavigate();
+  const p1EditorRef = useRef<any>(null);
+  const p2EditorRef = useRef<any>(null);
   
   // Audio effects simulation (visual/console-based, with sound toggling option)
   const [soundEnabled, setSoundEnabled] = useState(true);
-  
+  // Editor preferences
+  const [editorFontSize, setEditorFontSize] = useState(13);
+  const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>('vs-dark');
+
   // Configuration loaded from sessionStorage
   const [config, setConfig] = useState<any>(null);
   const [problem, setProblem] = useState<BattleProblem | null>(null);
@@ -155,6 +161,22 @@ export const BattleArenaPage: React.FC = () => {
   
   // Split Workspace Toggle State (for multiplayer or local dual-workspace)
   const [workspaceViewMode, setWorkspaceViewMode] = useState<'split' | 'p1' | 'p2'>('split');
+
+  // ─── Imperatively sync editor readOnly whenever battle/solved state changes ──
+  // @monaco-editor/react doesn't reliably apply readOnly changes via the options
+  // prop after mount — we must call editor.updateOptions() directly via refs.
+  useEffect(() => {
+    if (p1EditorRef.current) {
+      p1EditorRef.current.updateOptions({ readOnly: p1Solved || !battleActive });
+    }
+  }, [p1Solved, battleActive]);
+
+  useEffect(() => {
+    if (p2EditorRef.current) {
+      p2EditorRef.current.updateOptions({ readOnly: p2Solved || !battleActive });
+    }
+  }, [p2Solved, battleActive]);
+
 
   // Load configuration from database or session storage on mount
   useEffect(() => {
@@ -1245,7 +1267,7 @@ export const BattleArenaPage: React.FC = () => {
                 handleEndBattle();
               }
             }}
-            className="px-2.5 py-1 bg-rose-600/10 border border-rose-500/30 text-rose-400 hover:bg-rose-600/25 font-extrabold text-[10px] rounded-md transition-all"
+            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-[10px] rounded-md transition-all active:scale-95"
           >
             Force End Match
           </button>
@@ -1376,8 +1398,38 @@ export const BattleArenaPage: React.FC = () => {
               
               {/* Tab 1: Description */}
               {leftActiveTab === 'description' && (
-                <div className="text-gray-300 text-[11px] leading-relaxed space-y-3 whitespace-pre-wrap font-sans select-text break-words pb-4">
-                  {problem.description}
+                <div className="select-text pb-4">
+                  {/<[a-z][^>]*>/i.test(problem.description) ? (
+                    // Render HTML descriptions (from GFG/LeetCode imports)
+                    <div
+                      className="prose-battle text-[11.5px] leading-relaxed text-gray-300 space-y-2"
+                      style={{
+                        lineHeight: '1.7',
+                        wordBreak: 'break-word',
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: problem.description
+                          .replace(/<style[^>]*>.*?<\/style>/gis, '')
+                          .replace(/<script[^>]*>.*?<\/script>/gis, '')
+                          .replace(/class="[^"]*"/g, '')
+                          .replace(/style="[^"]*"/g, '')
+                          .replace(/<p>/gi, '<p style="margin:0 0 8px 0">')
+                          .replace(/<li>/gi, '<li style="margin:2px 0;padding-left:4px">')
+                          .replace(/<ul>/gi, '<ul style="margin:6px 0 6px 16px;list-style:disc">')
+                          .replace(/<ol>/gi, '<ol style="margin:6px 0 6px 16px;list-style:decimal">')
+                          .replace(/<pre>/gi, '<pre style="background:#0b0d12;padding:10px;border-radius:8px;overflow-x:auto;font-size:10px;border:1px solid #2a2d35;margin:8px 0">')
+                          .replace(/<code>/gi, '<code style="background:#1a1d24;padding:2px 5px;border-radius:4px;font-size:10px;font-family:monospace;color:#a5f3fc">')
+                          .replace(/<strong>/gi, '<strong style="color:#f0f0f0;font-weight:700">')
+                          .replace(/<b>/gi, '<b style="color:#f0f0f0;font-weight:700">')
+                          .replace(/<em>/gi, '<em style="color:#fbbf24">')
+                      }}
+                    />
+                  ) : (
+                    // Render plain text descriptions
+                    <div className="text-gray-300 text-[11px] leading-relaxed whitespace-pre-wrap font-sans break-words">
+                      {problem.description}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1454,23 +1506,43 @@ export const BattleArenaPage: React.FC = () => {
         <div className={cn(playerColumnClass, showPlayer2Workspace && "border-r", "border-dark-border flex flex-col bg-dark-bg relative h-full overflow-hidden")}>
           
           {/* Workspace Title bar */}
-          <div className="px-2 py-1 border-b border-dark-border bg-blue-950/15 flex items-center justify-between select-none">
-            <span className="text-xs font-black text-blue-400 flex items-center gap-1.5">
+          <div className="px-2 py-1 border-b border-dark-border bg-blue-950/15 flex items-center justify-between select-none gap-2">
+            <span className="text-xs font-black text-blue-400 flex items-center gap-1.5 shrink-0">
               {config.player1} Workspace
             </span>
             
-            {/* Lang Dropdown */}
-            <select
-              value={p1Language}
-              onChange={(e) => handleLanguageChange(1, e.target.value as BattleLanguage)}
-              disabled={p1Solved || !battleActive}
-              className="bg-dark-bg border border-dark-border text-gray-400 text-[10px] font-bold rounded px-2 py-1 focus:outline-none focus:border-blue-500/50"
-            >
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="cpp">C++</option>
-              <option value="java">Java</option>
-            </select>
+            <div className="flex items-center gap-1.5 ml-auto">
+              {/* Font size control */}
+              <div className="flex items-center gap-1 bg-dark-bg border border-dark-border rounded px-1 py-0.5">
+                <button onClick={() => setEditorFontSize(s => Math.max(10, s - 1))} className="text-gray-500 hover:text-gray-200 p-0.5 transition-colors" title="Decrease font size">
+                  <Minus className="w-2.5 h-2.5" />
+                </button>
+                <span className="text-[9px] font-mono text-gray-400 w-5 text-center">{editorFontSize}</span>
+                <button onClick={() => setEditorFontSize(s => Math.min(20, s + 1))} className="text-gray-500 hover:text-gray-200 p-0.5 transition-colors" title="Increase font size">
+                  <Plus className="w-2.5 h-2.5" />
+                </button>
+              </div>
+              {/* Theme toggle */}
+              <button
+                onClick={() => setEditorTheme(t => t === 'vs-dark' ? 'light' : 'vs-dark')}
+                className="px-1.5 py-0.5 rounded border border-dark-border bg-dark-bg text-[9px] font-bold text-gray-400 hover:text-gray-200 transition-colors"
+                title="Toggle editor theme"
+              >
+                {editorTheme === 'vs-dark' ? '☀' : '🌙'}
+              </button>
+              {/* Lang Dropdown */}
+              <select
+                value={p1Language}
+                onChange={(e) => handleLanguageChange(1, e.target.value as BattleLanguage)}
+                disabled={p1Solved || !battleActive}
+                className="bg-dark-bg border border-dark-border text-gray-400 text-[10px] font-bold rounded px-2 py-1 focus:outline-none focus:border-blue-500/50"
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="cpp">C++</option>
+                <option value="java">Java</option>
+              </select>
+            </div>
           </div>
 
           {/* Monaco Editor Container */}
@@ -1480,22 +1552,57 @@ export const BattleArenaPage: React.FC = () => {
               language={p1Language}
               value={p1Code}
               onChange={(val) => setP1Code(val || '')}
-              theme="vs-dark"
-              onMount={(editor) => {
-                const domNode = editor.getDomNode();
-                if (domNode) {
-                  domNode.addEventListener('copy', (e: Event) => e.preventDefault());
-                  domNode.addEventListener('paste', (e: Event) => e.preventDefault());
-                  domNode.addEventListener('cut', (e: Event) => e.preventDefault());
-                }
+              theme={editorTheme}
+              onMount={(editor, monaco) => {
+                p1EditorRef.current = editor;
+                // Force unlock immediately — @monaco-editor/react may
+                // initialise with readOnly=true from stale options.
+                editor.updateOptions({ readOnly: false });
+                editor.focus();
+                // Define richer dark syntax theme
+                monaco.editor.defineTheme('battle-dark', {
+                  base: 'vs-dark',
+                  inherit: true,
+                  rules: [
+                    { token: 'keyword', foreground: 'c792ea', fontStyle: 'bold' },
+                    { token: 'string', foreground: 'c3e88d' },
+                    { token: 'number', foreground: 'f78c6c' },
+                    { token: 'comment', foreground: '546e7a', fontStyle: 'italic' },
+                    { token: 'type', foreground: 'ffcb6b' },
+                  ],
+                  colors: {
+                    'editor.background': '#07090e',
+                    'editor.lineHighlightBackground': '#1a1d24',
+                    'editorLineNumber.foreground': '#3c4048',
+                    'editorLineNumber.activeForeground': '#858a93',
+                    'editor.selectionBackground': '#1f3a5c',
+                    'editorSuggestWidget.background': '#0f1117',
+                    'editorSuggestWidget.border': '#2a2d35',
+                  }
+                });
               }}
               options={{
-                fontSize: 12,
+                fontSize: editorFontSize,
                 minimap: { enabled: false },
-                scrollbar: { vertical: 'visible', horizontal: 'visible' },
-                readOnly: p1Solved || !battleActive,
+                scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
                 lineNumbersMinChars: 3,
-                wordWrap: 'on'
+                wordWrap: 'on',
+                autoIndent: 'full',
+                tabSize: 4,
+                insertSpaces: true,
+                formatOnPaste: true,
+                formatOnType: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                smoothScrolling: true,
+                bracketPairColorization: { enabled: true },
+                renderLineHighlight: 'line',
+                overviewRulerBorder: false,
+                padding: { top: 8, bottom: 8 },
+                suggest: { showWords: true },
+                quickSuggestions: { other: true, comments: false, strings: false },
+                contextmenu: true,
+                scrollBeyondLastLine: false,
               }}
             />
           </div>
@@ -1505,7 +1612,7 @@ export const BattleArenaPage: React.FC = () => {
             <button 
               onClick={() => handleConcede(1)}
               disabled={p1Solved || !battleActive}
-              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold transition-all px-2.5 py-1.5 rounded border border-rose-500/10 hover:bg-rose-500/5 disabled:opacity-50"
+              className="text-[10px] text-gray-400 hover:text-rose-400 font-bold transition-all px-2.5 py-1.5 rounded border border-dark-border hover:bg-rose-500/5 disabled:opacity-50"
             >
               Concede
             </button>
@@ -1517,7 +1624,7 @@ export const BattleArenaPage: React.FC = () => {
                   "px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all select-none active:scale-95 flex items-center gap-1.5",
                   showP1Terminal 
                     ? "bg-dark-bg hover:bg-dark-hover border-dark-border text-gray-400" 
-                    : "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400"
+                    : "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/25 text-blue-400"
                 )}
                 title="Toggle Console Log"
               >
@@ -1527,14 +1634,14 @@ export const BattleArenaPage: React.FC = () => {
               <button
                 onClick={() => handleRunCode(1)}
                 disabled={p1Solved || !battleActive || p1Terminal.status === 'running'}
-                className="px-3.5 py-1.5 bg-dark-bg hover:bg-dark-hover border border-dark-border text-gray-300 font-extrabold text-xs rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
+                className="px-3.5 py-1.5 bg-dark-bg hover:bg-dark-hover border border-dark-border text-gray-300 font-bold text-xs rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
               >
                 <Play className="w-3 h-3 text-gray-400" /> Run
               </button>
               <button
                 onClick={() => handleSubmitCode(1)}
                 disabled={p1Solved || !battleActive || p1Terminal.status === 'running'}
-                className="px-4 py-1.5 bg-blue-50 hover:bg-blue-600 text-white font-black text-xs rounded-lg shadow shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-1.5"
               >
                 <Send className="w-3 h-3" /> Submit
               </button>
@@ -1582,23 +1689,24 @@ export const BattleArenaPage: React.FC = () => {
         <div className={cn(playerColumnClass, "flex flex-col bg-dark-bg relative h-full overflow-hidden")}>
           
           {/* Workspace Title bar */}
-          <div className="px-2 py-1 border-b border-dark-border bg-rose-950/15 flex items-center justify-between select-none">
-            <span className="text-xs font-black text-rose-400 flex items-center gap-1.5">
+          <div className="px-2 py-1 border-b border-dark-border bg-rose-950/15 flex items-center justify-between select-none gap-2">
+            <span className="text-xs font-black text-rose-400 flex items-center gap-1.5 shrink-0">
               {config.player2} Workspace
             </span>
-            
-            {/* Lang Dropdown */}
-            <select
-              value={p2Language}
-              onChange={(e) => handleLanguageChange(2, e.target.value as BattleLanguage)}
-              disabled={p2Solved || !battleActive}
-              className="bg-dark-bg border border-dark-border text-gray-400 text-[10px] font-bold rounded px-2 py-1 focus:outline-none focus:border-rose-500/50"
-            >
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="cpp">C++</option>
-              <option value="java">Java</option>
-            </select>
+            <div className="flex items-center gap-1.5 ml-auto">
+              {/* Lang Dropdown */}
+              <select
+                value={p2Language}
+                onChange={(e) => handleLanguageChange(2, e.target.value as BattleLanguage)}
+                disabled={p2Solved || !battleActive}
+                className="bg-dark-bg border border-dark-border text-gray-400 text-[10px] font-bold rounded px-2 py-1 focus:outline-none focus:border-rose-500/50"
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="cpp">C++</option>
+                <option value="java">Java</option>
+              </select>
+            </div>
           </div>
 
           {/* Monaco Editor Container */}
@@ -1608,22 +1716,34 @@ export const BattleArenaPage: React.FC = () => {
               language={p2Language}
               value={p2Code}
               onChange={(val) => setP2Code(val || '')}
-              theme="vs-dark"
+              theme={editorTheme}
               onMount={(editor) => {
-                const domNode = editor.getDomNode();
-                if (domNode) {
-                  domNode.addEventListener('copy', (e: Event) => e.preventDefault());
-                  domNode.addEventListener('paste', (e: Event) => e.preventDefault());
-                  domNode.addEventListener('cut', (e: Event) => e.preventDefault());
-                }
+                p2EditorRef.current = editor;
+                // Force unlock immediately
+                editor.updateOptions({ readOnly: false });
               }}
               options={{
-                fontSize: 12,
+                fontSize: editorFontSize,
                 minimap: { enabled: false },
-                scrollbar: { vertical: 'visible', horizontal: 'visible' },
-                readOnly: p2Solved || !battleActive,
+                scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
                 lineNumbersMinChars: 3,
-                wordWrap: 'on'
+                wordWrap: 'on',
+                autoIndent: 'full',
+                tabSize: 4,
+                insertSpaces: true,
+                formatOnPaste: true,
+                formatOnType: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                smoothScrolling: true,
+                bracketPairColorization: { enabled: true },
+                renderLineHighlight: 'line',
+                overviewRulerBorder: false,
+                padding: { top: 8, bottom: 8 },
+                suggest: { showWords: true },
+                quickSuggestions: { other: true, comments: false, strings: false },
+                contextmenu: true,
+                scrollBeyondLastLine: false,
               }}
             />
           </div>

@@ -188,7 +188,10 @@ export interface SubmissionResponse {
   runtime_ms: number | null;
   memory_kb: number | null;
   error_message: string | null;
+  source_code: string;
   run_samples_only: boolean;
+  problem_slug?: string | null;
+  problem_title?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -473,6 +476,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }).then(data => ({ ...data, user: normalizeUser(data.user) })),
+
+    forgotPassword: (body: Record<string, unknown>) => 
+      request<{ message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   
   users: {
