@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { AlertCircle, CheckCircle2, Info, X, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { ENV } from '../../config/env';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -19,12 +20,25 @@ interface ToastContextType {
   warning: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
   removeToast: (id: string) => void;
+  registerBackgroundSubmission: (id: string, problemTitle: string, isRunOnly: boolean) => void;
+  setActivePageSubmissionId: (id: string | null) => void;
+  markSubmissionHandled: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const activePageSubIdRef = useRef<string | null>(null);
+  const handledSubmissionsRef = useRef<Set<string>>(new Set());
+
+  const setActivePageSubmissionId = useCallback((id: string | null) => {
+    activePageSubIdRef.current = id;
+  }, []);
+
+  const markSubmissionHandled = useCallback((id: string) => {
+    handledSubmissionsRef.current.add(id);
+  }, []);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -40,6 +54,51 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }, duration);
     }
   }, [removeToast]);
+
+  const registerBackgroundSubmission = useCallback((id: string, problemTitle: string, isRunOnly: boolean) => {
+    let scorePollingCount = 0;
+    
+    const check = async () => {
+      try {
+        const res = await fetch(`${ENV.API_URL}/submissions/${id}`);
+        if (!res.ok) {
+          setTimeout(check, 3000);
+          return;
+        }
+        const sub = await res.json();
+
+        if (sub.status === 'PENDING' || sub.status === 'RUNNING') {
+          setTimeout(check, 1500);
+        } else {
+          // Status is terminal
+          if (!isRunOnly && sub.status === 'ACCEPTED' && sub.score === 0) {
+            scorePollingCount++;
+            if (scorePollingCount < 20) {
+              setTimeout(check, 1500);
+              return;
+            }
+          }
+          
+          // Verify if user is still on the page for this submission or if it was handled locally
+          const userIsStillOnPage = activePageSubIdRef.current === id;
+          const wasHandled = handledSubmissionsRef.current.has(id);
+          
+          if (!userIsStillOnPage && !wasHandled) {
+            if (sub.status === 'ACCEPTED') {
+              toast(`Solution ACCEPTED for problem: "${problemTitle}"! +${sub.score} pts awarded.`, 'success', 6000);
+            } else {
+              toast(`Solution failed with status: ${sub.status.replace('_', ' ')} on problem: "${problemTitle}"`, 'error', 6000);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Background polling error:", err);
+        setTimeout(check, 3000);
+      }
+    };
+
+    setTimeout(check, 1500);
+  }, [toast]);
 
   const success = useCallback((msg: string, dur?: number) => toast(msg, 'success', dur), [toast]);
   const error = useCallback((msg: string, dur?: number) => toast(msg, 'error', dur), [toast]);
@@ -61,7 +120,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ToastContext.Provider value={{ toast, success, error, warning, info, removeToast }}>
+    <ToastContext.Provider value={{ toast, success, error, warning, info, removeToast, registerBackgroundSubmission, setActivePageSubmissionId, markSubmissionHandled }}>
       {children}
       {/* Toast Portal/Container */}
       <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">

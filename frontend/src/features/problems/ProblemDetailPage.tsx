@@ -21,7 +21,7 @@ export const ProblemDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { error: showToastError, success: showToastSuccess } = useToast();
+  const { error: showToastError, success: showToastSuccess, registerBackgroundSubmission, setActivePageSubmissionId, markSubmissionHandled } = useToast();
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,8 +132,9 @@ export const ProblemDetailPage: React.FC = () => {
       if (pollingCleanupRef.current) {
         pollingCleanupRef.current();
       }
+      setActivePageSubmissionId(null);
     };
-  }, []);
+  }, [setActivePageSubmissionId]);
 
   // Fetch Problem details
   const { data: problem, isLoading, isError, error } = useQuery({
@@ -310,6 +311,9 @@ export const ProblemDetailPage: React.FC = () => {
         run_samples_only: false,
       });
 
+      setActivePageSubmissionId(response.id);
+      registerBackgroundSubmission(response.id, problem.title, false);
+
       const cleanup = pollSubmission(
         response.id,
         false,
@@ -317,6 +321,7 @@ export const ProblemDetailPage: React.FC = () => {
           setActiveSubmission(finalSub);
           
           if (finalSub.status !== 'PENDING' && finalSub.status !== 'RUNNING') {
+            markSubmissionHandled(response.id);
             // Invalidate user stats and submissions immediately on any terminal status
             queryClient.invalidateQueries({ queryKey: ['user-stats'] });
             queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
@@ -345,6 +350,7 @@ export const ProblemDetailPage: React.FC = () => {
         },
         async () => {
           // Scoring finished completely
+          markSubmissionHandled(response.id);
           setIsPolling(false);
           setIsSubmitting(false);
           queryClient.invalidateQueries({ queryKey: ['user-stats'] });
