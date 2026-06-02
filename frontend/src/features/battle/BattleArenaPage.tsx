@@ -9,6 +9,7 @@ import {
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
 import { api } from '../../shared/lib/api';
 import { cn } from '../../shared/lib/cn';
+import { ENV } from '../../shared/config/env';
 
 type BattleLanguage = 'javascript' | 'python' | 'cpp' | 'java';
 
@@ -240,11 +241,29 @@ export const BattleArenaPage: React.FC = () => {
 
   // Debounced code synchronization
   const codeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // Helper to send real-time WebSocket state updates
+  const sendWsUpdate = (payload: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const params = new URLSearchParams(window.location.search);
+      const joinedPlayer = params.get('player') === '2' ? 2 : 1;
+      wsRef.current.send(JSON.stringify({
+        type: 'update',
+        player: joinedPlayer,
+        ...payload
+      }));
+    }
+  };
 
   const pushCodeUpdate = async (playerNum: 1 | 2, code: string, lang: string) => {
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
     if (!roomId) return;
+    
+    // Broadcast via WebSocket instantly for real-time keystroke tracking
+    sendWsUpdate({ code, lang });
+
     try {
       await api.battle.update(roomId, {
         player: playerNum,
@@ -473,6 +492,9 @@ export const BattleArenaPage: React.FC = () => {
     const joinedPlayer = params.get('player') === '2' ? 2 : 1;
     if (!roomId) return;
 
+    // Send state update via WebSocket instantly
+    sendWsUpdate({ score, solved, attempts });
+
     try {
       await api.battle.update(roomId, {
         player: joinedPlayer,
@@ -485,7 +507,99 @@ export const BattleArenaPage: React.FC = () => {
     }
   };
 
-  // Polling loop for duel sync
+  // WebSocket pipeline for instant real-time synchronization
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('room');
+    const joinedPlayer = params.get('player') === '2' ? 2 : 1;
+    if (!roomId) return;
+
+    // Resolve wsUrl dynamically from ENV.API_URL
+    const wsOrigin = ENV.API_URL.replace(/^(http|https)/, window.location.protocol === 'https:' ? 'wss' : 'ws');
+    const wsUrl = `${wsOrigin}/battle/ws/${roomId}?player=${joinedPlayer}`;
+
+    let socket: WebSocket;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      console.log("[WebSocket] Connecting to:", wsUrl);
+      socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        console.log("[WebSocket] Connected successfully.");
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          if (message.type === 'state_update') {
+            // Sync status from other player
+            if (message.player !== joinedPlayer) {
+              if (message.player === 1) {
+                if (message.score !== undefined) setP1Score(message.score);
+                if (message.solved !== undefined) setP1Solved(message.solved);
+                if (message.attempts !== undefined) setP1Attempts(message.attempts);
+                if (message.code !== undefined && message.code !== null) setP1Code(message.code);
+                if (message.lang) setP1Language(message.lang);
+              } else {
+                if (message.score !== undefined) setP2Score(message.score);
+                if (message.solved !== undefined) setP2Solved(message.solved);
+                if (message.attempts !== undefined) setP2Attempts(message.attempts);
+                if (message.code !== undefined && message.code !== null) setP2Code(message.code);
+                if (message.lang) setP2Language(message.lang);
+              }
+            }
+          } else if (message.type === 'win_event') {
+            const winnerNum = message.winner;
+            const finalScore = message.score;
+            
+            if (winnerNum === 1) {
+              setP1Solved(true);
+              setP1Score(finalScore);
+            } else {
+              setP2Solved(true);
+              setP2Score(finalScore);
+            }
+
+            // Immediately trigger results page
+            setTimeout(() => {
+              handleEndBattle(false, finalScore, winnerNum === 1);
+            }, 300);
+          } else if (message.type === 'connect_status') {
+            if (message.player !== joinedPlayer) {
+              if (message.player === 1) setHostActive(message.active);
+              else setOpponentActive(message.active);
+            }
+          }
+        } catch (err) {
+          console.error("[WebSocket] Message parsing failure:", err);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log("[WebSocket] Disconnected. Reconnecting in 4s...");
+        reconnectTimeout = setTimeout(connect, 4000);
+      };
+
+      socket.onerror = (err) => {
+        console.error("[WebSocket] Error:", err);
+        socket.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+      clearTimeout(reconnectTimeout);
+    };
+  }, [config, timeLeft]);
+
+  // Heartbeat fallback polling loop (low frequency)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
@@ -495,64 +609,69 @@ export const BattleArenaPage: React.FC = () => {
     let pollInterval: ReturnType<typeof setInterval>;
 
     const poll = async () => {
+      // If WebSocket is active, slow down polling to save resources
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          const roomState = await api.battle.get(roomId, joinedPlayer);
+          setBattleStatus(roomState.status);
+          setHostActive(roomState.player1_active);
+          setOpponentActive(roomState.player2_active);
+          
+          if (roomState.status === 'active') {
+            const left = roomState.time_left !== null && roomState.time_left !== undefined 
+              ? roomState.time_left 
+              : roomState.time_limit * 60;
+            setTimeLeft(prev => Math.abs(prev - left) > 6 ? left : prev);
+            setBattleActive(left > 0);
+          } else if (roomState.status === 'finished') {
+            setBattleActive(false);
+            if (!showWinnerModal) setShowWinnerModal(true);
+          }
+        } catch (err) {
+          console.error("Heartbeat sync error:", err);
+        }
+        return;
+      }
+
+      // If WebSocket is disconnected, fall back to standard polling
       try {
         const roomState = await api.battle.get(roomId, joinedPlayer);
         setBattleStatus(roomState.status);
         setHostActive(roomState.player1_active);
         setOpponentActive(roomState.player2_active);
 
-        // Synchronize player progress cards & opponent code/lang
         if (joinedPlayer === 1) {
-          // Sync opponent's state (player 2)
           setP2Score(roomState.p2_score);
           setP2Solved(roomState.p2_solved);
           setP2Attempts(roomState.p2_attempts);
-          if (roomState.p2_code !== undefined && roomState.p2_code !== null) {
-            setP2Code(roomState.p2_code);
-          }
-          if (roomState.p2_lang) {
-            setP2Language(roomState.p2_lang);
-          }
+          if (roomState.p2_code !== undefined && roomState.p2_code !== null) setP2Code(roomState.p2_code);
+          if (roomState.p2_lang) setP2Language(roomState.p2_lang);
         } else {
-          // Sync host's state (player 1)
           setP1Score(roomState.p1_score);
           setP1Solved(roomState.p1_solved);
           setP1Attempts(roomState.p1_attempts);
-          if (roomState.p1_code !== undefined && roomState.p1_code !== null) {
-            setP1Code(roomState.p1_code);
-          }
-          if (roomState.p1_lang) {
-            setP1Language(roomState.p1_lang);
-          }
+          if (roomState.p1_code !== undefined && roomState.p1_code !== null) setP1Code(roomState.p1_code);
+          if (roomState.p1_lang) setP1Language(roomState.p1_lang);
         }
 
-        // If the battle is active, synchronize the timer
         if (roomState.status === 'active') {
           const left = roomState.time_left !== null && roomState.time_left !== undefined 
             ? roomState.time_left 
             : roomState.time_limit * 60;
-          
-          // Only update local timer if it diverges by more than 4 seconds to avoid jitter
           setTimeLeft(prev => Math.abs(prev - left) > 4 ? left : prev);
           setBattleActive(left > 0);
-
-          if (left <= 0) {
-            handleEndBattle(true);
-          }
+          if (left <= 0) handleEndBattle(true);
         } else if (roomState.status === 'finished') {
           setBattleActive(false);
-          // Trigger modal if not already open
-          if (!showWinnerModal) {
-            setShowWinnerModal(true);
-          }
+          if (!showWinnerModal) setShowWinnerModal(true);
         }
       } catch (err) {
         console.error("Error polling battle state:", err);
       }
     };
 
-    poll(); // Run once immediately
-    pollInterval = setInterval(poll, 2000); // Poll every 2 seconds
+    poll();
+    pollInterval = setInterval(poll, 4000);
 
     return () => clearInterval(pollInterval);
   }, [config, showWinnerModal, showResultsPage]);
