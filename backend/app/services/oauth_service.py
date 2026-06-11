@@ -275,7 +275,7 @@ async def handle_oauth_callback(
 
     if is_mock:
         profile = {
-            "email": f"mock-{provider}-user@xyz-platform.local",
+            "email": f"mock-{provider}-user@xyz-platform.com",
             "name": f"Mock {provider.capitalize()} User",
             "picture": f"https://api.dicebear.com/7.x/bottts/svg?seed=mock-{provider}",
             "provider_id": f"mock-{provider}-id-12345",
