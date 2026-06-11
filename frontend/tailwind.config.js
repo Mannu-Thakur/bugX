@@ -14,6 +14,8 @@ export default {
           border: 'var(--color-border)',
           input: 'var(--color-input)',
           hover: 'var(--color-hover)',
+          'panel-alt': 'var(--color-panel-alt)',
+          'panel-active': 'var(--color-panel-active)',
         },
         difficulty: {
           easy: '#10b981',      // Emerald Green

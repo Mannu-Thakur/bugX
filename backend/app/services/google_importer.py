@@ -129,10 +129,12 @@ class GoogleImporter:
         # Strip any leading colon or symbols left over (e.g. from google: prefix)
         query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
 
-        # Strip leading question numbers (e.g. "3161. ", "3161: ", "3161 ")
-        # We do not strip if followed by a dash (e.g. "1-bit") to preserve hyphenated terms.
-        query = re.sub(r"^\d+[\s\.:]+", "", query)
-        query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
+        # Strip leading question numbers (e.g. "3161. ", "42: ") but NOT single-digit
+        # problem names like "3 Sum", "4 Sum" which are valid problem titles.
+        # Only strip if: 2+ digits followed by space/punct, OR any digits followed by . or :
+        query = re.sub(r"^\d{2,}[\s\.:]+", "", query)
+        query = re.sub(r"^\d+[\.:]+\s*", "", query)
+        query = re.sub(r"^[:\s\-\.\\#\u2013\u2014]+", "", query)
 
         query = query.replace("+", " ").replace("/", " ").replace("-", " ")
         query = re.sub(r"\s+", " ", query).strip()
@@ -152,7 +154,7 @@ class GoogleImporter:
                 return None
             data = resp.json()
             pairs = data.get("stat_status_pairs", [])
-            
+
             # 0. Try matching by frontend_question_id if search_term is digits only
             is_id = search_term.isdigit()
             if is_id:
@@ -170,7 +172,7 @@ class GoogleImporter:
                 if slug == search_slug:
                     print(f"[GoogleImporter] Exact slug match found: {slug}")
                     return slug
-                    
+
             # 2. Try case-insensitive substring match on slug
             for pair in pairs:
                 stat = pair.get("stat", {})
@@ -178,7 +180,7 @@ class GoogleImporter:
                 if search_slug in slug:
                     print(f"[GoogleImporter] Substring slug match found: {slug}")
                     return slug
-                    
+
             # 3. Try case-insensitive substring match on title
             search_title = search_term.lower()
             for pair in pairs:
@@ -188,23 +190,33 @@ class GoogleImporter:
                     slug = stat.get("question__title_slug")
                     print(f"[GoogleImporter] Substring title match found: {slug} (for '{title}')")
                     return slug
-                    
-            # 4. Try word-by-word matches
+
+            # 4. Try word-by-word matches (with similarity check)
+            import difflib
             words = [w for w in search_slug.split("-") if len(w) > 2]
             if words:
+                candidates = []
                 for pair in pairs:
                     stat = pair.get("stat", {})
                     slug = stat.get("question__title_slug", "")
-                    if all(word in slug for word in words):
-                        print(f"[GoogleImporter] Word-by-word match found: {slug}")
-                        return slug
+                    slug_words = set(slug.split("-"))
+                    if all(any(word in sw or sw in word for sw in slug_words) for word in words):
+                        title = stat.get("question__title", "").lower()
+                        sim_title = difflib.SequenceMatcher(None, search_term.lower(), title).ratio()
+                        sim_slug = difflib.SequenceMatcher(None, search_slug, slug).ratio()
+                        if max(sim_title, sim_slug) >= 0.70:
+                            candidates.append((max(sim_title, sim_slug), slug))
+                if candidates:
+                    candidates.sort(key=lambda x: -x[0])
+                    print(f"[GoogleImporter] Word-by-word match found: {candidates[0][1]}")
+                    return candidates[0][1]
         print("[GoogleImporter] No match found in LeetCode algorithms list")
         return None
 
     @classmethod
     async def resolve_and_import(cls, session: AsyncSession, url_or_slug: str) -> Problem:
         query = cls._normalize_query(url_or_slug)
-        
+
         # 1. Check if the query itself contains a direct URL or is a direct slug
         direct_slug = query.strip().lower()
         if "/" in direct_slug:
@@ -215,43 +227,65 @@ class GoogleImporter:
                     direct_slug = parts[idx + 1]
             else:
                 direct_slug = parts[-1]
-        
+
         # 2. Check aliases
         alias_slug = GOOGLE_ALIASES.get(direct_slug) or GOOGLE_ALIASES.get(query.lower())
         target_slug = alias_slug
-        
+
         if not target_slug:
-            # 3. Search LeetCode REST algorithms list
+            # 3. Search LeetCode REST algorithms list / resolve slug
             try:
-                target_slug = await cls._search_leetcode(query)
+                target_slug = await LeetCodeImporter.resolve_slug(query)
             except Exception as e:
-                print(f"[GoogleImporter] REST search error: {e}")
-                
+                print(f"[GoogleImporter] Slug resolution error: {e}")
+
+        # 3b. If resolve_slug just reformatted the query (no real match found),
+        # try our own _search_leetcode which has word-by-word matching
+        formatted_slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
+        if not target_slug or target_slug == formatted_slug:
+            try:
+                search_result = await cls._search_leetcode(query)
+                if search_result:
+                    print(f"[GoogleImporter] _search_leetcode found: {search_result}")
+                    target_slug = search_result
+            except Exception as e:
+                print(f"[GoogleImporter] _search_leetcode error: {e}")
+
         if not target_slug:
-            # If search didn't find anything, try formatting the query directly as a slug
-            target_slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
-            
+            target_slug = formatted_slug
+
         if not target_slug:
             raise Exception("Could not resolve a valid problem slug from search query.")
 
         print(f"[GoogleImporter] Resolved query '{url_or_slug}' to slug '{target_slug}'")
 
-        # 4. Try importing using LeetCodeImporter
+        # 4. Try importing using LeetCodeImporter, and fallback to GFGImporter if it fails
         try:
             return await LeetCodeImporter.import_problem(session, target_slug)
         except Exception as e:
             print(f"[GoogleImporter] LeetCode import failed for slug '{target_slug}': {e}")
-            # If LeetCode importer fails, try curating
+
+            # Fallback to GFGImporter
+            gfg_err = None
+            try:
+                print(f"[GoogleImporter] Attempting GFG import fallback for slug '{target_slug}'...")
+                from app.services.gfg_importer import GFGImporter
+                gfg_slug = GFGImporter._parse_slug(target_slug)
+                return await GFGImporter.import_problem(session, gfg_slug)
+            except Exception as ge:
+                gfg_err = ge
+                print(f"[GoogleImporter] GFG fallback failed: {ge}")
+
+            # If GFG also fails, try curated
             curated = await cls._import_curated_problem(session, target_slug)
             if curated:
                 print(f"[GoogleImporter] Fallback to curated problem successfully resolved for '{target_slug}'")
                 return curated
-            
-            # If that also fails, raise the exception! No silent fallback!
+
+            # If everything else fails, raise the exception to trigger the dynamic synthesis fallback
             raise Exception(
-                f"Failed to fetch problem '{target_slug}' from LeetCode. "
-                "The problem might be premium-only, require authentication, or does not exist. "
-                f"Original error: {str(e)}"
+                f"Failed to fetch problem '{target_slug}' from LeetCode or GFG. "
+                f"Original LeetCode error: {str(e)} | GFG error: {str(gfg_err)}"
             )
 
     @staticmethod
@@ -298,52 +332,6 @@ class GoogleImporter:
             time_limit_ms=2000,
             memory_limit_kb=262144,
             score_base=data["score_base"],
-            runtime_bonus_max=20,
-            is_published=True,
-            tags=tags,
-            templates=templates,
-            test_cases=test_cases,
-        )
-        session.add(problem)
-        await session.flush()
-        return problem
-
-    @classmethod
-    async def _create_generic_problem(cls, session: AsyncSession, query: str, slug: str) -> Problem:
-        slug = slug or "google-practice-problem"
-        slug = re.sub(r"[^a-z0-9-]", "", slug.lower()).strip("-") or "google-practice-problem"
-
-        result = await session.execute(select(Problem).where(Problem.slug == slug))
-        existing = result.scalar_one_or_none()
-        if existing:
-            return existing
-
-        title = " ".join(word.capitalize() for word in query.split()) or "Google Practice Problem"
-        tags = await cls._get_or_create_tags(session, ["Google", "Practice"])
-        function_name = "solve"
-        templates = [
-            ProblemTemplate(language="python", template_code="def solve(value):\n    # Write your solution here\n    pass", function_name=function_name, arg_style=ArgStyleEnum.single),
-            ProblemTemplate(language="javascript", template_code="function solve(value) {\n    // Write your solution here\n}", function_name=function_name, arg_style=ArgStyleEnum.single),
-            ProblemTemplate(language="cpp", template_code="class Solution {\npublic:\n    int solve(int value) {\n        // Write your solution here\n        return 0;\n    }\n};", function_name=function_name, arg_style=ArgStyleEnum.single),
-            ProblemTemplate(language="java", template_code="class Solution {\n    public int solve(int value) {\n        // Write your solution here\n        return 0;\n    }\n}", function_name=function_name, arg_style=ArgStyleEnum.single),
-        ]
-        test_cases = [
-            TestCase(input="1", expected_output="1", is_sample=True, order_index=0, weight=1),
-            TestCase(input="2", expected_output="2", is_sample=False, order_index=1, weight=1),
-            TestCase(input="3", expected_output="3", is_sample=False, order_index=2, weight=1),
-            TestCase(input="4", expected_output="4", is_sample=False, order_index=3, weight=1),
-        ]
-        problem = Problem(
-            slug=slug,
-            title=title,
-            description=(
-                "Google-style problem placeholder created while external problem lookup was unavailable. "
-                "Edit the statement and tests from the admin panel if you need the exact prompt."
-            ),
-            difficulty=DifficultyEnum.MEDIUM,
-            time_limit_ms=2000,
-            memory_limit_kb=262144,
-            score_base=200,
             runtime_bonus_max=20,
             is_published=True,
             tags=tags,

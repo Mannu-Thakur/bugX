@@ -53,6 +53,31 @@ export const PROBLEM_HINTS: Record<string, string[]> = {
     "This is a classic dynamic programming problem. Let dp[i] be the minimum number of coins needed to make amount i.",
     "Initialize dp array with a large value (amount + 1) and dp[0] = 0.",
     "For each coin and for each amount from coin to target, update dp[i] = min(dp[i], dp[i - coin] + 1)."
+  ],
+  'valid-parentheses': [
+    "Use a Stack data structure. When you encounter an opening bracket ('(', '{', '['), push it onto the stack.",
+    "When you encounter a closing bracket, check if the stack is non-empty and the top element is the matching opening bracket.",
+    "At the end, the string is valid only if the stack is completely empty — meaning every opener was matched and closed."
+  ],
+  'merge-two-sorted-lists': [
+    "Use a dummy head node to simplify the merge logic. Compare the heads of both lists at each step.",
+    "Attach the smaller node to the result list and advance that list's pointer. Continue until one list is exhausted.",
+    "After the loop, append the remaining non-empty list directly to the result since it's already sorted."
+  ],
+  'three-sum': [
+    "Sort the array first. Then fix one element and use a two-pointer technique on the remaining subarray to find pairs that sum to the negative of the fixed element.",
+    "To avoid duplicate triplets, skip consecutive identical values for the fixed element and also when advancing the left/right pointers.",
+    "Time complexity is O(N²) after sorting. The outer loop fixes each element, and the inner two-pointer scan is O(N) per iteration."
+  ],
+  'group-anagrams': [
+    "Two strings are anagrams if and only if their sorted character sequences are identical. Use the sorted string as a hash key.",
+    "Create a Hash Map where the key is the sorted version of each string, and the value is a list of original strings sharing that key.",
+    "Alternatively, use a character frequency count (e.g., a tuple of 26 letter counts) as the key for an O(N*K) solution where K is the max string length."
+  ],
+  'maximum-subarray': [
+    "This is solvable with Kadane's Algorithm. Maintain a running sum of the current subarray and a global maximum.",
+    "At each element, decide: is it better to extend the current subarray (current_sum + nums[i]) or start a new one (nums[i])? Take the maximum.",
+    "Update the global maximum after each step. The final answer is the global maximum. This runs in O(N) time and O(1) space."
   ]
 };
 

@@ -3,17 +3,23 @@ from redis.exceptions import RedisError
 
 
 class RateLimitService:
-    def __init__(self, redis_url: str) -> None:
-        self.redis = Redis.from_url(
-            redis_url,
-            decode_responses=True,
-            socket_connect_timeout=0.2,
-            socket_timeout=0.2,
-            retry_on_timeout=False,
-        )
+    def __init__(self, redis_url: str = None, redis_client: Redis = None) -> None:
+        if redis_client is not None:
+            self.redis = redis_client
+            self._external_client = True
+        else:
+            self.redis = Redis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_connect_timeout=0.2,
+                socket_timeout=0.2,
+                retry_on_timeout=False,
+            )
+            self._external_client = False
 
     async def close(self) -> None:
-        await self.redis.aclose()
+        if not getattr(self, "_external_client", False):
+            await self.redis.aclose()
 
     async def ping(self) -> bool:
         await self.redis.ping()

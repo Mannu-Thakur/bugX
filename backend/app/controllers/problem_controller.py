@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 from typing import Optional, List
 from fastapi import HTTPException, status
@@ -37,11 +38,15 @@ class ProblemController:
         pages = (total + limit - 1) // limit if total > 0 else 0
 
         # Populate user_status dynamically if user is logged in
-        for problem in items:
-            problem.user_status = None
-            if current_user:
-                res = await ProblemRepo.get_user_status(self.db, current_user.id, problem.id)
+        if current_user and items:
+            problem_ids = [p.id for p in items]
+            statuses = await ProblemRepo.get_user_statuses_for_problems(self.db, current_user.id, problem_ids)
+            for problem in items:
+                res = statuses.get(problem.id, {"solved": False, "best_score": None})
                 problem.user_status = UserStatusEmbed(solved=res["solved"], best_score=res["best_score"])
+        else:
+            for problem in items:
+                problem.user_status = None
 
         return {
             "items": items,
@@ -71,7 +76,6 @@ class ProblemController:
         sample_test_cases = [tc for tc in problem.test_cases if tc.is_sample]
 
         # Convert to schema fields properly
-        import json
         hints_list = []
         if problem.hints:
             try:
@@ -124,6 +128,14 @@ class ProblemController:
         # Filter sample test cases for public view
         sample_test_cases = [tc for tc in problem.test_cases if tc.is_sample]
 
+        # Parse hints JSON
+        hints_list = []
+        if problem.hints:
+            try:
+                hints_list = json.loads(problem.hints)
+            except Exception:
+                hints_list = []
+
         return {
             "id": problem.id,
             "slug": problem.slug,
@@ -139,7 +151,8 @@ class ProblemController:
             "tags": problem.tags,
             "templates": problem.templates,
             "sample_test_cases": sample_test_cases,
-            "user_status": user_status
+            "user_status": user_status,
+            "hints": hints_list
         }
 
 

@@ -98,8 +98,9 @@ async def get_my_stats(
 async def get_my_submissions(
     page: int = 1,
     limit: int = 20,
+    problem_id: uuid.UUID | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     controller = UserController(db)
-    return await controller.get_my_submissions(current_user, page, limit)
+    return await controller.get_my_submissions(current_user, page, limit, problem_id)

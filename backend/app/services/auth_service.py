@@ -44,12 +44,17 @@ class AuthService:
         return Token(access_token=access_token, user=new_user)
 
     async def login(self, req: LoginRequest) -> Token:
-        user = await self.user_repo.get_by_email(req.email)
+        user = None
+        if "@" in req.email:
+            user = await self.user_repo.get_by_email(req.email)
+        if not user:
+            user = await self.user_repo.get_by_username(req.email)
+
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect username/email or password",
         )
-        if not user or not verify_password(req.password, user.password_hash):
+        if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
             raise credentials_exception
 
         if not user.is_active:
@@ -62,13 +67,11 @@ class AuthService:
 
     async def forgot_password(self, req: ForgotPasswordRequest) -> dict:
         user = await self.user_repo.get_by_email(req.email)
-        if not user:
+        if not user or user.username != req.username:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User with this email does not exist",
+                detail="No account found with that email and username combination.",
             )
-        
         user.password_hash = hash_password(req.new_password)
-        self.db.add(user)
         await self.db.commit()
-        return {"message": "Password reset successfully"}
+        return {"message": "Password has been reset successfully."}

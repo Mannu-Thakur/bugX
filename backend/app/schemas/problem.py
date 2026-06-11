@@ -18,7 +18,7 @@ class TagResponse(BaseModel):
 # ── Template schemas ──────────────────────────────────────────────────────────
 
 class TemplateCreate(BaseModel):
-    language: str = Field(..., pattern="^(python|javascript)$")
+    language: str = Field(..., pattern="^(python|javascript|cpp|java)$")
     template_code: str = Field(..., min_length=1)
     function_name: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$")
     arg_style: str = Field(..., pattern="^(kwargs|positional|single)$")

@@ -7,7 +7,7 @@ alembic
 pydantic-settings
 email-validator
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 redis
 httpx
 pytest

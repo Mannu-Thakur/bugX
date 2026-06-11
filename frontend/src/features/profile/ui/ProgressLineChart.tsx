@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, Flame, Star, Trophy } from 'lucide-react';
 import type { SubmissionSummary, UserStats } from '../api';
+import { safeParseDate } from '../../../shared/lib/date';
 
 interface ProgressLineChartProps {
   submissions: SubmissionSummary[];
@@ -15,7 +16,7 @@ interface Point {
 
 const buildPoints = (submissions: SubmissionSummary[], stats: UserStats | null | undefined): Point[] => {
   const chronological = [...submissions].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    (a, b) => safeParseDate(a.created_at).getTime() - safeParseDate(b.created_at).getTime(),
   );
 
   if (chronological.length === 0) {
@@ -36,7 +37,7 @@ const buildPoints = (submissions: SubmissionSummary[], stats: UserStats | null |
     }
 
     return {
-      label: new Date(submission.created_at).toLocaleDateString('en-US', {
+      label: safeParseDate(submission.created_at).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
       }),

@@ -14,6 +14,9 @@ htmlcov/
 node_modules/
 dist/
 frontend/dist/
+frontend/.debug-profile/
+frontend/.headless-profile*/
+frontend/problem-*.png
 
 # IDE / OS
 .idea/

@@ -14,6 +14,7 @@ import { useUserStats, useUserSubmissions } from '../profile/hooks';
 import { SubmissionHistoryTable } from './ui/SubmissionHistoryTable';
 import { cn } from '../../shared/lib/cn';
 import { EditProfileModal } from '../auth/ui/EditProfileModal';
+import { safeParseDate } from '../../shared/lib/date';
 
 const LIMIT = 10; // Clean 10 items for visual space
 
@@ -73,7 +74,7 @@ export const ProfilePage: React.FC = () => {
   const totalPages = submissionsPage?.pages ?? 1;
   const items = submissionsPage?.items ?? [];
 
-  const joinDate = new Date(user.createdAt).toLocaleDateString('en-US', {
+  const joinDate = safeParseDate(user.createdAt).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -158,7 +159,7 @@ export const ProfilePage: React.FC = () => {
   const heatmapRef = useRef<HTMLDivElement>(null);
 
   // Sum actual database submissions in past year
-  const activeSubmissionsCount = stats?.submission_activity 
+  const activeSubmissionsCount = stats?.submission_activity
     ? Object.values(stats.submission_activity).reduce((a, b) => a + b, 0)
     : 0;
 
@@ -181,10 +182,10 @@ export const ProfilePage: React.FC = () => {
 
         {/* ══════════════════════ LEFT COLUMN: PROFILE CARD ══════════════════════ */}
         <div className="lg:col-span-3 space-y-4">
-          
+
           {/* Main Coder Info Card */}
           <div className="bg-dark-panel border border-white/[0.04] rounded-2xl p-5 relative overflow-hidden flex flex-col items-center sm:items-start text-center sm:text-left gap-4 shadow-xl">
-            
+
             {/* Avatar & Edit button */}
             <div className="relative self-center sm:self-start">
               {user.avatarUrl ? (
@@ -231,7 +232,7 @@ export const ProfilePage: React.FC = () => {
 
             {/* Meta details list (clean platform label links only, no URL text) */}
             <div className="w-full space-y-3 pt-3 border-t border-white/[0.04] text-xs text-gray-400 font-semibold">
-              
+
               {/* Location */}
               <div className="flex items-center gap-2.5">
                 <MapPin className="w-4 h-4 text-gray-600 shrink-0" />
@@ -302,19 +303,19 @@ export const ProfilePage: React.FC = () => {
 
         {/* ══════════════════════ RIGHT COLUMN: LEETCODE GRIDS ══════════════════════ */}
         <div className="lg:col-span-9 space-y-4">
-          
+
           {/* TOP SECTION: PROBLEMS DIAL & POINTS / STREAKS SUMMARY */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            
+
             {/* Solved Dial card */}
             <div className="md:col-span-2 bg-dark-panel border border-white/[0.04] rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl select-none">
-              
+
               {/* Dial block */}
               <div className="relative w-32 h-32 flex-shrink-0 flex items-center justify-center">
                 <svg className="w-full h-full" viewBox="0 0 100 100">
                   {/* Track base */}
                   <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="5.5" />
-                  
+
                   {/* Segments: Easy, Medium, Hard mapped proportionally */}
                   <circle
                     cx="50"
@@ -328,7 +329,7 @@ export const ProfilePage: React.FC = () => {
                     strokeLinecap="round"
                     transform="rotate(-90 50 50)"
                   />
-                  
+
                   <circle
                     cx="50"
                     cy="50"
@@ -341,7 +342,7 @@ export const ProfilePage: React.FC = () => {
                     strokeLinecap="round"
                     transform="rotate(35 50 50)"
                   />
-                  
+
                   <circle
                     cx="50"
                     cy="50"
@@ -367,7 +368,7 @@ export const ProfilePage: React.FC = () => {
 
               {/* Difficulty stats list */}
               <div className="flex-1 w-full space-y-3.5 text-xs select-none">
-                
+
                 {/* Easy Row */}
                 <div className="space-y-1">
                   <div className="flex justify-between items-baseline text-[11px] font-bold">
@@ -498,7 +499,7 @@ export const ProfilePage: React.FC = () => {
 
           {/* BOTTOM ROW: HEATMAP CALENDAR — Sunday-aligned 53-week grid */}
           <div className="bg-dark-panel border border-white/[0.04] rounded-2xl p-5 flex flex-col gap-3 shadow-xl select-none">
-            
+
             {/* Heatmap header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
@@ -641,7 +642,7 @@ export const ProfilePage: React.FC = () => {
 
       {/* ══════════════════════ BOTTOM BLOCK: SUBMISSION HISTORY ══════════════════════ */}
       <div className="flex flex-col gap-4">
-        
+
         <div className="flex items-center justify-between select-none pt-4 border-t border-white/[0.04]">
           <h2 className="text-base font-bold text-gray-200">
             Recent Submission History

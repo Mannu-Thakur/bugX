@@ -8,11 +8,12 @@ from app.models.submission import Submission, SubmissionStatus
 from app.models.submission_result import SubmissionResult
 from app.models.user_file import UserFile
 from app.models.battle import Battle
+from app.models.battle_player import BattlePlayer
 
 __all__ = [
     "User", "RoleEnum", "UserStats",
     "Tag", "Problem", "DifficultyEnum", "problem_tags",
     "ProblemTemplate", "ArgStyleEnum", "TestCase",
     "Submission", "SubmissionStatus", "SubmissionResult",
-    "UserFile", "Battle"
+    "UserFile", "Battle", "BattlePlayer"
 ]

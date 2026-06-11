@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { AlertCircle, CheckCircle2, Info, X, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { ENV } from '../../config/env';
+import { api } from '../../lib/api';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -47,7 +47,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toast = useCallback((message: string, type: ToastType = 'info', duration = 4000) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type, duration }]);
-    
+
     if (duration > 0) {
       setTimeout(() => {
         removeToast(id);
@@ -57,15 +57,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const registerBackgroundSubmission = useCallback((id: string, problemTitle: string, isRunOnly: boolean) => {
     let scorePollingCount = 0;
-    
+
     const check = async () => {
       try {
-        const res = await fetch(`${ENV.API_URL}/submissions/${id}`);
-        if (!res.ok) {
-          setTimeout(check, 3000);
-          return;
-        }
-        const sub = await res.json();
+        const sub = await api.submissions.get(id);
 
         if (sub.status === 'PENDING' || sub.status === 'RUNNING') {
           setTimeout(check, 1500);
@@ -78,11 +73,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return;
             }
           }
-          
+
           // Verify if user is still on the page for this submission or if it was handled locally
           const userIsStillOnPage = activePageSubIdRef.current === id;
           const wasHandled = handledSubmissionsRef.current.has(id);
-          
+
           if (!userIsStillOnPage && !wasHandled) {
             if (sub.status === 'ACCEPTED') {
               toast(`Solution ACCEPTED for problem: "${problemTitle}"! +${sub.score} pts awarded.`, 'success', 6000);

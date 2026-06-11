@@ -35,15 +35,16 @@ class UserController:
         from app.repositories.user_stats_repo import UserStatsRepo
         from app.models.submission import Submission
         from app.models.battle import Battle
+        from app.models.battle_player import BattlePlayer
         from sqlalchemy import select, or_
         from collections import Counter
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         repo = UserStatsRepo(self.db)
         stats = await repo.get_by_user_id(current_user.id)
-        
+
         # Query submission timestamps for the last year
-        one_year_ago = datetime.utcnow() - timedelta(days=366)
+        one_year_ago = datetime.now(timezone.utc) - timedelta(days=366)
         stmt = (
             select(Submission.created_at)
             .where(Submission.user_id == current_user.id)
@@ -54,11 +55,10 @@ class UserController:
         activity = Counter(t.strftime("%Y-%m-%d") for t in timestamps if t)
 
         # Query battles played and won
-        battle_stmt = select(Battle).where(
-            or_(
-                Battle.player1_username == current_user.username,
-                Battle.player2_username == current_user.username
-            )
+        battle_stmt = (
+            select(Battle)
+            .join(Battle.players)
+            .where(BattlePlayer.username == current_user.username)
         )
         battle_res = await self.db.execute(battle_stmt)
         battles = list(battle_res.scalars().all())
@@ -66,18 +66,26 @@ class UserController:
         battles_played = 0
         battles_won = 0
         for b in battles:
-            if b.status == "finished":
+            if b.status == "finished" and b.players:
                 battles_played += 1
-                if b.player1_username == current_user.username:
-                    if b.p1_score > b.p2_score:
+                max_score = max(p.score for p in b.players)
+                max_scorers = [p for p in b.players if p.score == max_score]
+                if len(max_scorers) == 1:
+                    if max_scorers[0].username == current_user.username:
                         battles_won += 1
-                    elif b.p1_score == b.p2_score and b.p1_solved and not b.p2_solved:
-                        battles_won += 1
-                elif b.player2_username == current_user.username:
-                    if b.p2_score > b.p1_score:
-                        battles_won += 1
-                    elif b.p2_score == b.p1_score and b.p2_solved and not b.p1_solved:
-                        battles_won += 1
+                else:
+                    solvers = [p for p in max_scorers if p.solved]
+                    if solvers:
+                        # Sort by solved_at (earliest first). Use aware helper or replace naive
+                        def get_solved_at(p):
+                            if p.solved_at is None:
+                                return datetime.max.replace(tzinfo=timezone.utc)
+                            if p.solved_at.tzinfo is None:
+                                return p.solved_at.replace(tzinfo=timezone.utc)
+                            return p.solved_at
+                        solvers.sort(key=get_solved_at)
+                        if solvers[0].username == current_user.username:
+                            battles_won += 1
 
         if not stats:
             return {
@@ -102,16 +110,18 @@ class UserController:
             "battles_won": battles_won
         }
 
-    async def get_my_submissions(self, current_user: User, page: int, limit: int) -> dict:
+    async def get_my_submissions(self, current_user: User, page: int, limit: int, problem_id = None) -> dict:
         from sqlalchemy import select, func
         from app.models.submission import Submission
-        
+
         offset = (page - 1) * limit
-        
+
         # count
         count_stmt = select(func.count(Submission.id)).where(Submission.user_id == current_user.id)
+        if problem_id:
+            count_stmt = count_stmt.where(Submission.problem_id == problem_id)
         total = (await self.db.execute(count_stmt)).scalar() or 0
-        
+
         # rows
         stmt = (
             select(Submission)
@@ -120,11 +130,13 @@ class UserController:
             .offset(offset)
             .limit(limit)
         )
+        if problem_id:
+            stmt = stmt.where(Submission.problem_id == problem_id)
         rows = list((await self.db.execute(stmt)).scalars().all())
-        
+
         from app.schemas.submission import SubmissionResponse
         items = [SubmissionResponse.model_validate(row) for row in rows]
-        
+
         return {
             "items": items,
             "total": total,

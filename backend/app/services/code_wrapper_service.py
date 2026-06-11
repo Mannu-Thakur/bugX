@@ -51,7 +51,7 @@ class CodeWrapperService:
         "char":                 "parser.parseChar()",
         "Character":            "parser.parseChar()",
         "String":               "parser.parseString()",
-        
+
         # Arrays
         "int[]":                "parser.parseIntArray()",
         "Integer[]":            "parser.parseIntegerArray()",
@@ -64,10 +64,10 @@ class CodeWrapperService:
         "String[]":             "parser.parseStringArray()",
         "char[]":               "parser.parseCharArray()",
         "Character[]":          "parser.parseCharArray()",
-        
+
         "int[][]":              "parser.parseIntMatrix()",
         "double[][]":           "parser.parseDoubleMatrix()",
-        
+
         # Lists
         "List<Integer>":        "parser.parseIntegerList()",
         "List<Long>":           "parser.parseLongList()",
@@ -76,12 +76,17 @@ class CodeWrapperService:
         "List<String>":         "parser.parseStringList()",
         "List<Boolean>":        "parser.parseBoolList()",
         "List<Character>":      "parser.parseCharList()",
-        
+
         # Nested Lists
         "List<List<Integer>>":  "parser.parseIntegerMatrix()",
         "List<List<String>>":   "parser.parseStringMatrix()",
         "List<List<Double>>":   "parser.parseDoubleMatrixList()",
         "List<List<Long>>":     "parser.parseLongMatrixList()",
+
+        # Custom Data Structures
+        "TreeNode":             "parser.parseTreeNode()",
+        "ListNode":             "parser.parseListNode()",
+        "Node":                 "parser.parseNode()",
     }
 
     # ── Python annotation → C++ type ──────────────────────────────────
@@ -135,6 +140,29 @@ class CodeWrapperService:
         arg_style: ArgStyleEnum,
         python_template: str = None,
     ) -> str:
+        if function_name == "__init__":
+            # Recover correct function name from python_template or source_code
+            correct_name = None
+            for template in (python_template, source_code):
+                if not template:
+                    continue
+                class_match = re.search(r"\bclass\s+Solution\b", template)
+                search_start = class_match.end() if class_match else 0
+                for m in re.finditer(r"\bdef\s+([a-zA-Z0-9_]+)\s*\(", template[search_start:]):
+                    if m.group(1) != "__init__":
+                        correct_name = m.group(1)
+                        break
+                if correct_name:
+                    break
+                for m in re.finditer(r"\bdef\s+([a-zA-Z0-9_]+)\s*\(", template):
+                    if m.group(1) != "__init__":
+                        correct_name = m.group(1)
+                        break
+                if correct_name:
+                    break
+            if correct_name:
+                function_name = correct_name
+
         if language == "python":
             return CodeWrapperService._wrap_python(source_code, function_name, arg_style)
         elif language == "javascript":
@@ -311,6 +339,23 @@ console.log(JSON.stringify(result));
 
     @classmethod
     def _wrap_cpp(cls, source_code, function_name, arg_style, python_template=None):
+        # Strip LeetCode-style definition comment blocks for TreeNode/ListNode/Node
+        # e.g. /** * Definition for a binary tree node. * struct TreeNode { ... }; */
+        source_code = re.sub(
+            r'/\*\*?\s*\*?\s*Definition for .*?\*/\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip actual struct definitions that the wrapper already provides
+        source_code = re.sub(
+            r'struct\s+(?:TreeNode|ListNode|Node)\s*\{[^}]*\};\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip #include directives (wrapper already includes all standard headers)
+        source_code = re.sub(r'^\s*#include\s*<[^>]+>\s*$', '', source_code, flags=re.MULTILINE)
+        source_code = re.sub(r'^\s*using\s+namespace\s+std\s*;\s*$', '', source_code, flags=re.MULTILINE)
+        # Clean up multiple blank lines
+        source_code = re.sub(r'\n{3,}', '\n\n', source_code).strip()
+
         invoker = cls._build_cpp_invoker(function_name, arg_style, source_code, python_template)
         # The IO helpers are stored as a plain string — single braces are
         # fine because they are substituted into the f-string via {}, not
@@ -372,6 +417,45 @@ public class Main {{
 {invoker}
     }}
 }}
+
+class TreeNode {{
+    public int val;
+    public TreeNode left;
+    public TreeNode right;
+    public TreeNode() {{}}
+    public TreeNode(int val) {{ this.val = val; }}
+    public TreeNode(int val, TreeNode left, TreeNode right) {{
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }}
+}}
+
+class ListNode {{
+    public int val;
+    public ListNode next;
+    public ListNode() {{}}
+    public ListNode(int val) {{ this.val = val; }}
+    public ListNode(int val, ListNode next) {{ this.val = val; this.next = next; }}
+}}
+
+class Node {{
+    public int val;
+    public Node left;
+    public Node right;
+    public Node next;
+    public Node() {{}}
+    public Node(int val) {{ this.val = val; }}
+    public Node(int val, Node left, Node right) {{
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }}
+    public Node(int val, Node next) {{
+        this.val = val;
+        this.next = next;
+    }}
+}}
 """
 
     # ══════════════════════════════════════════════════════════════════
@@ -389,8 +473,9 @@ public class Main {{
     @staticmethod
     def _parse_python_signature(python_code, function_name):
         """Extract ([(name, type), ...], return_type_str) from a Python def."""
+        clean_code = "\n".join([line for line in python_code.split("\n") if not line.strip().startswith("#")])
         pattern = r'def\s+' + re.escape(function_name) + r'\s*\(([^)]*)\)\s*(?:->\s*(.+?))?\s*:'
-        match = re.search(pattern, python_code)
+        match = re.search(pattern, clean_code)
         if not match:
             return [], None
         params_raw = match.group(1).strip()
@@ -509,12 +594,22 @@ public class Main {{
                 result.append((type_raw, name))
         return result
 
-    @staticmethod
-    def _normalize_cpp_type(raw):
-        """Remove const, &, * from a C++ type, normalise whitespace."""
+    # Node/tree/list types that should keep their pointer (*) nature
+    _CPP_POINTER_TYPES = {'TreeNode', 'ListNode', 'Node'}
+
+    @classmethod
+    def _normalize_cpp_type(cls, raw):
+        """Remove const, &, * from a C++ type, normalise whitespace.
+        Preserves * for known pointer types (TreeNode, ListNode, Node)."""
         r = raw.strip()
         r = re.sub(r'\bconst\b', '', r)
-        r = r.replace('&', '').replace('*', '')
+        r = r.replace('&', '')
+        # Check if the base type (before *) is a known pointer type
+        base = r.replace('*', '').strip()
+        base = re.sub(r'\s+', ' ', base).strip()
+        if base in cls._CPP_POINTER_TYPES:
+            return base + '*'
+        r = r.replace('*', '')
         r = re.sub(r'\s+', ' ', r).strip()
         return r
 
@@ -526,7 +621,7 @@ public class Main {{
     def _build_cpp_invoker(cls, function_name, arg_style, source_code, python_template=None):
         """Generate the C++ main() body dynamically from the parsed signature."""
         ret_type, params = cls._parse_cpp_signature(source_code, function_name)
-        
+
         # Fallback to python template signature if parsing C++ signature failed
         if (ret_type is None or params is None) and python_template:
             py_params, py_ret = cls._parse_python_signature(python_template, function_name)
@@ -556,8 +651,13 @@ public class Main {{
             lines.append("    consume_char(cin, '[');")
 
         for i, (ptype, pname) in enumerate(params):
-            lines.append(f"    {ptype} {pname};")
-            lines.append(f"    parse_val(cin, {pname});")
+            is_ptr = ptype.endswith('*')
+            if is_ptr:
+                # Pointer types (TreeNode*, ListNode*, Node*) use special parse
+                lines.append(f"    {ptype} {pname} = parse_{ptype[:-1].strip()}_from_json(cin);")
+            else:
+                lines.append(f"    {ptype} {pname};")
+                lines.append(f"    parse_val(cin, {pname});")
             if arg_style == ArgStyleEnum.positional and i < len(params) - 1:
                 lines.append("    consume_char(cin, ',');")
 
@@ -569,6 +669,11 @@ public class Main {{
 
         if ret_type == "void":
             lines.append(f"    {call};")
+        elif ret_type.endswith('*'):
+            base_type = ret_type[:-1].strip()
+            lines.append(f"    auto res = {call};")
+            lines.append(f"    print_{base_type}_as_json(res);")
+            lines.append("    cout << endl;")
         else:
             lines.append(f"    auto res = {call};")
             lines.append("    print_val(res);")
@@ -580,7 +685,7 @@ public class Main {{
     def _build_java_invoker(cls, function_name, arg_style, source_code, python_template=None):
         """Generate the Java main() body dynamically from the parsed signature."""
         ret_type, params = cls._parse_java_signature(source_code, function_name)
-        
+
         # Fallback to python template signature if parsing Java signature failed
         if (ret_type is None or params is None) and python_template:
             py_params, py_ret = cls._parse_python_signature(python_template, function_name)
@@ -681,7 +786,28 @@ public class Main {{
 #  Uses SINGLE braces — injected into f-string via {_CPP_IO_HELPERS}.
 # ══════════════════════════════════════════════════════════════════════
 
-_CPP_IO_HELPERS = r"""// --- Lightweight JSON / Tokenizer Parser ---
+_CPP_IO_HELPERS = r"""// --- Standard LeetCode Data Structures ---
+struct TreeNode {
+    int val;
+    TreeNode *left;
+    TreeNode *right;
+    TreeNode() : val(0), left(nullptr), right(nullptr) {}
+    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
+    TreeNode(int x, TreeNode *left, TreeNode *right) : val(x), left(left), right(right) {}
+};
+
+struct ListNode {
+    int val;
+    ListNode *next;
+    ListNode() : val(0), next(nullptr) {}
+    ListNode(int x) : val(x), next(nullptr) {}
+    ListNode(int x, ListNode *next) : val(x), next(next) {}
+};
+
+// Node is an alias used by some LeetCode problems
+typedef TreeNode Node;
+
+// --- Lightweight JSON / Tokenizer Parser ---
 void skip_ws(istream& in) {
     while (in && isspace(in.peek())) in.get();
 }
@@ -805,6 +931,143 @@ void print_val(const vector<T>& vec) {
         if (i + 1 < vec.size()) cout << ",";
     }
     cout << "]";
+}
+
+// --- TreeNode JSON parsing (LeetCode-style level-order) ---
+TreeNode* parse_TreeNode_from_json(istream& in) {
+    skip_ws(in);
+    if (peek_char(in) == 'n') {
+        // consume "null"
+        string s; in >> s;
+        return nullptr;
+    }
+    // Parse array of values
+    vector<string> tokens;
+    consume_char(in, '[');
+    skip_ws(in);
+    if (peek_char(in) == ']') { in.get(); return nullptr; }
+    while (true) {
+        skip_ws(in);
+        string tok = "";
+        if (peek_char(in) == 'n') {
+            for (int k = 0; k < 4 && in.peek() != EOF; ++k) tok += (char)in.get();
+        } else if (peek_char(in) == '"') {
+            in.get();
+            char c;
+            while (in.get(c) && c != '"') tok += c;
+        } else {
+            char c;
+            while (in && !isspace(in.peek()) && in.peek() != ',' && in.peek() != ']') {
+                in.get(c);
+                tok += c;
+            }
+        }
+        tokens.push_back(tok);
+        skip_ws(in);
+        if (peek_char(in) == ',') in.get();
+        else if (peek_char(in) == ']') { in.get(); break; }
+        else break;
+    }
+    if (tokens.empty() || tokens[0] == "null") return nullptr;
+    TreeNode* root = new TreeNode(stoi(tokens[0]));
+    queue<TreeNode*> q;
+    q.push(root);
+    int i = 1;
+    while (!q.empty() && i < (int)tokens.size()) {
+        TreeNode* cur = q.front(); q.pop();
+        if (i < (int)tokens.size()) {
+            if (tokens[i] != "null") {
+                cur->left = new TreeNode(stoi(tokens[i]));
+                q.push(cur->left);
+            }
+            i++;
+        }
+        if (i < (int)tokens.size()) {
+            if (tokens[i] != "null") {
+                cur->right = new TreeNode(stoi(tokens[i]));
+                q.push(cur->right);
+            }
+            i++;
+        }
+    }
+    return root;
+}
+
+void print_TreeNode_as_json(TreeNode* root) {
+    if (!root) { cout << "null"; return; }
+    cout << "[";
+    queue<TreeNode*> q;
+    q.push(root);
+    bool first = true;
+    vector<string> out;
+    while (!q.empty()) {
+        TreeNode* cur = q.front(); q.pop();
+        if (cur) {
+            out.push_back(to_string(cur->val));
+            q.push(cur->left);
+            q.push(cur->right);
+        } else {
+            out.push_back("null");
+        }
+    }
+    // Trim trailing nulls
+    while (!out.empty() && out.back() == "null") out.pop_back();
+    for (int i = 0; i < (int)out.size(); ++i) {
+        if (i > 0) cout << ",";
+        cout << out[i];
+    }
+    cout << "]";
+}
+
+// --- ListNode JSON parsing ---
+ListNode* parse_ListNode_from_json(istream& in) {
+    skip_ws(in);
+    if (peek_char(in) == 'n') {
+        string s; in >> s;
+        return nullptr;
+    }
+    vector<int> vals;
+    consume_char(in, '[');
+    skip_ws(in);
+    if (peek_char(in) == ']') { in.get(); return nullptr; }
+    while (true) {
+        int v;
+        parse_val(in, v);
+        vals.push_back(v);
+        skip_ws(in);
+        if (peek_char(in) == ',') in.get();
+        else if (peek_char(in) == ']') { in.get(); break; }
+        else break;
+    }
+    if (vals.empty()) return nullptr;
+    ListNode* head = new ListNode(vals[0]);
+    ListNode* cur = head;
+    for (int i = 1; i < (int)vals.size(); ++i) {
+        cur->next = new ListNode(vals[i]);
+        cur = cur->next;
+    }
+    return head;
+}
+
+void print_ListNode_as_json(ListNode* head) {
+    cout << "[";
+    bool first = true;
+    while (head) {
+        if (!first) cout << ",";
+        cout << head->val;
+        first = false;
+        head = head->next;
+    }
+    cout << "]";
+}
+
+// Node is typedef'd to TreeNode, so use the same parsers
+Node* parse_Node_from_json(istream& in) {
+    return parse_TreeNode_from_json(in);
+}
+
+void print_Node_as_json(Node* node) {
+    print_TreeNode_as_json(node);
 }
 """
 
@@ -1167,6 +1430,134 @@ _JAVA_IO_HELPERS = r"""    // --- Helper Tokenizer for Java ---
                 }
             }
             return arr;
+        }
+
+        public TreeNode parseTreeNode() {
+            skipWs();
+            if (peek() == 'n') {
+                parseString();
+                return null;
+            }
+            List<String> tokens = new ArrayList<>();
+            if (get() == '[') {
+                if (peek() == ']') { get(); return null; }
+                while (true) {
+                    skipWs();
+                    StringBuilder tok = new StringBuilder();
+                    if (peek() == 'n') {
+                        for (int k = 0; k < 4 && pos < input.length(); ++k) {
+                            tok.append(input.charAt(pos++));
+                        }
+                    } else if (peek() == '"') {
+                        get();
+                        while (pos < input.length() && input.charAt(pos) != '"') {
+                            tok.append(input.charAt(pos++));
+                        }
+                        if (pos < input.length()) get();
+                    } else {
+                        while (pos < input.length() && !Character.isWhitespace(input.charAt(pos)) && input.charAt(pos) != ',' && input.charAt(pos) != ']') {
+                            tok.append(input.charAt(pos++));
+                        }
+                    }
+                    tokens.add(tok.toString().trim());
+                    skipWs();
+                    char c = get();
+                    if (c == ']') break;
+                }
+            }
+            if (tokens.isEmpty() || tokens.get(0).equals("null")) return null;
+            TreeNode root = new TreeNode(Integer.parseInt(tokens.get(0)));
+            Queue<TreeNode> q = new LinkedList<>();
+            q.add(root);
+            int i = 1;
+            while (!q.isEmpty() && i < tokens.size()) {
+                TreeNode cur = q.poll();
+                if (i < tokens.size()) {
+                    if (!tokens.get(i).equals("null") && !tokens.get(i).isEmpty()) {
+                        cur.left = new TreeNode(Integer.parseInt(tokens.get(i)));
+                        q.add(cur.left);
+                    }
+                    i++;
+                }
+                if (i < tokens.size()) {
+                    if (!tokens.get(i).equals("null") && !tokens.get(i).isEmpty()) {
+                        cur.right = new TreeNode(Integer.parseInt(tokens.get(i)));
+                        q.add(cur.right);
+                    }
+                    i++;
+                }
+            }
+            return root;
+        }
+
+        public ListNode parseListNode() {
+            List<Integer> list = parseIntegerList();
+            if (list.isEmpty()) return null;
+            ListNode head = new ListNode(list.get(0));
+            ListNode cur = head;
+            for (int i = 1; i < list.size(); i++) {
+                cur.next = new ListNode(list.get(i));
+                cur = cur.next;
+            }
+            return head;
+        }
+
+        public Node parseNode() {
+            skipWs();
+            if (peek() == 'n') {
+                parseString();
+                return null;
+            }
+            List<String> tokens = new ArrayList<>();
+            if (get() == '[') {
+                if (peek() == ']') { get(); return null; }
+                while (true) {
+                    skipWs();
+                    StringBuilder tok = new StringBuilder();
+                    if (peek() == 'n') {
+                        for (int k = 0; k < 4 && pos < input.length(); ++k) {
+                            tok.append(input.charAt(pos++));
+                        }
+                    } else if (peek() == '"') {
+                        get();
+                        while (pos < input.length() && input.charAt(pos) != '"') {
+                            tok.append(input.charAt(pos++));
+                        }
+                        if (pos < input.length()) get();
+                    } else {
+                        while (pos < input.length() && !Character.isWhitespace(input.charAt(pos)) && input.charAt(pos) != ',' && input.charAt(pos) != ']') {
+                            tok.append(input.charAt(pos++));
+                        }
+                    }
+                    tokens.add(tok.toString().trim());
+                    skipWs();
+                    char c = get();
+                    if (c == ']') break;
+                }
+            }
+            if (tokens.isEmpty() || tokens.get(0).equals("null")) return null;
+            Node root = new Node(Integer.parseInt(tokens.get(0)));
+            Queue<Node> q = new LinkedList<>();
+            q.add(root);
+            int i = 1;
+            while (!q.isEmpty() && i < tokens.size()) {
+                Node cur = q.poll();
+                if (i < tokens.size()) {
+                    if (!tokens.get(i).equals("null") && !tokens.get(i).isEmpty()) {
+                        cur.left = new Node(Integer.parseInt(tokens.get(i)));
+                        q.add(cur.left);
+                    }
+                    i++;
+                }
+                if (i < tokens.size()) {
+                    if (!tokens.get(i).equals("null") && !tokens.get(i).isEmpty()) {
+                        cur.right = new Node(Integer.parseInt(tokens.get(i)));
+                        q.add(cur.right);
+                    }
+                    i++;
+                }
+            }
+            return root;
         }
     }
 

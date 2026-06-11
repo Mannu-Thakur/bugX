@@ -64,11 +64,11 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex w-full h-[calc(100vh-115px)] overflow-hidden rounded-lg border border-dark-border bg-dark-bg"
+      className="flex w-full h-[calc(100vh-125px)] bg-transparent gap-1.5"
     >
       {/* Left Pane */}
       <div
-        className="h-full overflow-hidden"
+        className="h-full overflow-hidden rounded-xl border border-dark-border bg-dark-panel shadow-md flex flex-col"
         style={{ width: `${leftWidth}%` }}
       >
         {left}
@@ -78,14 +78,14 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       <div
         onMouseDown={startResize}
         onTouchStart={startResize}
-        className="w-1.5 h-full bg-dark-border hover:bg-blue-500/50 active:bg-blue-500 transition-colors cursor-col-resize flex flex-col justify-center items-center gap-1 select-none z-10"
+        className="w-[6px] h-full hover:bg-blue-500/10 active:bg-blue-500/20 transition-all duration-200 cursor-col-resize flex flex-col justify-center items-center gap-1 select-none z-10 group"
       >
-        <div className="w-0.5 h-6 bg-gray-600/40 rounded-full" />
+        <div className="w-0.5 h-8 bg-gray-500/30 group-hover:bg-blue-400/50 rounded-full transition-colors" />
       </div>
 
       {/* Right Pane */}
       <div
-        className="h-full overflow-hidden flex-1"
+        className="h-full overflow-hidden flex-1 rounded-xl border border-dark-border bg-dark-panel shadow-md flex flex-col"
         style={{ width: `${100 - leftWidth}%` }}
       >
         {right}

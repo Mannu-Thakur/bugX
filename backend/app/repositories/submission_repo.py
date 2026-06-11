@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.submission import Submission, SubmissionStatus
@@ -35,16 +35,16 @@ class SubmissionRepo:
 
     @staticmethod
     async def set_status(
-        session: AsyncSession, 
-        submission_id: uuid.UUID, 
-        from_status: SubmissionStatus, 
+        session: AsyncSession,
+        submission_id: uuid.UUID,
+        from_status: SubmissionStatus,
         to_status: SubmissionStatus
     ) -> bool:
         """Atomically set status to `to_status` only if current status is `from_status`."""
         stmt = (
             update(Submission)
             .where(Submission.id == submission_id, Submission.status == from_status)
-            .values(status=to_status, updated_at=datetime.utcnow())
+            .values(status=to_status, updated_at=datetime.now(timezone.utc))
         )
         result = await session.execute(stmt)
         return result.rowcount > 0
@@ -73,7 +73,7 @@ class SubmissionRepo:
                 runtime_ms=None,
                 memory_kb=None,
                 error_message=None,
-                updated_at=datetime.utcnow()
+                updated_at=datetime.now(timezone.utc)
             )
         )
         await session.execute(stmt)
@@ -83,7 +83,7 @@ class SubmissionRepo:
         stmt = (
             update(Submission)
             .where(Submission.id == submission_id)
-            .values(score=score, updated_at=datetime.utcnow())
+            .values(score=score, updated_at=datetime.now(timezone.utc))
         )
         await session.execute(stmt)
 

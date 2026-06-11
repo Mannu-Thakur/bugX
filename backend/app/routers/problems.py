@@ -1,5 +1,5 @@
 from typing import Any, Optional, List
-from fastapi import APIRouter, Depends, Query, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -132,11 +132,11 @@ async def create_dynamic_fallback_problem(db: AsyncSession, url_or_slug: str) ->
                 slug = parts[idx + 1]
         else:
             slug = parts[-1]
-    
+
     slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", slug)).strip("-")
     if not slug:
         slug = "dynamic-problem"
-        
+
     is_two_sum = slug in ("2sum", "two-sum", "twosum", "2-sum")
     if is_two_sum:
         slug = "two-sum"
@@ -160,7 +160,7 @@ async def create_dynamic_fallback_problem(db: AsyncSession, url_or_slug: str) ->
             await db.flush()
         else:
             return existing
-            
+
     # Generate a clean title and function name
     if is_two_sum:
         title = "Two Sum"
@@ -175,7 +175,7 @@ async def create_dynamic_fallback_problem(db: AsyncSession, url_or_slug: str) ->
             func_name = "solve"
         if not func_name:
             func_name = "solve"
-        
+
         # Ensure function name doesn't start with a digit
         if func_name[0].isdigit():
             if func_name.startswith("2sum") or func_name.startswith("2Sum"):
@@ -322,13 +322,13 @@ class Solution {
         python_tpl = f"""def {func_name}(arr: list[int]) -> int:
     # Write your python code here
     # Solve the {title} challenge
-    
+
     return 0
 """
 
         js_tpl = f"""function {func_name}(arr) {{
     // Write your javascript code here
-    
+
     return 0;
 }}"""
 
@@ -340,7 +340,7 @@ class Solution {{
 public:
     int {func_name}(vector<int>& arr) {{
         // Write your C++ code here
-        
+
         return 0;
     }}
 }};"""
@@ -350,7 +350,7 @@ public:
 class Solution {{
     public int {func_name}(int[] arr) {{
         // Write your Java code here
-        
+
         return 0;
     }}
 }}"""
@@ -429,6 +429,8 @@ async def import_problem(
 ) -> Any:
     from app.services.leetcode_importer import LeetCodeImporter
     from app.services.google_importer import GoogleImporter
+    from app.services.problem_import_validation_service import ProblemImportValidationError
+    import re
     try:
         url_or_slug = req.url_or_slug
         if url_or_slug.startswith("gfg:") or "geeksforgeeks" in url_or_slug.lower() or "gfg" in url_or_slug.lower():
@@ -437,40 +439,87 @@ async def import_problem(
                 url_or_slug = url_or_slug[len("gfg:"):]
             try:
                 problem = await GFGImporter.import_problem(db, url_or_slug)
+            except ProblemImportValidationError as val_err:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=val_err.message
+                )
             except Exception as gfg_err:
-                print(f"[ImportEndpoint] GFG import failed: {gfg_err}. Retrying with dynamic fallback...")
-                problem = await create_dynamic_fallback_problem(db, url_or_slug)
+                print(f"[ImportEndpoint] GFG import failed: {gfg_err}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Could not find problem '{url_or_slug}' on GeeksforGeeks. Please check your spelling and try again."
+                )
         elif url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
             if url_or_slug.startswith("google:"):
                 url_or_slug = url_or_slug[len("google:"):]
             try:
                 problem = await GoogleImporter.resolve_and_import(db, url_or_slug)
+            except ProblemImportValidationError as val_err:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=val_err.message
+                )
             except Exception as google_err:
-                print(f"[ImportEndpoint] Google import failed: {google_err}. Retrying with dynamic fallback...")
-                problem = await create_dynamic_fallback_problem(db, url_or_slug)
+                print(f"[ImportEndpoint] Google import failed: {google_err}")
+                err_msg = str(google_err)
+                if "Import validation failed:" in err_msg:
+                    match = re.search(r"(Import validation failed:.*)", err_msg)
+                    detail_msg = match.group(1) if match else err_msg
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=detail_msg
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Could not find problem '{url_or_slug}' online. The problem may not exist or could not be fetched. Please check your spelling and try a direct URL."
+                )
         else:
+            le_val_error = None
+            le_err = None
             try:
                 problem = await LeetCodeImporter.import_problem(db, url_or_slug)
-            except Exception as le_err:
+            except ProblemImportValidationError as le_val:
+                le_val_error = le_val
+                print(f"[ImportEndpoint] LeetCode validation failed: {le_val.message}. Trying GFGImporter...")
+            except Exception as e:
+                le_err = e
                 print(f"[ImportEndpoint] LeetCode import failed: {le_err}. Retrying with GFGImporter...")
+
+            if 'problem' not in locals():
                 try:
                     from app.services.gfg_importer import GFGImporter
                     problem = await GFGImporter.import_problem(db, url_or_slug)
+                except ProblemImportValidationError as gfg_val:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=gfg_val.message
+                    )
                 except Exception as gfg_err:
-                    print(f"[ImportEndpoint] Both LeetCode and GFG failed: {le_err} | {gfg_err}. Falling back to dynamic synthesis...")
-                    problem = await create_dynamic_fallback_problem(db, url_or_slug)
-            
+                    if le_val_error:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=le_val_error.message
+                        )
+                    print(f"[ImportEndpoint] Both LeetCode and GFG failed: {le_err} | {gfg_err}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Could not find problem '{url_or_slug}' on LeetCode or GeeksforGeeks. Please verify the problem name/URL and try again."
+                    )
+
         await db.commit()
-        
+
         # Retrieve using controller to guarantee exact response format
         controller = ProblemController(db)
         return await controller.get_problem(problem.slug, current_user)
+    except HTTPException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         import traceback
         print(f"[ImportEndpoint] Failed to import problem: {e}")
         traceback.print_exc()
-        from fastapi import HTTPException
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to import problem: {str(e)}"

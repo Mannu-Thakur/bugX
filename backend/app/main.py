@@ -28,23 +28,23 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.rate_limit_service = RateLimitService(settings.REDIS_URL)
-        
+
         # Auto-create tables and auto-seed the database if empty on startup
         try:
             from app.core.database import Base, engine, AsyncSessionLocal
             from app.services.seeder_service import seed_problems
-            
+
             # Dynamically create tables on SQLite/PostgreSQL
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 await _ensure_user_profile_columns(conn)
-                
+
             # Seed base problems
             async with AsyncSessionLocal() as session:
                 await seed_problems(session)
         except Exception as e:
             print(f"Startup database initialization error: {e}")
-            
+
         yield
         await app.state.rate_limit_service.close()
 
@@ -92,6 +92,7 @@ def create_app() -> FastAPI:
         return await call_next(request)
 
     from app.routers.auth import router as auth_router
+    from app.routers.oauth import router as oauth_router
     from app.routers.users import router as users_router
     from app.routers.submissions import router as submissions_router
     from app.routers.leaderboard import router as leaderboard_router
@@ -105,6 +106,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         auth_router,
+        prefix=f"{settings.API_V1_PREFIX}/auth",
+        tags=["auth"],
+    )
+    app.include_router(
+        oauth_router,
         prefix=f"{settings.API_V1_PREFIX}/auth",
         tags=["auth"],
     )
@@ -142,15 +148,31 @@ async def _ensure_user_profile_columns(conn) -> None:
         "github_url": "VARCHAR(512)",
         "linkedin_url": "VARCHAR(512)",
         "portfolio_url": "VARCHAR(512)",
+        "oauth_provider": "VARCHAR(50)",
+        "oauth_id": "VARCHAR(255)",
     }
 
     def existing_columns(sync_conn) -> set[str]:
-        return {column["name"] for column in inspect(sync_conn).get_columns("users")}
+        try:
+            return {column["name"] for column in inspect(sync_conn).get_columns("users")}
+        except Exception:
+            # Table doesn't exist yet; create_all will handle it
+            return set()
 
     existing = await conn.run_sync(existing_columns)
     for column_name, column_type in required_columns.items():
         if column_name not in existing:
-            await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
+            try:
+                await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
+            except Exception:
+                # Column may have been added by a concurrent worker; safe to ignore
+                pass
+
+    # Ensure password_hash is nullable (for existing databases)
+    try:
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
+    except Exception:
+        pass
 
 
 def _client_ip(request: Request) -> str:

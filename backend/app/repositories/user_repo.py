@@ -23,6 +23,12 @@ class UserRepo:
         result = await self.session.execute(select(User).where(User.username == username))
         return result.scalars().first()
 
+    async def get_by_oauth(self, provider: str, oauth_id: str) -> Optional[User]:
+        result = await self.session.execute(
+            select(User).where(User.oauth_provider == provider, User.oauth_id == oauth_id)
+        )
+        return result.scalars().first()
+
     async def create(self, user: User) -> User:
         self.session.add(user)
         await self.session.flush()

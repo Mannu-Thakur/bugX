@@ -4,10 +4,19 @@ import { Button } from '../../shared/ui/button/Button';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { api } from '../../shared/lib/api';
 import type { ApiError, StudyFileItem } from '../../shared/lib/api';
+import { safeParseDate } from '../../shared/lib/date';
+
+interface BattleHistoryPlayerItem {
+  username: string;
+  score: number;
+  solved: boolean;
+  attempts: number;
+}
 
 interface BattleHistoryItem {
   id: string;
   problemTitle?: string;
+  players?: BattleHistoryPlayerItem[];
   player1?: string;
   player2?: string;
   p1Score?: number;
@@ -43,6 +52,43 @@ const SUBJECT_THEMES: Record<SubjectKey, { color: string; bg: string; border: st
   cn: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.06)]' },
   oop: { color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/30', glow: 'shadow-[0_0_15px_rgba(244,63,94,0.06)]' },
   dsa: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', glow: 'shadow-[0_0_15px_rgba(16,185,129,0.06)]' },
+};
+
+const PLAYER_COLORS = [
+  { text: 'text-blue-400', bg: 'bg-blue-500', border: 'border-blue-500' },
+  { text: 'text-rose-400', bg: 'bg-rose-500', border: 'border-rose-500' },
+  { text: 'text-emerald-400', bg: 'bg-emerald-500', border: 'border-emerald-500' },
+  { text: 'text-amber-400', bg: 'bg-amber-500', border: 'border-amber-500' },
+  { text: 'text-purple-400', bg: 'bg-purple-500', border: 'border-purple-500' },
+  { text: 'text-cyan-400', bg: 'bg-cyan-500', border: 'border-cyan-500' },
+  { text: 'text-pink-400', bg: 'bg-pink-500', border: 'border-pink-500' },
+  { text: 'text-orange-400', bg: 'bg-orange-500', border: 'border-orange-500' },
+  { text: 'text-indigo-400', bg: 'bg-indigo-500', border: 'border-indigo-500' },
+  { text: 'text-teal-400', bg: 'bg-teal-500', border: 'border-teal-500' },
+];
+
+const getHistoryPlayers = (item: BattleHistoryItem): BattleHistoryPlayerItem[] => {
+  if (item.players && Array.isArray(item.players)) {
+    return item.players;
+  }
+  const players: BattleHistoryPlayerItem[] = [];
+  if (item.player1) {
+    players.push({
+      username: item.player1,
+      score: item.p1Score ?? 0,
+      solved: !!item.p1Solved,
+      attempts: item.p1Attempts ?? 0,
+    });
+  }
+  if (item.player2) {
+    players.push({
+      username: item.player2,
+      score: item.p2Score ?? 0,
+      solved: !!item.p2Solved,
+      attempts: item.p2Attempts ?? 0,
+    });
+  }
+  return players;
 };
 
 const createEmptyStudyFiles = (): Record<SubjectKey, StudyFile[]> => ({
@@ -117,7 +163,12 @@ export const SettingsPage: React.FC = () => {
 
   const battleStats = useMemo(() => {
     const total = battleHistory.length;
-    const solved = battleHistory.reduce((sum, item) => sum + (item.p1Solved ? 1 : 0) + (item.p2Solved ? 1 : 0), 0);
+    const solved = battleHistory.reduce((sum, item) => {
+      if (item.players && Array.isArray(item.players)) {
+        return sum + item.players.filter(p => p.solved).length;
+      }
+      return sum + (item.p1Solved ? 1 : 0) + (item.p2Solved ? 1 : 0);
+    }, 0);
     const ties = battleHistory.filter(item => item.winner === 'Tie Match').length;
     return { total, solved, ties };
   }, [battleHistory]);
@@ -334,7 +385,7 @@ export const SettingsPage: React.FC = () => {
                   {SUBJECTS.find(s => s.key === activeSubject)?.hint}
                 </p>
               </div>
-              
+
               {/* Search input */}
               <div className="relative max-w-xs w-full">
                 <input
@@ -387,7 +438,7 @@ export const SettingsPage: React.FC = () => {
               <h3 className="text-xs font-bold uppercase text-gray-500 tracking-wider px-1">
                 Uploaded Resources
               </h3>
-              
+
               <div className="overflow-x-auto border border-dark-border rounded-xl bg-dark-bg/25 max-h-[360px] overflow-y-auto pr-1">
                 {filesLoading ? (
                   <div className="p-8 text-center text-xs text-gray-500 animate-pulse">
@@ -428,7 +479,7 @@ export const SettingsPage: React.FC = () => {
                               {formatFileSize(file.size)}
                             </td>
                             <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
-                              {new Date(file.uploadedAt).toLocaleDateString()}
+                              {safeParseDate(file.uploadedAt).toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap">
                               <div className="inline-flex gap-2">
@@ -459,7 +510,7 @@ export const SettingsPage: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             <p className="text-[10px] text-gray-600 italic">
               Resources are securely persisted on the server and synced across your active workspaces.
             </p>
@@ -519,61 +570,55 @@ export const SettingsPage: React.FC = () => {
                   No matches recorded. Complete a 1v1 battle to see it here!
                 </div>
               ) : (
-                battleHistory.map(item => (
-                  <div key={item.id} className="bg-dark-bg/40 border border-dark-border rounded-xl p-4 hover:border-dark-border/80 transition-colors">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <div className="text-sm font-bold text-gray-100">{item.problemTitle || 'Battle Match'}</div>
-                        <div className="text-[10px] text-gray-500 mt-1 font-medium">
-                          {item.endedAt ? new Date(item.endedAt).toLocaleString() : 'Unknown time'}
+                battleHistory.map(item => {
+                  const playersList = getHistoryPlayers(item);
+                  return (
+                    <div key={item.id} className="bg-dark-bg/40 border border-dark-border rounded-xl p-4 hover:border-dark-border/80 transition-colors">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-bold text-gray-100">{item.problemTitle || 'Battle Match'}</div>
+                          <div className="text-[10px] text-gray-500 mt-1 font-medium">
+                            {item.endedAt ? safeParseDate(item.endedAt).toLocaleString() : 'Unknown time'}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4 bg-dark-panel border border-dark-border/60 rounded-xl px-4 py-2 shrink-0">
-                        <div className="text-left pr-4 border-r border-dark-border/60">
-                          <div className="text-[9px] uppercase text-gray-500 font-bold">Winner</div>
-                          <div className="text-xs text-amber-400 font-black">{item.winner || 'Pending'}</div>
-                        </div>
-                        <div className="text-left">
-                          <div className="text-[9px] uppercase text-gray-500 font-bold">Duration</div>
-                          <div className="text-xs text-gray-300 font-mono font-bold flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-gray-500" /> {formatDuration(item.timeUsedSeconds)}
+                        <div className="flex items-center gap-4 bg-dark-panel border border-dark-border/60 rounded-xl px-4 py-2 shrink-0">
+                          <div className="text-left pr-4 border-r border-dark-border/60">
+                            <div className="text-[9px] uppercase text-gray-500 font-bold">Winner</div>
+                            <div className="text-xs text-amber-400 font-black">{item.winner || 'Pending'}</div>
+                          </div>
+                          <div className="text-left">
+                            <div className="text-[9px] uppercase text-gray-500 font-bold">Duration</div>
+                            <div className="text-xs text-gray-300 font-mono font-bold flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-gray-500" /> {formatDuration(item.timeUsedSeconds)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                      <div className="border border-blue-500/10 bg-blue-500/5 rounded-xl p-3.5 flex flex-col justify-between gap-1">
-                        <div className="flex justify-between items-center w-full">
-                          <span className="text-xs text-blue-400 font-bold">{item.player1 || 'Participant 1'}</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase ${
-                            item.p1Solved ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
-                          }`}>
-                            {item.p1Solved ? 'Solved' : 'Failed'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-end mt-2">
-                          <div className="text-lg font-mono font-black text-blue-200">{item.p1Score ?? 0} <span className="text-[10px] text-gray-400 font-bold">pts</span></div>
-                          <span className="text-[10px] text-gray-500">Attempts: {item.p1Attempts ?? 0}</span>
-                        </div>
-                      </div>
-                      <div className="border border-rose-500/10 bg-rose-500/5 rounded-xl p-3.5 flex flex-col justify-between gap-1">
-                        <div className="flex justify-between items-center w-full">
-                          <span className="text-xs text-rose-400 font-bold">{item.player2 || 'Participant 2'}</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase ${
-                            item.p2Solved ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
-                          }`}>
-                            {item.p2Solved ? 'Solved' : 'Failed'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-end mt-2">
-                          <div className="text-lg font-mono font-black text-rose-200">{item.p2Score ?? 0} <span className="text-[10px] text-gray-400 font-bold">pts</span></div>
-                          <span className="text-[10px] text-gray-500">Attempts: {item.p2Attempts ?? 0}</span>
-                        </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                        {playersList.map((p, idx) => {
+                          const colorTheme = PLAYER_COLORS[idx % PLAYER_COLORS.length] || PLAYER_COLORS[0];
+                          return (
+                            <div key={p.username} className={`border ${colorTheme.border}/10 ${colorTheme.bg}/5 rounded-xl p-3.5 flex flex-col justify-between gap-1`}>
+                              <div className="flex justify-between items-center w-full gap-2">
+                                <span className={`text-xs ${colorTheme.text} font-bold truncate`}>{p.username}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase shrink-0 ${
+                                  p.solved ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
+                                }`}>
+                                  {p.solved ? 'Solved' : 'Failed'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-end mt-2">
+                                <div className={`text-base font-mono font-black ${colorTheme.text}`}>{p.score ?? 0} <span className="text-[10px] text-gray-400 font-bold">pts</span></div>
+                                <span className="text-[10px] text-gray-500">Attempts: {p.attempts ?? 0}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

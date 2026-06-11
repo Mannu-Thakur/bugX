@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     API_V1_PREFIX: str = "/api/v1"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+    LINKEDIN_CLIENT_ID: str = ""
+    LINKEDIN_CLIENT_SECRET: str = ""
+
+    FRONTEND_URL: str = "http://localhost:5173"
+    BACKEND_URL: str = "http://localhost:8000"
     MAX_SUBMISSIONS_PER_MINUTE: int = 10
     MAX_REQUESTS_PER_MINUTE_IP: int = 100
     MAX_SOURCE_BYTES: int = 65536
@@ -31,6 +41,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
     STORAGE_DIR: str = "storage"
     RECLAIM_ALL_RUNNING_ON_START: bool = False
+    USE_LOCAL_JUDGE: bool = True
 
     @property
     def is_development(self) -> bool:

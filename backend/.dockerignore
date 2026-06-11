@@ -1,0 +1,31 @@
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Storage and data
+storage/
+*.db
+
+# Docs and misc
+docs/
+*.md
+.env.example

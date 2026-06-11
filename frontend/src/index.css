@@ -6,14 +6,16 @@
    CSS Custom Properties  –  Dark (default) theme
 ───────────────────────────────────────────────── */
 :root {
-  --color-bg:     #0a0a0c;
-  --color-panel:  #151518;
-  --color-border: #232329;
-  --color-input:  #1d1d22;
-  --color-hover:  #2a2a32;
-  --color-text:   #e5e7eb;   /* gray-200 */
-  --color-muted:  #9ca3af;   /* gray-400 */
-  --color-subtle: #6b7280;   /* gray-500 */
+  --color-bg:     #1a1a1a;
+  --color-panel:  #282828;
+  --color-border: #3e3e3e;
+  --color-input:  #ffffff0a;
+  --color-hover:  #ffffff14;
+  --color-text:   #eff1f6;
+  --color-muted:  #eff1f6bf;
+  --color-subtle: #eff1f680;
+  --color-panel-alt: #282828;
+  --color-panel-active: #383838;
 }
 
 /* ─────────────────────────────────────────────────
@@ -28,6 +30,8 @@ html.light {
   --color-text:   #1e293b;   /* slate-800 */
   --color-muted:  #475569;   /* slate-600 */
   --color-subtle: #64748b;   /* slate-500 */
+  --color-panel-alt: #f1f5f9;
+  --color-panel-active: #e2e8f0;
 }
 
 /* ─────────────────────────────────────────────────
@@ -53,6 +57,91 @@ html.light ::placeholder { color: #94a3b8 !important; }
 /* scrollbar tints */
 html.light ::-webkit-scrollbar-track { background: var(--color-bg); }
 html.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+/* ── Light mode: hardcoded dark-bg panel backgrounds ── */
+html.light .bg-dark-panel\/90,
+html.light .bg-dark-panel\/85,
+html.light .bg-dark-panel\/95 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* ── Dark mode (default) background and border opacity overrides ── */
+.bg-dark-bg\/60 { background-color: rgba(26, 26, 26, 0.6) !important; }
+.bg-dark-bg\/40 { background-color: rgba(26, 26, 26, 0.4) !important; }
+.bg-dark-bg\/30 { background-color: rgba(26, 26, 26, 0.3) !important; }
+.bg-dark-bg\/20 { background-color: rgba(26, 26, 26, 0.2) !important; }
+
+.bg-dark-panel\/95 { background-color: rgba(38, 38, 38, 0.95) !important; }
+.bg-dark-panel\/90 { background-color: rgba(38, 38, 38, 0.90) !important; }
+.bg-dark-panel\/85 { background-color: rgba(38, 38, 38, 0.85) !important; }
+
+.border-dark-border\/80 { border-color: rgba(48, 48, 48, 0.8) !important; }
+.border-dark-border\/60 { border-color: rgba(48, 48, 48, 0.6) !important; }
+.border-dark-border\/40 { border-color: rgba(48, 48, 48, 0.4) !important; }
+.border-dark-border\/30 { border-color: rgba(48, 48, 48, 0.3) !important; }
+.border-dark-border\/10 { border-color: rgba(48, 48, 48, 0.1) !important; }
+
+html.light .bg-dark-bg\/60,
+html.light .bg-dark-bg\/40,
+html.light .bg-dark-bg\/20,
+html.light .bg-dark-bg\/30 {
+  background-color: rgba(241, 245, 249, 0.6) !important;
+}
+
+html.light .border-dark-border\/60,
+html.light .border-dark-border\/80,
+html.light .border-dark-border\/40,
+html.light .border-dark-border\/30,
+html.light .border-dark-border\/10 {
+  border-color: rgba(226, 232, 240, 0.7) !important;
+}
+
+html.light .bg-dark-hover\/40,
+html.light .bg-dark-hover\/10 {
+  background-color: rgba(226, 232, 240, 0.5) !important;
+}
+
+/* Light mode: accent color semantic overrides */
+html.light .bg-blue-500\/5  { background-color: rgba(59, 130, 246, 0.06) !important; }
+html.light .bg-blue-500\/10 { background-color: rgba(59, 130, 246, 0.08) !important; }
+html.light .bg-blue-600     { background-color: #2563eb !important; }
+html.light .hover\:bg-blue-500:hover { background-color: #3b82f6 !important; }
+
+/* Light mode: white/transparent text overrides */
+html.light .border-white\/\[0\.04\] { border-color: rgba(0, 0, 0, 0.06) !important; }
+
+/* Light mode: status text and bg color semantic overrides for accessibility */
+html.light .text-emerald-400 { color: #059669 !important; }
+html.light .text-rose-400    { color: #dc2626 !important; }
+html.light .text-blue-400    { color: #2563eb !important; }
+html.light .text-amber-400   { color: #d97706 !important; }
+html.light .text-orange-400  { color: #ea580c !important; }
+html.light .text-teal-400    { color: #0d9488 !important; }
+
+html.light .bg-emerald-500\/10 { background-color: rgba(5, 150, 105, 0.1) !important; }
+html.light .bg-rose-500\/10    { background-color: rgba(220, 38, 38, 0.1) !important; }
+html.light .bg-blue-500\/10    { background-color: rgba(37, 99, 235, 0.1) !important; }
+html.light .bg-amber-500\/10   { background-color: rgba(217, 119, 6, 0.1) !important; }
+html.light .bg-orange-500\/10  { background-color: rgba(234, 88, 12, 0.1) !important; }
+
+html.light .border-emerald-500\/25,
+html.light .border-emerald-500\/30,
+html.light .border-emerald-500\/20,
+html.light .border-emerald-500\/10 {
+  border-color: rgba(5, 150, 105, 0.25) !important;
+}
+html.light .border-rose-500\/25,
+html.light .border-rose-500\/30,
+html.light .border-rose-500\/20,
+html.light .border-rose-500\/10 {
+  border-color: rgba(220, 38, 38, 0.25) !important;
+}
+html.light .border-blue-500\/25,
+html.light .border-blue-500\/30,
+html.light .border-blue-500\/20,
+html.light .border-blue-500\/10 {
+  border-color: rgba(37, 99, 235, 0.25) !important;
+}
 
 /* ─────────────────────────────────────────────────
    Base layer
@@ -164,6 +253,8 @@ html.light .problem-description-content code {
   margin-top: 0.5rem;
   margin-bottom: 0.75rem;
   max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .problem-description-content pre code {
   background-color: transparent !important;
@@ -173,8 +264,8 @@ html.light .problem-description-content code {
   font-size: 0.8rem;
   color: #e5e7eb;
   display: block;
-  word-break: normal;
-  white-space: pre;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 html.light .problem-description-content pre {
   background-color: #f8fafc;
@@ -239,6 +330,8 @@ html.light .problem-description-content pre code {
   line-height: 1.7;
   color: #e6edf3;
   position: relative;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .problem-description-content pre::before {
@@ -272,6 +365,33 @@ html.light .problem-description-content pre code {
   font-size: inherit;
   color: inherit;
   font-weight: normal;
+}
+
+/* Light theme overrides for syntax highlighting in problem descriptions */
+html.light .problem-description-content pre {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+html.light .problem-description-content pre::before {
+  opacity: 0.35;
+}
+html.light .problem-description-content code {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1d4ed8;
+}
+html.light .problem-description-content pre code {
+  color: #0f172a;
+}
+html.light .problem-description-content pre .keyword,
+html.light .problem-description-content pre b,
+html.light .problem-description-content pre strong {
+  color: #b45309; /* amber-700 */
+}
+html.light .problem-description-content pre em,
+html.light .problem-description-content pre i {
+  color: #6d28d9; /* violet-700 */
 }
 
 /* Syntax-like token colors for common patterns in code blocks */
@@ -655,3 +775,30 @@ html.light .problem-description-content pre code {
   background-size: 60px 60px;
 }
 
+/* AST compiler scan keyframes */
+@keyframes scan {
+  0% {
+    top: 0%;
+  }
+  50% {
+    top: 100%;
+  }
+  100% {
+    top: 0%;
+  }
+}
+.animate-scan {
+  animation: scan 4s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}

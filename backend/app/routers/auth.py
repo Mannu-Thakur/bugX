@@ -21,6 +21,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)) -> Any:
     controller = AuthController(db)
     return await controller.login(req)
 
+
 @router.post("/forgot-password")
 async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)) -> Any:
     controller = AuthController(db)

@@ -75,6 +75,8 @@ export interface SubmissionSummary {
   score: number;
   runtime_ms: number | null;
   run_samples_only: boolean;
+  source_code: string;
+  error_message?: string | null;
   created_at: string;
 }
 
@@ -240,7 +242,7 @@ export interface ApiError {
 }
 
 // Token Storage
-const TOKEN_KEY = 'auth_token';
+const TOKEN_KEY = 'access_token';
 
 export const getToken = (): string | null => {
   return localStorage.getItem(TOKEN_KEY);
@@ -364,13 +366,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     const error = await normalizeError(response);
-    
+
     // Auto-logout on 401 Unauthorized unless we're actually calling login/register
     if (response.status === 401 && hadToken && !path.includes('/auth/')) {
       clearToken();
       window.dispatchEvent(new Event('auth_session_expired'));
     }
-    
+
     throw error;
   }
 
@@ -465,32 +467,32 @@ const normalizeStudyFile = (raw: RawStudyFileItem): StudyFileItem => ({
 
 export const api = {
   auth: {
-    register: (body: Record<string, unknown>) => 
+    register: (body: Record<string, unknown>) =>
       request<{ access_token: string; token_type: string; user: RawUser }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify(body),
       }).then(data => ({ ...data, user: normalizeUser(data.user) })),
 
-    login: (body: Record<string, unknown>) => 
+    login: (body: Record<string, unknown>) =>
       request<{ access_token: string; token_type: string; user: RawUser }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify(body),
       }).then(data => ({ ...data, user: normalizeUser(data.user) })),
 
-    forgotPassword: (body: Record<string, unknown>) => 
+    forgotPassword: (body: Record<string, unknown>) =>
       request<{ message: string }>('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
   },
-  
+
   users: {
-    getMe: () => 
+    getMe: () =>
       request<RawUser>('/users/me', {
         method: 'GET',
       }).then(normalizeUser),
 
-    updateMe: (body: UserUpdatePayload) => 
+    updateMe: (body: UserUpdatePayload) =>
       request<RawUser>('/users/me', {
         method: 'PATCH',
         body: JSON.stringify(toUserUpdatePayload(body)),
@@ -510,10 +512,12 @@ export const api = {
         method: 'GET',
       }),
 
-    getSubmissions: (page = 1, limit = 20) =>
-      request<Paginated<SubmissionSummary>>(`/users/me/submissions?page=${page}&limit=${limit}`, {
+    getSubmissions: (page = 1, limit = 20, problemId?: string) => {
+      const url = `/users/me/submissions?page=${page}&limit=${limit}${problemId ? `&problem_id=${problemId}` : ''}`;
+      return request<Paginated<SubmissionSummary>>(url, {
         method: 'GET',
-      }),
+      });
+    },
   },
 
   files: {
@@ -655,8 +659,9 @@ export const api = {
 
   battle: {
     create: (body: {
-      player1_username: string;
-      player2_username: string;
+      host_username: string;
+      max_players: number;
+      player_usernames: string[];
       time_limit: number;
       problem_source: string;
       selected_slug?: string | null;
@@ -666,15 +671,21 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    
-    get: (id: string, player?: number) =>
+
+    join: (id: string, username: string) =>
+      request<{ player_index: number }>(`/battle/${id}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ username }),
+      }),
+
+    get: (id: string, playerIndex?: number) =>
       request<any>(`/battle/${id}`, {
         method: 'GET',
-        params: { player },
+        params: { player_index: playerIndex },
       }),
-      
+
     update: (id: string, body: {
-      player: number;
+      player_index: number;
       score?: number;
       solved?: boolean;
       attempts?: number;
@@ -684,6 +695,11 @@ export const api = {
       request<any>(`/battle/${id}/update`, {
         method: 'POST',
         body: JSON.stringify(body),
+      }),
+
+    start: (id: string) =>
+      request<any>(`/battle/${id}/start`, {
+        method: 'POST',
       }),
   },
 };

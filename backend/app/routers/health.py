@@ -16,7 +16,7 @@ async def health(request: Request) -> dict[str, str]:
     db_status = await _check_database()
     redis_status = await _check_redis(request)
     judge0_status = await _check_judge0()
-    
+
     # "Backend Core" means the API can serve data. Redis/Judge0 are still
     # reported separately because they affect submissions, not catalog access.
     overall = "ok" if db_status == "ok" else "degraded"
@@ -54,9 +54,12 @@ async def _check_redis(request: Request) -> str:
 
 async def _check_judge0() -> str:
     settings = get_settings()
+    if settings.USE_LOCAL_JUDGE:
+        return "ok (local)"
+
     if not settings.JUDGE0_URL:
         return "skipped"
-    
+
     client = Judge0Client(settings.JUDGE0_URL)
     try:
         await asyncio.wait_for(client.get_about(), timeout=0.8)

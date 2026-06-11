@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.submission import Submission, SubmissionStatus
@@ -22,7 +22,7 @@ class JudgeService:
         submission = await SubmissionRepo.get_by_id(session, submission_id)
         if not submission:
             return
-            
+
         # Get Problem
         problem_stmt = select(Problem).where(Problem.id == submission.problem_id)
         problem_res = await session.execute(problem_stmt)
@@ -55,7 +55,7 @@ class JudgeService:
         tc_stmt = select(TestCase).where(TestCase.problem_id == submission.problem_id).order_by(TestCase.order_index)
         if submission.run_samples_only:
             tc_stmt = tc_stmt.where(TestCase.is_sample == True)
-        
+
         tc_res = await session.execute(tc_stmt)
         test_cases = list(tc_res.scalars().all())
 
@@ -80,42 +80,56 @@ class JudgeService:
         terminal_status = None
         has_comparison_failure = False
 
-        for tc in test_cases:
-            # Wrap code
-            try:
-                wrapped_code = CodeWrapperService.wrap_code(
-                    submission.language, 
-                    submission.source_code, 
-                    template.function_name, 
-                    template.arg_style,
-                    python_template
-                )
-            except Exception as e:
-                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Wrapper error: {str(e)}")
+        # Wrap code once
+        try:
+            wrapped_code = CodeWrapperService.wrap_code(
+                submission.language,
+                submission.source_code,
+                template.function_name,
+                template.arg_style,
+                python_template
+            )
+        except Exception as e:
+            await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Wrapper error: {str(e)}")
+            return
+
+        import asyncio
+        import httpx
+
+        # We will reuse a single AsyncClient connection pool for executing all test cases
+        async with httpx.AsyncClient() as client:
+            async def run_tc(tc):
+                try:
+                    res = await self.judge0_client.execute(
+                        language=submission.language,
+                        source_code=wrapped_code,
+                        stdin=tc.input,
+                        time_limit_ms=problem.time_limit_ms,
+                        memory_limit_kb=problem.memory_limit_kb,
+                        client=client
+                    )
+                    return tc, res, None
+                except Exception as exc:
+                    return tc, None, exc
+
+            tasks = [run_tc(tc) for tc in test_cases]
+            executed_results = await asyncio.gather(*tasks)
+
+        # Process results
+        for tc, judge_res, exc in executed_results:
+            if exc:
+                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Judge unavailable: {str(exc)}")
                 return
 
-            # Execute
-            try:
-                judge_res = await self.judge0_client.execute(
-                    language=submission.language,
-                    source_code=wrapped_code,
-                    stdin=tc.input,
-                    time_limit_ms=problem.time_limit_ms,
-                    memory_limit_kb=problem.memory_limit_kb
-                )
-            except Exception as e:
-                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Judge unavailable: {str(e)}")
-                return
-                
             status_id = judge_res.get("status", {}).get("id", 13)
             time_str = judge_res.get("time") or "0"
             memory_val = judge_res.get("memory") or 0
-            
+
             try:
                 rt = int(float(time_str) * 1000)
             except ValueError:
                 rt = 0
-                
+
             mem = int(memory_val)
             max_runtime = max(max_runtime, rt)
             max_memory = max(max_memory, mem)
@@ -178,11 +192,11 @@ class JudgeService:
         submission.status = terminal_status
         submission.runtime_ms = max_runtime
         submission.memory_kb = max_memory
-        submission.updated_at = datetime.utcnow()
+        submission.updated_at = datetime.now(timezone.utc)
         await session.flush()
 
     async def _set_terminal_error(self, session: AsyncSession, submission: Submission, status: SubmissionStatus, message: str) -> None:
         submission.status = status
         submission.error_message = message
-        submission.updated_at = datetime.utcnow()
+        submission.updated_at = datetime.now(timezone.utc)
         await session.flush()

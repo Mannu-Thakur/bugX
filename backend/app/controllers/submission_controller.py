@@ -17,19 +17,17 @@ from redis.asyncio import Redis
 class SubmissionController:
     @staticmethod
     async def create(
-        session: AsyncSession, 
-        redis_client: Redis, 
-        user: User, 
+        session: AsyncSession,
+        redis_client: Redis,
+        user: User,
         payload: SubmissionCreate
     ) -> dict:
         settings = get_settings()
 
         # Check rate limit
-        rate_limiter = RateLimitService(settings.REDIS_URL) # Alternatively use dependency injected Redis, but Service instantiates it
-        # Actually RateLimitService takes redis_url, but we have redis_client in deps... let's just use it
+        rate_limiter = RateLimitService(redis_client=redis_client)
         is_allowed = await rate_limiter.check_submit(str(user.id), settings.MAX_SUBMISSIONS_PER_MINUTE)
-        await rate_limiter.close()
-        
+
         if not is_allowed:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
 
@@ -44,7 +42,7 @@ class SubmissionController:
 
         # Validate Template
         tpl_stmt = select(ProblemTemplate).where(
-            ProblemTemplate.problem_id == payload.problem_id, 
+            ProblemTemplate.problem_id == payload.problem_id,
             ProblemTemplate.language == payload.language
         )
         template = (await session.execute(tpl_stmt)).scalar_one_or_none()
@@ -131,15 +129,15 @@ class SubmissionController:
 
         from app.repositories.submission_result_repo import SubmissionResultRepo
         from app.models.test_case import TestCase
-        
+
         results = await SubmissionResultRepo.get_by_submission_id(session, submission_id)
-        
+
         # Fetch test cases to attach input/expected if samples
         # And return them
         stmt = select(TestCase).where(TestCase.problem_id == submission.problem_id)
         tcs = (await session.execute(stmt)).scalars().all()
         tc_map = {tc.id: tc for tc in tcs}
-        
+
         # Find the first failing hidden case so we can reveal its details
         first_failing_hidden_id = None
         for r in results:

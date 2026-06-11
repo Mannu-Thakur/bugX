@@ -28,7 +28,7 @@ services:
       - bash
       - -c
       - docker-entrypoint.sh --appendonly no --requirepass "judge0_redis_password"
-    
+
   judge0-server:
     image: judge0/judge0:1.13.1
     environment:
@@ -40,6 +40,8 @@ services:
       REDIS_HOST: judge0-redis
       JUDGE0_ALLOW_ENABLE_NETWORK: "true"
       JUDGE0_ENABLE_WAIT_RESULT: "true"
+      ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
     depends_on:
       - judge0-db
       - judge0-redis
@@ -58,6 +60,8 @@ services:
       POSTGRES_HOST: judge0-db
       REDIS_PASSWORD: judge0_redis_password
       REDIS_HOST: judge0-redis
+      ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
     depends_on:
       - judge0-db
       - judge0-redis
@@ -69,6 +73,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+    volumes:
+      - .:/app
     depends_on:
       - postgres
       - redis
@@ -77,10 +83,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
       JUDGE0_URL: http://judge0-server:2358
+      USE_LOCAL_JUDGE: "false"
 
   worker:
     build: .
     command: python -m app.workers.submission_worker
+    volumes:
+      - .:/app
     depends_on:
       - postgres
       - redis
@@ -90,6 +99,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
       JUDGE0_URL: http://judge0-server:2358
+      USE_LOCAL_JUDGE: "false"
     restart: unless-stopped
     deploy:
       replicas: 1

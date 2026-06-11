@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import signal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 import redis.asyncio as aioredis
@@ -32,10 +32,10 @@ class SubmissionWorker:
         async with AsyncSessionLocal() as session:
             # 10 minutes threshold
             if self.settings.RECLAIM_ALL_RUNNING_ON_START:
-                threshold = datetime.utcnow() + timedelta(days=365) # effectively all
+                threshold = datetime.now(timezone.utc) + timedelta(days=365) # effectively all
                 logger.info("RECLAIM_ALL_RUNNING_ON_START=true, reclaiming all RUNNING jobs")
             else:
-                threshold = datetime.utcnow() - timedelta(minutes=10)
+                threshold = datetime.now(timezone.utc) - timedelta(minutes=10)
 
             stale_submissions = await SubmissionRepo.get_stale_running(session, threshold)
             count = 0
@@ -46,7 +46,7 @@ class SubmissionWorker:
                 queue_payload = json.dumps({"submission_id": str(sub.id)})
                 await self.redis.lpush("submission_queue", queue_payload)
                 count += 1
-            
+
             logger.info(f"Reclaimed {count} stale submissions")
 
     async def run(self):
@@ -59,13 +59,13 @@ class SubmissionWorker:
                 result = await self.redis.brpop("submission_queue", timeout=5)
                 if not result:
                     continue
-                
+
                 _, payload_str = result
                 payload = json.loads(payload_str)
                 submission_id = uuid.UUID(payload["submission_id"])
-                
+
                 await self.process_submission(submission_id)
-            
+
             except Exception as e:
                 logger.error(f"Worker error: {e}")
                 await asyncio.sleep(1)
@@ -83,15 +83,15 @@ class SubmissionWorker:
                 from app.models.submission import SubmissionStatus
                 success = await SubmissionRepo.set_status(session, submission_id, SubmissionStatus.PENDING, SubmissionStatus.RUNNING)
                 await session.commit()
-                
+
                 if not success:
                     logger.info(f"Failed to lock submission {submission_id}, skipping")
                     return
-                
+
                 # We have the lock
                 await self.judge_service.run(session, submission_id)
                 await session.commit()
-                
+
                 # Fetch fresh submission row for scoring
                 sub = await SubmissionRepo.get_by_id(session, submission_id)
                 if sub and not sub.run_samples_only:
@@ -103,7 +103,7 @@ class SubmissionWorker:
                     except Exception as scoring_err:
                         logger.error(f"Scoring failed for submission {submission_id}: {scoring_err}")
                         await session.rollback()
-                        
+
                 logger.info(f"Finished processing submission {submission_id}")
 
             except Exception as e:
@@ -116,7 +116,7 @@ class SubmissionWorker:
                     if sub:
                         sub.status = SubmissionStatus.RUNTIME_ERROR
                         sub.error_message = f"Worker unhandled exception: {str(e)}"
-                        sub.updated_at = datetime.utcnow()
+                        sub.updated_at = datetime.now(timezone.utc)
                         await session.commit()
                 except Exception as inner_e:
                     logger.error(f"Failed to set RUNTIME_ERROR for {submission_id}: {inner_e}")

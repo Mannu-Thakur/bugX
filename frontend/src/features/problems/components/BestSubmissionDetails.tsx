@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, Clock, Calendar, CheckCircle } from 'lucide-react';
 import type { BestSubmissionResponse } from '../../../shared/lib/api';
+import { safeParseDate } from '../../../shared/lib/date';
 import { Badge } from '../../../shared/ui/badge/Badge';
 
 interface BestSubmissionDetailsProps {
@@ -12,7 +13,7 @@ export const BestSubmissionDetails: React.FC<BestSubmissionDetailsProps> = ({
 }) => {
   if (!bestSubmission) return null;
 
-  const formattedDate = new Date(bestSubmission.created_at).toLocaleDateString(undefined, {
+  const formattedDate = safeParseDate(bestSubmission.created_at).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -21,7 +22,7 @@ export const BestSubmissionDetails: React.FC<BestSubmissionDetailsProps> = ({
   });
 
   return (
-    <div className="bg-dark-panel border border-dark-border rounded-xl p-4 shadow-sm space-y-3.5 select-none animate-fade-in">
+    <div className="bg-dark-bg/40 border border-dark-border/60 rounded-xl p-4 shadow-sm space-y-3.5 select-none animate-fade-in">
       <div className="flex items-center gap-2 border-b border-dark-border pb-2.5">
         <Award className="w-4 h-4 text-amber-400" />
         <h3 className="text-xs font-extrabold uppercase text-gray-300 tracking-wider">Your Best Submission</h3>

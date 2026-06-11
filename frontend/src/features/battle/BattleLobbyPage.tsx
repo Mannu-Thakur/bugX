@@ -27,15 +27,17 @@ const TIME_OPTIONS = [
 export const BattleLobbyPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // Player Config
   const [player1Name, setPlayer1Name] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
+  const [battleMode, setBattleMode] = useState<'local' | 'invite'>('invite');
+  const [maxPlayers, setMaxPlayers] = useState(20);
   const [timeLimit, setTimeLimit] = useState(15);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
-  
+
   // Problem Source
   const [problemSource, setProblemSource] = useState<'catalog' | 'custom'>('catalog');
   const [selectedSlug, setSelectedSlug] = useState(MOCK_PROBLEMS[0]?.slug || '');
@@ -71,7 +73,7 @@ export const BattleLobbyPage: React.FC = () => {
       setSelectedSlug(catalogProblems[0].slug);
     }
   }, [catalogProblems, selectedSlug]);
-  
+
   // Custom Problem
   const [customProblem, setCustomProblem] = useState<CustomProblem>({
     title: '',
@@ -108,7 +110,7 @@ export const BattleLobbyPage: React.FC = () => {
     }));
   };
 
-  const validateBattleSetup = () => {
+  const validateBattleSetup = (mode: 'local' | 'invite') => {
     const normalizedTimeLimit = Math.max(1, Math.min(240, Number(timeLimit) || 15));
 
     if (normalizedTimeLimit !== timeLimit) {
@@ -120,7 +122,7 @@ export const BattleLobbyPage: React.FC = () => {
       return false;
     }
 
-    if (!player2Name.trim()) {
+    if (mode === 'local' && !player2Name.trim()) {
       alert('Please enter the opponent display name.');
       return false;
     }
@@ -150,7 +152,8 @@ export const BattleLobbyPage: React.FC = () => {
       battleId: crypto.randomUUID?.() || `battle-${Date.now()}`,
       mode,
       player1: player1Name.trim(),
-      player2: player2Name.trim(),
+      player2: mode === 'local' ? player2Name.trim() : 'Opponents',
+      maxPlayers: mode === 'local' ? 2 : maxPlayers,
       timeLimit: Math.max(1, Math.min(240, Number(timeLimit) || 15)),
       problemSource,
       selectedSlug: problemSource === 'catalog' ? selectedSlug : null,
@@ -158,22 +161,26 @@ export const BattleLobbyPage: React.FC = () => {
   });
 
   const handleStartBattle = () => {
-    if (!validateBattleSetup()) return;
+    if (!validateBattleSetup('local')) return;
     const battleConfig = createBattleConfig('local');
 
-    sessionStorage.setItem('battleConfig', JSON.stringify(battleConfig));
+    sessionStorage.setItem('battleConfig', JSON.stringify({
+      ...battleConfig,
+      playerNames: [player1Name.trim(), player2Name.trim()]
+    }));
     navigate('/battle/arena');
   };
 
   const handleInviteBattle = async () => {
-    if (!validateBattleSetup()) return;
+    if (!validateBattleSetup('invite')) return;
     setIsCreatingInvite(true);
     setInviteCopied(false);
 
     try {
       const payload = {
-        player1_username: player1Name.trim(),
-        player2_username: player2Name.trim(),
+        host_username: player1Name.trim(),
+        max_players: maxPlayers,
+        player_usernames: [player1Name.trim()],
         time_limit: Math.max(1, Math.min(240, Number(timeLimit) || 15)),
         problem_source: problemSource,
         selected_slug: problemSource === 'catalog' ? selectedSlug : null,
@@ -182,18 +189,20 @@ export const BattleLobbyPage: React.FC = () => {
 
       const res = await api.battle.create(payload);
       const battleId = res.id;
-      const safeUrl = `${window.location.origin}/battle/arena?room=${battleId}&player=2`;
-      
+      const safeUrl = `${window.location.origin}/battle/arena?room=${battleId}`;
+
       setInviteUrl(safeUrl);
       sessionStorage.setItem('battleConfig', JSON.stringify({
         battleId,
         mode: 'invite',
         player1: player1Name.trim(),
-        player2: player2Name.trim(),
+        player2: 'Opponents',
+        maxPlayers,
         timeLimit: payload.time_limit,
         problemSource,
         selectedSlug: payload.selected_slug,
-        customProblem: payload.custom_problem
+        customProblem: payload.custom_problem,
+        myPlayerIndex: 0,
       }));
 
       try {
@@ -211,7 +220,7 @@ export const BattleLobbyPage: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-4 sm:py-6 space-y-6 animate-fade-in text-gray-200">
-      
+
       {/* Sleek Header Banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-dark-panel/60 via-dark-panel/40 to-dark-panel/60 border border-dark-border rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 select-none">
         {/* Glowing backdrop elements */}
@@ -227,10 +236,10 @@ export const BattleLobbyPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text text-transparent">
-              1v1 Code Battle Arena
+              1v1 & Group Battle Arena
             </h1>
             <p className="text-xs md:text-sm text-gray-400 mt-1 max-w-xl leading-relaxed">
-              Challenge a friend or local opponent in a real-time coding race. One shared problem, one clock, separate workspaces.
+              Challenge friends or run competitive multi-player coding contests. One shared problem, one clock, separate workspaces.
             </p>
           </div>
         </div>
@@ -243,25 +252,44 @@ export const BattleLobbyPage: React.FC = () => {
 
       {/* Row 1: Adjacent Config Cards (Combatants & Time Limit side-by-side) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-        
+
         {/* Left Card - Combatants Setup */}
         <div className="relative bg-dark-panel border border-dark-border rounded-2xl p-5 shadow-2xl overflow-hidden flex flex-col justify-between space-y-5">
           {/* Top border ambient line */}
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-blue-500/25 via-transparent to-red-500/25" />
-          
+
           <div className="flex items-center justify-between border-b border-dark-border pb-3">
             <h2 className="text-xs md:text-sm font-bold text-gray-200 flex items-center gap-2 select-none">
               <Users className="w-4 h-4 text-blue-400" />
-              Combatants
+              Combatants & Mode
             </h2>
-            <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase select-none">
-              Lobby Setup
-            </span>
+            <div className="flex bg-dark-bg/60 p-0.5 rounded-lg border border-dark-border select-none">
+              <button
+                onClick={() => setBattleMode('invite')}
+                className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                  battleMode === 'invite'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Online Arena
+              </button>
+              <button
+                onClick={() => setBattleMode('local')}
+                className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                  battleMode === 'local'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Local 1v1
+              </button>
+            </div>
           </div>
-          
-          {/* Inputs Grid with "VS" element */}
+
+          {/* Inputs Grid */}
           <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 items-center">
-            
+
             {/* Player 1 (Host) Input */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider flex items-center gap-1.5 select-none">
@@ -283,34 +311,129 @@ export const BattleLobbyPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Decorative Absolute VS in the middle (only on sm: screens) */}
-            <div className="hidden sm:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-dark-panel border border-dark-border items-center justify-center shadow-lg shadow-black/40">
-              <span className="text-[10px] font-black bg-gradient-to-r from-blue-400 to-red-400 bg-clip-text text-transparent italic select-none">
-                VS
-              </span>
-            </div>
+            {battleMode === 'local' ? (
+              <>
+                {/* Decorative Absolute VS in the middle (only on sm: screens) */}
+                <div className="hidden sm:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-dark-panel border border-dark-border items-center justify-center shadow-lg shadow-black/40">
+                  <span className="text-[10px] font-black bg-gradient-to-r from-blue-400 to-red-400 bg-clip-text text-transparent italic select-none">
+                    VS
+                  </span>
+                </div>
 
-            {/* Player 2 (Opponent) Input */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider flex items-center gap-1.5 select-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                Opponent Player (P2)
-              </label>
-              <div className="relative group">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-red-400 font-extrabold text-[11px] bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 group-focus-within:bg-red-500/20 transition-all select-none">
-                  P2
-                </span>
-                <input
-                  type="text"
-                  value={player2Name}
-                  onChange={e => setPlayer2Name(e.target.value)}
-                  maxLength={20}
-                  className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-red-500/50 focus:ring-4 focus:ring-red-500/10 transition-all placeholder:text-gray-600 shadow-inner"
-                  placeholder="Opponent display name"
-                />
+                {/* Player 2 (Opponent) Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider flex items-center gap-1.5 select-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    Opponent Player (P2)
+                  </label>
+                  <div className="relative group">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-red-400 font-extrabold text-[11px] bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 group-focus-within:bg-red-500/20 transition-all select-none">
+                      P2
+                    </span>
+                    <input
+                      type="text"
+                      value={player2Name}
+                      onChange={e => setPlayer2Name(e.target.value)}
+                      maxLength={20}
+                      className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2.5 pl-12 text-sm text-gray-100 focus:outline-none focus:border-red-500/50 focus:ring-4 focus:ring-red-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+                      placeholder="Opponent display name"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Multiplayer Limits Selection */
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider flex items-center gap-1.5 select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  Max Participants
+                </label>
+                <div className="relative">
+                  <select
+                    value={maxPlayers}
+                    onChange={e => setMaxPlayers(Number(e.target.value))}
+                    className="w-full bg-dark-input border border-dark-border rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer shadow-inner"
+                  >
+                    <option value={2} className="bg-[#0b0e14]">2 (1v1 Duel)</option>
+                    <option value={5} className="bg-[#0b0e14]">5 Players</option>
+                    <option value={10} className="bg-[#0b0e14]">10 Players</option>
+                    <option value={20} className="bg-[#0b0e14]">20 Players</option>
+                    <option value={50} className="bg-[#0b0e14]">50 Players</option>
+                    <option value={100} className="bg-[#0b0e14]">100 Players</option>
+                    <option value={200} className="bg-[#0b0e14]">200 Players (Contest)</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
 
+          </div>
+
+          {/* Action buttons inside card */}
+          <div className="pt-2 space-y-3">
+            {battleMode === 'invite' ? (
+              <button
+                onClick={handleInviteBattle}
+                disabled={isCreatingInvite}
+                className="w-full py-2.5 px-4 bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-blue-500/15 hover:shadow-blue-500/25 border border-transparent active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
+              >
+                {isCreatingInvite ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+                {isCreatingInvite ? 'Generating...' : inviteCopied ? 'Invite Copied!' : 'Create Lobby & Generate Invite Link'}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartBattle}
+                className="w-full py-2.5 px-4 bg-gradient-to-br from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl border border-transparent shadow-lg shadow-orange-500/15 active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
+              >
+                <Zap className="w-4 h-4 text-white" />
+                Start Local Arena
+                <ChevronRight className="w-4 h-4 shrink-0 text-white/70" />
+              </button>
+            )}
+
+            {inviteUrl && battleMode === 'invite' && (
+              <div className="space-y-2.5 p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 animate-fade-in text-gray-300">
+                <div className="flex items-center gap-2 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  Invite Link Ready:
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={inviteUrl}
+                    className="flex-1 bg-dark-input border border-dark-border rounded-lg px-2.5 py-1.5 text-[11px] text-gray-300 font-mono focus:outline-none shadow-inner"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(inviteUrl);
+                        setInviteCopied(true);
+                      } catch {
+                        alert("Please copy manually.");
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-dark-bg border border-dark-border hover:bg-dark-hover rounded-lg text-[11px] font-bold transition-all text-gray-300 hover:text-white"
+                  >
+                    {inviteCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    const parsedConfig = JSON.parse(sessionStorage.getItem('battleConfig') || '{}');
+                    navigate(`/battle/arena?room=${parsedConfig.battleId}`);
+                  }}
+                  className="w-full py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs rounded-lg shadow-md border border-transparent transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+                >
+                  Enter Battle Arena
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -362,7 +485,7 @@ export const BattleLobbyPage: React.FC = () => {
               >
                 &minus;
               </button>
-              
+
               {/* Value Input Area */}
               <div className="flex-1 flex items-center justify-center px-1.5 min-w-[50px] text-center">
                 <input
@@ -379,7 +502,7 @@ export const BattleLobbyPage: React.FC = () => {
                   min
                 </span>
               </div>
-              
+
               {/* Increment Button */}
               <button
                 type="button"
@@ -395,89 +518,9 @@ export const BattleLobbyPage: React.FC = () => {
 
       </div>
 
-      {/* Row 2: Action Buttons (Generate Invite / Start Arena) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        
-        {/* Generate Invite Link Button */}
-        <button
-          onClick={handleInviteBattle}
-          disabled={isCreatingInvite}
-          className="py-3 px-4 bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-blue-500/15 hover:shadow-blue-500/25 border border-transparent active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
-        >
-          {isCreatingInvite ? (
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Copy className="w-4 h-4" />
-          )}
-          {isCreatingInvite ? 'Generating...' : inviteCopied ? 'Invite Copied!' : 'Generate Invite Link'}
-        </button>
-
-        {/* Start Local Split Workspace Button */}
-        <button
-          onClick={handleStartBattle}
-          className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-sm rounded-xl border border-slate-700 shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 select-none"
-        >
-          <Zap className="w-4 h-4 text-amber-400" />
-          Start Local Arena
-          <ChevronRight className="w-4 h-4 shrink-0 text-slate-500" />
-        </button>
-      </div>
-
-      {/* Generated Invite URL Display Section */}
-      {inviteUrl && (
-        <div className="relative bg-gradient-to-br from-blue-500/5 to-indigo-500/5 border border-blue-500/20 rounded-2xl p-5 shadow-2xl space-y-4 animate-fade-in select-none">
-          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-          
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-            <h3 className="text-xs md:text-sm font-bold text-gray-200">
-              Invite Link Ready!
-            </h3>
-          </div>
-          
-          <p className="text-xs text-gray-400">
-            Opponent: <span className="font-semibold text-blue-400">{player2Name}</span>. Send them this link to connect:
-          </p>
-          
-          <div className="flex gap-2">
-            <input
-              type="text"
-              readOnly
-              value={inviteUrl}
-              className="flex-1 bg-dark-input border border-dark-border rounded-xl px-3 py-2 text-xs text-gray-300 font-mono focus:outline-none shadow-inner"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(inviteUrl);
-                  setInviteCopied(true);
-                } catch {
-                  alert("Please select the text and copy manually.");
-                }
-              }}
-              className="px-4 py-2 bg-dark-bg border border-dark-border hover:bg-dark-hover rounded-xl text-xs font-bold transition-all text-gray-300 hover:text-white"
-            >
-              {inviteCopied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              const parsedConfig = JSON.parse(sessionStorage.getItem('battleConfig') || '{}');
-              navigate(`/battle/arena?room=${parsedConfig.battleId}&player=1`);
-            }}
-            className="w-full py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg border border-transparent transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          >
-            Enter Battle Arena (Host Room)
-            <ChevronRight className="w-4 h-4 shrink-0" />
-          </button>
-        </div>
-      )}
-
       {/* Row 3: Problem Selection (Spanning full-width below configurations) */}
       <div className="bg-dark-panel border border-dark-border rounded-2xl p-5 shadow-2xl flex flex-col overflow-hidden space-y-5 animate-fade-in">
-        
+
         {/* Header + Source Tab Selectors */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dark-border pb-3">
           <h2 className="text-xs md:text-sm font-bold text-gray-200 flex items-center gap-2 select-none">
@@ -519,14 +562,14 @@ export const BattleLobbyPage: React.FC = () => {
               <span>Available Problems ({catalogProblems.length})</span>
               <span>Select to Battle</span>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar scroll-smooth">
               {catalogLoading && (
                 <div className="text-xs text-gray-500 px-3 py-8 text-center bg-dark-bg/30 border border-dark-border rounded-xl select-none animate-pulse">
                   Loading catalog problems...
                 </div>
               )}
-              
+
               {!catalogLoading && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {catalogProblems.map(p => {
@@ -553,12 +596,12 @@ export const BattleLobbyPage: React.FC = () => {
                             {p.title}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center gap-3 shrink-0 select-none">
                           <span className="text-xs text-amber-400/90 font-bold bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">
                             {p.score_base} pts
                           </span>
-                          
+
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
                             isSelected
                               ? 'bg-blue-500 border-blue-500 text-white scale-110'
@@ -579,9 +622,9 @@ export const BattleLobbyPage: React.FC = () => {
         {/* Custom Problem Creator Form */}
         {problemSource === 'custom' && (
           <div className="flex-1 custom-scrollbar space-y-4">
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
+
               {/* Custom Problem Meta Inputs (Left 5 Columns) */}
               <div className="lg:col-span-5 space-y-4">
                 {/* Custom Title Input */}
@@ -595,7 +638,7 @@ export const BattleLobbyPage: React.FC = () => {
                     placeholder="e.g. Reverse Array In Place"
                   />
                 </div>
-                
+
                 {/* Custom Description Input */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">Problem Description</label>
@@ -619,7 +662,7 @@ export const BattleLobbyPage: React.FC = () => {
                       <Plus className="w-3.5 h-3.5" /> Add Testcase
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
                     {customProblem.testCases.map((tc, idx) => (
                       <div key={idx} className="grid grid-cols-2 gap-3 bg-dark-bg/40 p-3 rounded-xl border border-dark-border relative group animate-fade-in shadow-inner">
@@ -643,7 +686,7 @@ export const BattleLobbyPage: React.FC = () => {
                             placeholder='[3, 2, 1]'
                           />
                         </div>
-                        
+
                         {customProblem.testCases.length > 1 && (
                           <button
                             onClick={() => removeTestCase(idx)}
@@ -665,7 +708,7 @@ export const BattleLobbyPage: React.FC = () => {
                 <label className="text-[10px] font-bold uppercase text-gray-500 tracking-wider block select-none">
                   Boilerplate Code Templates (Starter Codes)
                 </label>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Python */}
                   <div className="space-y-1">

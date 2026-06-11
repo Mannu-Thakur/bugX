@@ -44,10 +44,11 @@ class ProblemRepo:
             base = base.where(Problem.id.in_(tag_subq))
 
         if search:
+            escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             base = base.where(
                 or_(
-                    Problem.title.ilike(f"%{search}%"),
-                    Problem.slug.ilike(f"%{search}%"),
+                    Problem.title.ilike(f"%{escaped_search}%", escape="\\"),
+                    Problem.slug.ilike(f"%{escaped_search}%", escape="\\"),
                 )
             )
 
@@ -267,6 +268,7 @@ class ProblemRepo:
         )
         solved_count = (await session.execute(solved_stmt)).scalar() or 0
         solved = solved_count > 0
+        best_score = None
 
         if solved:
             best_stmt = select(func.max(Submission.score)).where(
@@ -277,7 +279,40 @@ class ProblemRepo:
             )
             best_score_val = (await session.execute(best_stmt)).scalar()
             best_score = best_score_val if best_score_val and best_score_val > 0 else None
-        else:
-            best_score = None
-
         return {"solved": solved, "best_score": best_score}
+
+    @staticmethod
+    async def get_user_statuses_for_problems(
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        problem_ids: List[uuid.UUID],
+    ) -> dict[uuid.UUID, dict]:
+        """Return a map of problem_id to {"solved": bool, "best_score": int|None} for a user."""
+        if not problem_ids:
+            return {}
+
+        stmt = (
+            select(
+                Submission.problem_id,
+                func.max(Submission.score).label("best_score")
+            )
+            .where(
+                Submission.user_id == user_id,
+                Submission.problem_id.in_(problem_ids),
+                Submission.status == SubmissionStatus.ACCEPTED,
+                Submission.run_samples_only == False,  # noqa: E712
+            )
+            .group_by(Submission.problem_id)
+        )
+        result = await session.execute(stmt)
+        rows = result.all()
+
+        res_map = {problem_id: {"solved": True, "best_score": best_score} for problem_id, best_score in rows}
+
+        out = {}
+        for pid in problem_ids:
+            if pid in res_map:
+                out[pid] = res_map[pid]
+            else:
+                out[pid] = {"solved": False, "best_score": None}
+        return out

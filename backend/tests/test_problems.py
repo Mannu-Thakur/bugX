@@ -287,36 +287,45 @@ async def test_get_last_submission(client: AsyncClient, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_leetcode_importer_resolve_slug():
     from app.services.leetcode_importer import LeetCodeImporter
-    
+
     slug1 = await LeetCodeImporter.resolve_slug("google:3161. Block Placement Queries")
     assert slug1 == "block-placement-queries"
-    
+
     slug2 = await LeetCodeImporter.resolve_slug("3161")
     assert slug2 == "block-placement-queries"
-    
+
     slug3 = await LeetCodeImporter.resolve_slug("https://leetcode.com/problems/block-placement-queries/")
     assert slug3 == "block-placement-queries"
-    
+
     slug4 = await LeetCodeImporter.resolve_slug("3sum")
     assert slug4 == "3sum"
+
+    slug5 = await LeetCodeImporter.resolve_slug("right view of binary tree")
+    assert slug5 == "binary-tree-right-side-view"
+
+    slug6 = await LeetCodeImporter.resolve_slug("maximum array sum")
+    assert slug6 == "maximum-subarray"
+
+    slug7 = await LeetCodeImporter.resolve_slug("kadane's algorithm")
+    assert slug7 == "maximum-subarray"
+
+    slug8 = await LeetCodeImporter.resolve_slug("lru cache")
+    assert slug8 == "lru-cache"
+
+
 
 @pytest.mark.asyncio
 async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession):
     # This slug definitely doesn't exist on LeetCode or GFG practice portal
     non_existent_slug = "non-existent-problem-slug-999"
-    
+
     resp = await client.post(
         "/api/v1/problems/import",
         json={"url_or_slug": non_existent_slug}
     )
-    
-    # It should successfully fall back and return 201 Created!
-    assert resp.status_code == 201
+
+    # It should fail with 404 Not Found instead of creating a garbage fallback problem
+    assert resp.status_code == 404
     data = resp.json()
-    assert data["slug"] == "non-existent-problem-slug-999"
-    assert "non-existent-problem-slug-999" in data["slug"]
-    # It should have templates generated
-    assert len(data["templates"]) > 0
-
-
-
+    assert "Could not find problem" in data["detail"]
+    assert "on LeetCode or GeeksforGeeks" in data["detail"]

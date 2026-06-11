@@ -2,6 +2,7 @@
 import React from 'react';
 import { cn } from '../../../shared/lib/cn';
 import { CalendarDays } from 'lucide-react';
+import { safeParseDate } from '../../../shared/lib/date';
 
 interface ActivityHeatmapProps {
   lastActiveDate?: string | null;
@@ -49,7 +50,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
           <span className="text-xs text-gray-500">
             Last active:{' '}
             <span className="text-gray-400 font-medium">
-              {new Date(lastActiveDate).toLocaleDateString('en-US', {
+              {safeParseDate(lastActiveDate).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', year: 'numeric',
               })}
             </span>
@@ -81,7 +82,7 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({
                   cellDate.setDate(startDate.getDate() + (w * 7) + d);
                   const dateStr = formatYYYYMMDD(cellDate);
                   const count = submissionActivity?.[dateStr] ?? 0;
-                  
+
                   const dateLabel = cellDate.toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',

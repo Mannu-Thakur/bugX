@@ -19,6 +19,11 @@ from app.core.database import Base, get_db
 from app.main import create_app
 
 
+class AllowAllRateLimiter:
+    async def check_ip(self, ip_address: str, max_requests: int) -> bool:
+        return True
+
+
 # ── In-memory SQLite engine for tests ────────────────────────────────────────
 # SQLite does not support all PostgreSQL features (e.g. UUIDs, ENUMs), so
 # integration tests that need full PG should set TEST_DATABASE_URL env var.
@@ -65,6 +70,7 @@ async def db(setup_db) -> AsyncGenerator[AsyncSession, None]:
 async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async test HTTP client with the DB dependency overridden."""
     app = create_app()
+    app.state.rate_limit_service = AllowAllRateLimiter()
 
     async def override_get_db():
         yield db

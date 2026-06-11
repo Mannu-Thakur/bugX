@@ -24,9 +24,9 @@ export function DataTable<T>({
   className,
 }: DataTableProps<T>) {
   return (
-    <div className={cn("w-full overflow-x-auto rounded-xl border border-white/[0.04] bg-[#0d1017] select-text shadow-sm", className)}>
+    <div className={cn("w-full overflow-x-auto rounded-xl border border-dark-border bg-dark-panel select-text shadow-sm", className)}>
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="bg-[#0f1115] border-b border-white/[0.04] text-[11px] font-bold uppercase tracking-wider text-gray-400 select-none">
+        <thead className="bg-dark-bg border-b border-dark-border/20 text-[11px] font-bold uppercase tracking-wider text-gray-400 select-none">
           <tr>
             {columns.map((col, idx) => (
               <th key={col.key || idx} className={cn("px-6 py-4 font-bold", col.className)}>
@@ -59,13 +59,13 @@ export function DataTable<T>({
           ) : (
             // Data Rows
             data.map((row, rIdx) => (
-              <tr 
-                key={rIdx} 
-                className="hover:bg-[#121620]/40 transition-all duration-150 group"
+              <tr
+                key={rIdx}
+                className="hover:bg-dark-hover/30 transition-all duration-150 group last:border-b-0"
               >
                 {columns.map((col, cIdx) => (
-                  <td 
-                    key={col.key || cIdx} 
+                  <td
+                    key={col.key || cIdx}
                     className={cn("px-6 py-4 align-middle leading-relaxed font-medium transition-all group-hover:text-gray-100", col.className)}
                   >
                     {col.render ? col.render(row, rIdx) : (row as Record<string, unknown>)[col.key] as React.ReactNode}

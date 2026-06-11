@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '../../../shared/lib/cn';
 import type { SubmissionSummary } from '../api';
+import { safeParseDate } from '../../../shared/lib/date';
 
 interface SubmissionHistoryTableProps {
   items: SubmissionSummary[];
@@ -73,7 +74,7 @@ const SkeletonRow: React.FC = () => (
 
 const formatDate = (iso: string) => {
   try {
-    return new Date(iso).toLocaleString('en-US', {
+    return safeParseDate(iso).toLocaleString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit', hour12: false,
     });
