@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: str = ""
     LINKEDIN_CLIENT_ID: str = ""
     LINKEDIN_CLIENT_SECRET: str = ""
+    ENABLE_MOCK_OAUTH: bool = False
 
     FRONTEND_URL: str = "http://localhost:5173"
     BACKEND_URL: str = "http://localhost:8000"
@@ -57,4 +58,6 @@ def get_settings() -> Settings:
     settings = Settings()
     if not settings.is_development and settings.SECRET_KEY == "change-me-32-chars-min":
         raise ValueError("SECRET_KEY must be set outside development")
+    if not settings.is_development and settings.ENABLE_MOCK_OAUTH:
+        raise ValueError("ENABLE_MOCK_OAUTH must be disabled outside development")
     return settings

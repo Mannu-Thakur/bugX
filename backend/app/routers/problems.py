@@ -430,6 +430,12 @@ async def import_problem(
     from app.services.leetcode_importer import LeetCodeImporter
     from app.services.google_importer import GoogleImporter
     from app.services.problem_import_validation_service import ProblemImportValidationError
+    from app.services.importer_exceptions import (
+        ProblemNotFoundException,
+        ProviderUnavailableException,
+        ImportFailedException,
+        AmbiguousProblemException
+    )
     import re
     try:
         url_or_slug = req.url_or_slug
@@ -439,16 +445,31 @@ async def import_problem(
                 url_or_slug = url_or_slug[len("gfg:"):]
             try:
                 problem = await GFGImporter.import_problem(db, url_or_slug)
-            except ProblemImportValidationError as val_err:
+            except ProblemNotFoundException as nf_exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"error_type": "NOT_FOUND", "message": nf_exc.message}
+                )
+            except AmbiguousProblemException as amb_exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error_type": "AMBIGUOUS_MATCH", "message": amb_exc.message, "candidates": amb_exc.candidates}
+                )
+            except ProviderUnavailableException as pu_exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={"error_type": "PROVIDER_UNAVAILABLE", "message": pu_exc.message}
+                )
+            except ImportFailedException as if_exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=val_err.message
+                    detail={"error_type": "IMPORT_FAILED", "message": if_exc.message}
                 )
             except Exception as gfg_err:
                 print(f"[ImportEndpoint] GFG import failed: {gfg_err}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not find problem '{url_or_slug}' on GeeksforGeeks. Please check your spelling and try again."
+                    detail={"error_type": "NOT_FOUND", "message": f"Could not find problem '{url_or_slug}' on GeeksforGeeks."}
                 )
         elif url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
             if url_or_slug.startswith("google:"):
@@ -485,15 +506,30 @@ async def import_problem(
             except Exception as e:
                 le_err = e
                 print(f"[ImportEndpoint] LeetCode import failed: {le_err}. Retrying with GFGImporter...")
-
+ 
             if 'problem' not in locals():
                 try:
                     from app.services.gfg_importer import GFGImporter
                     problem = await GFGImporter.import_problem(db, url_or_slug)
-                except ProblemImportValidationError as gfg_val:
+                except ProblemNotFoundException as nf_exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={"error_type": "NOT_FOUND", "message": nf_exc.message}
+                    )
+                except AmbiguousProblemException as amb_exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={"error_type": "AMBIGUOUS_MATCH", "message": amb_exc.message, "candidates": amb_exc.candidates}
+                    )
+                except ProviderUnavailableException as pu_exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail={"error_type": "PROVIDER_UNAVAILABLE", "message": pu_exc.message}
+                    )
+                except ImportFailedException as if_exc:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=gfg_val.message
+                        detail={"error_type": "IMPORT_FAILED", "message": if_exc.message}
                     )
                 except Exception as gfg_err:
                     if le_val_error:
@@ -504,11 +540,11 @@ async def import_problem(
                     print(f"[ImportEndpoint] Both LeetCode and GFG failed: {le_err} | {gfg_err}")
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Could not find problem '{url_or_slug}' on LeetCode or GeeksforGeeks. Please verify the problem name/URL and try again."
+                        detail={"error_type": "NOT_FOUND", "message": f"Could not find problem '{url_or_slug}' on LeetCode or GeeksforGeeks."}
                     )
-
+ 
         await db.commit()
-
+ 
         # Retrieve using controller to guarantee exact response format
         controller = ProblemController(db)
         return await controller.get_problem(problem.slug, current_user)
@@ -524,8 +560,9 @@ async def import_problem(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to import problem: {str(e)}"
         )
-
+ 
 # ── Admin routes ────────────────────────────────────────────────────────────
+
 
 @router.post("", response_model=ProblemDetail, status_code=status.HTTP_201_CREATED)
 async def create_problem(

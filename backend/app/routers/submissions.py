@@ -14,7 +14,13 @@ router = APIRouter(prefix="/submissions", tags=["Submissions"])
 
 async def get_redis():
     settings = get_settings()
-    redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    redis = aioredis.from_url(
+        settings.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=0.2,
+        socket_timeout=0.2,
+        retry_on_timeout=False,
+    )
     try:
         yield redis
     finally:

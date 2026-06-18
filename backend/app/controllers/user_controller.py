@@ -87,6 +87,12 @@ class UserController:
                         if solvers[0].username == current_user.username:
                             battles_won += 1
 
+        current_streak = stats.current_streak if stats else 0
+        if stats and stats.last_active_date:
+            today = datetime.now(timezone.utc).date()
+            if (today - stats.last_active_date).days > 1:
+                current_streak = 0
+
         if not stats:
             return {
                 "total_solved": 0, "easy_solved": 0, "medium_solved": 0, "hard_solved": 0,
@@ -102,7 +108,7 @@ class UserController:
             "medium_solved": stats.medium_solved,
             "hard_solved": stats.hard_solved,
             "total_score": stats.total_score,
-            "current_streak": stats.current_streak,
+            "current_streak": current_streak,
             "best_streak": stats.best_streak,
             "last_active_date": stats.last_active_date,
             "submission_activity": dict(activity),

@@ -34,8 +34,27 @@ class SubmissionController:
         if len(payload.source_code.encode('utf-8')) > settings.MAX_SOURCE_BYTES:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Source code too large")
 
+        # Spectator / participant check if battle_id is present
+        is_battle_submission = False
+        if payload.battle_id:
+            from app.models.battle_player import BattlePlayer
+            player_stmt = select(BattlePlayer).where(
+                BattlePlayer.battle_id == payload.battle_id,
+                BattlePlayer.username == user.username
+            )
+            player = (await session.execute(player_stmt)).scalar_one_or_none()
+            if not player:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You are not a registered participant in this battle"
+                )
+            is_battle_submission = True
+
         # Validate Problem
-        prob_stmt = select(Problem).where(Problem.id == payload.problem_id, Problem.is_published == True)
+        if is_battle_submission:
+            prob_stmt = select(Problem).where(Problem.id == payload.problem_id)
+        else:
+            prob_stmt = select(Problem).where(Problem.id == payload.problem_id, Problem.is_published == True)
         problem = (await session.execute(prob_stmt)).scalar_one_or_none()
         if not problem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
@@ -60,7 +79,8 @@ class SubmissionController:
             problem_id=payload.problem_id,
             language=payload.language,
             source_code=payload.source_code,
-            run_samples_only=payload.run_samples_only
+            run_samples_only=payload.run_samples_only,
+            battle_id=payload.battle_id
         )
         await session.commit()
 

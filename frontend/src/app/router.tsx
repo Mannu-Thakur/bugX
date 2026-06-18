@@ -19,12 +19,13 @@ import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/Pro
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
 import { BattleLobbyPage } from '../features/battle/BattleLobbyPage';
 import { BattleArenaPage } from '../features/battle/BattleArenaPage';
+import { AppearancePage } from '../features/appearance/AppearancePage';
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <PageShell>
+      <PageShell fullWidth>
         <LandingPage />
       </PageShell>
     ),
@@ -56,7 +57,7 @@ export const router = createBrowserRouter([
   {
     path: '/leaderboard',
     element: (
-      <PageShell>
+      <PageShell fullWidth>
         <LeaderboardPage />
       </PageShell>
     ),
@@ -65,7 +66,7 @@ export const router = createBrowserRouter([
     path: '/profile',
     element: (
       <ProtectedRoute>
-        <PageShell>
+        <PageShell fullWidth>
           <ProfilePage />
         </PageShell>
       </ProtectedRoute>
@@ -74,9 +75,19 @@ export const router = createBrowserRouter([
   {
     path: '/settings',
     element: (
-      <PageShell>
+      <PageShell fullWidth>
         <SettingsPage />
       </PageShell>
+    ),
+  },
+  {
+    path: '/appearance',
+    element: (
+      <ProtectedRoute>
+        <PageShell fullWidth>
+          <AppearancePage />
+        </PageShell>
+      </ProtectedRoute>
     ),
   },
   {
@@ -160,6 +171,14 @@ export const router = createBrowserRouter([
   },
   {
     path: '/battle/arena',
+    element: (
+      <ProtectedRoute>
+        <BattleArenaPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/battle/:battleId',
     element: (
       <ProtectedRoute>
         <BattleArenaPage />

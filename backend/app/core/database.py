@@ -1,6 +1,9 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 import socket
+import sys
+import os
+import time
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -40,15 +43,38 @@ def is_postgres_reachable(db_url: str) -> bool:
         return False
 
 
+def wait_for_postgres(db_url: str, timeout: float = 15.0) -> bool:
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if is_postgres_reachable(db_url):
+            return True
+        time.sleep(1.0)
+    return False
+
+
 FALLBACK_DB_PATH = Path(__file__).resolve().parents[2] / "sqlite_fallback.db"
 FALLBACK_DB_URL = f"sqlite+aiosqlite:///{FALLBACK_DB_PATH.as_posix()}"
 
-if is_postgres_reachable(settings.DATABASE_URL):
+# Detect if we are running in unit tests (e.g. pytest)
+IS_TESTING = (
+    "pytest" in sys.modules
+    or os.getenv("TESTING") == "1"
+    or "PYTEST_CURRENT_TEST" in os.environ
+)
+
+if IS_TESTING:
+    db_url = settings.DATABASE_URL
+    print(f"[Database] Testing environment detected. Using database URL: {db_url}")
+else:
+    if not settings.DATABASE_URL.startswith("postgresql"):
+        raise ValueError(f"Only PostgreSQL is allowed in production/development runtime. Found: {settings.DATABASE_URL}")
+
+    print("[Database] Waiting for PostgreSQL database to be reachable...")
+    if not wait_for_postgres(settings.DATABASE_URL, timeout=15.0):
+        raise ConnectionError("PostgreSQL database is unreachable. Failing fast.")
+
     db_url = settings.DATABASE_URL
     print("[Database] PostgreSQL is reachable. Using PostgreSQL.")
-else:
-    db_url = FALLBACK_DB_URL
-    print("[Database] PostgreSQL is unreachable. Falling back to local SQLite.")
 
 engine = create_async_engine(db_url, pool_pre_ping=True)
 AsyncSessionLocal = async_sessionmaker(

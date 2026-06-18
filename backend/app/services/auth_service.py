@@ -1,3 +1,4 @@
+from datetime import timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,7 +63,11 @@ class AuthService:
                 status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN"
             )
 
-        access_token = create_access_token(str(user.id), user.role.value)
+        if req.remember:
+            expires_delta = timedelta(days=30)
+        else:
+            expires_delta = timedelta(hours=2)
+        access_token = create_access_token(str(user.id), user.role.value, expires_delta=expires_delta)
         return Token(access_token=access_token, user=user)
 
     async def forgot_password(self, req: ForgotPasswordRequest) -> dict:

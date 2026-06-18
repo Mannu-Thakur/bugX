@@ -39,11 +39,13 @@ class Submission(Base):
     memory_kb = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     run_samples_only = Column(Boolean, default=False, nullable=False)
+    battle_id = Column(UUID(as_uuid=True), ForeignKey("battles.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     results = relationship("SubmissionResult", back_populates="submission", cascade="all, delete-orphan")
     problem = relationship("Problem", lazy="selectin")
+    battle = relationship("Battle", lazy="selectin")
 
     @property
     def problem_slug(self) -> str | None:

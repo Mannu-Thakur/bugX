@@ -13,7 +13,8 @@ class SubmissionRepo:
         problem_id: uuid.UUID,
         language: str,
         source_code: str,
-        run_samples_only: bool
+        run_samples_only: bool,
+        battle_id: Optional[uuid.UUID] = None
     ) -> Submission:
         submission = Submission(
             user_id=user_id,
@@ -21,6 +22,7 @@ class SubmissionRepo:
             language=language,
             source_code=source_code,
             run_samples_only=run_samples_only,
+            battle_id=battle_id,
             status=SubmissionStatus.PENDING
         )
         session.add(submission)

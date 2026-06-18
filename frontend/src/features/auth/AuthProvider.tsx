@@ -22,19 +22,29 @@ const AUTH_USER_KEY = 'auth_user';
 
 const loadCachedUser = (): User | null => {
   try {
-    const raw = localStorage.getItem(AUTH_USER_KEY);
+    const remembered = localStorage.getItem('remember_me') === '1';
+    const raw = remembered ? localStorage.getItem(AUTH_USER_KEY) : sessionStorage.getItem(AUTH_USER_KEY);
     return raw ? (JSON.parse(raw) as User) : null;
   } catch {
     localStorage.removeItem(AUTH_USER_KEY);
+    sessionStorage.removeItem(AUTH_USER_KEY);
     return null;
   }
 };
 
 const cacheUser = (user: User | null) => {
+  const remembered = localStorage.getItem('remember_me') === '1';
   if (user) {
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    if (remembered) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      sessionStorage.removeItem(AUTH_USER_KEY);
+    } else {
+      sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
   } else {
     localStorage.removeItem(AUTH_USER_KEY);
+    sessionStorage.removeItem(AUTH_USER_KEY);
   }
 };
 
@@ -45,10 +55,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const queryClient = useQueryClient();
 
   const logout = useCallback(() => {
+    // Fire and forget server-side blocklisting so UI remains responsive
+    api.auth.logout().catch((err) => {
+      console.error('Failed to log out on server:', err);
+    });
     clearToken();
     cacheUser(null);
     setUser(null);
     queryClient.clear();
+
+    // Clear user-specific data on logout
+    localStorage.removeItem('battle_history');
+    localStorage.removeItem('bugx_focusMode');
+    localStorage.removeItem('bugx_autoReset');
+    localStorage.removeItem('bugx_superAlarm');
+    Object.keys(localStorage).forEach((key) => {
+      if (
+        key.startsWith('user_') ||
+        key.startsWith('bugx_draft_') ||
+        key.startsWith('battle_code_') ||
+        key.startsWith('battle_lang_')
+      ) {
+        localStorage.removeItem(key);
+      }
+    });
+
     toast.info('Signed out successfully.');
   }, [queryClient, toast]);
 
@@ -73,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cacheUser(me);
       } catch (err) {
         const apiErr = err as ApiError;
-        if (apiErr?.status === 401 || apiErr?.status === 403) {
+        if (apiErr?.status === 401 || apiErr?.status === 450 || apiErr?.status === 403) {
           clearToken();
           cacheUser(null);
           setUser(null);
@@ -105,7 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const data = await api.auth.login(body);
-      setToken(data.access_token);
+      const remember = body.remember === true;
+      setToken(data.access_token, remember);
       setUser(data.user);
       cacheUser(data.user);
       queryClient.invalidateQueries({ queryKey: ['me'] });
@@ -123,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const data = await api.auth.register(body);
-      setToken(data.access_token);
+      setToken(data.access_token, false); // Default to session-only/no remember-me
       setUser(data.user);
       cacheUser(data.user);
       queryClient.invalidateQueries({ queryKey: ['me'] });

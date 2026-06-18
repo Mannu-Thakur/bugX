@@ -101,7 +101,102 @@ async def create_battle(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
+    import re
+    from app.models.problem import Problem, DifficultyEnum
+    from app.models.problem_template import ProblemTemplate, ArgStyleEnum
+    from app.models.test_case import TestCase
+    from app.services.code_wrapper_service import CodeWrapperService
+
     custom_problem_str = json.dumps(req.custom_problem) if req.custom_problem else None
+
+    # Resolve/Seed problem_id
+    problem_id = None
+    if req.problem_source == "custom" and req.custom_problem:
+
+        # Unique slug
+        slug = f"custom-battle-{uuid.uuid4().hex}"
+        title = req.custom_problem.get("title", "Custom Challenge").strip()
+        description = req.custom_problem.get("description", "").strip()
+
+        # Detect function name from python template
+        python_tpl = req.custom_problem.get("pythonTemplate", "").strip()
+        func_match = re.search(r"def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(", python_tpl)
+        func_name = func_match.group(1) if func_match else "solve"
+
+        params, _ = CodeWrapperService._parse_python_signature(python_tpl, func_name)
+        detected_arg_style = ArgStyleEnum.positional if len(params) > 1 else ArgStyleEnum.single
+
+        # Test cases
+        test_cases = []
+        raw_test_cases = req.custom_problem.get("testCases", [])
+        for idx, tc in enumerate(raw_test_cases):
+            test_cases.append(TestCase(
+                input=tc.get("input", "").strip(),
+                expected_output=tc.get("expectedOutput", "").strip(),
+                is_sample=True,
+                order_index=idx,
+                weight=1
+            ))
+
+        # Templates
+        templates = []
+        if python_tpl:
+            templates.append(ProblemTemplate(
+                language="python",
+                template_code=python_tpl,
+                function_name=func_name,
+                arg_style=detected_arg_style
+            ))
+        js_tpl = req.custom_problem.get("jsTemplate", "").strip()
+        if js_tpl:
+            templates.append(ProblemTemplate(
+                language="javascript",
+                template_code=js_tpl,
+                function_name=func_name,
+                arg_style=detected_arg_style
+            ))
+        cpp_tpl = req.custom_problem.get("cppTemplate", "").strip()
+        if cpp_tpl:
+            templates.append(ProblemTemplate(
+                language="cpp",
+                template_code=cpp_tpl,
+                function_name=func_name,
+                arg_style=detected_arg_style
+            ))
+        java_tpl = req.custom_problem.get("javaTemplate", "").strip()
+        if java_tpl:
+            templates.append(ProblemTemplate(
+                language="java",
+                template_code=java_tpl,
+                function_name=func_name,
+                arg_style=detected_arg_style
+            ))
+
+        problem = Problem(
+            slug=slug,
+            title=title,
+            description=description,
+            difficulty=DifficultyEnum.MEDIUM,
+            time_limit_ms=2000,
+            memory_limit_kb=262144,
+            score_base=100,
+            runtime_bonus_max=20,
+            is_published=False,
+            templates=templates,
+            test_cases=test_cases
+        )
+        db.add(problem)
+        await db.flush()
+        problem_id = problem.id
+
+    elif req.problem_source == "catalog" and req.selected_slug:
+        stmt = select(Problem).where(Problem.slug == req.selected_slug)
+        result = await db.execute(stmt)
+        problem = result.scalars().first()
+        if problem:
+            problem_id = problem.id
+        else:
+            raise HTTPException(status_code=400, detail="Catalog problem not found")
 
     battle = Battle(
         host_username=current_user.username,
@@ -110,6 +205,7 @@ async def create_battle(
         problem_source=req.problem_source,
         selected_slug=req.selected_slug,
         custom_problem=custom_problem_str,
+        problem_id=problem_id,
         status="pending",
     )
     db.add(battle)
@@ -200,6 +296,14 @@ async def get_battle(
 
     await db.refresh(battle, ["players"])
 
+    # Spectator protection
+    is_host = battle.host_username == current_user.username
+    is_player = any(p.username == current_user.username for p in battle.players)
+    if not (is_host or is_player):
+        # Allow viewing pending battles so players can join
+        if battle.status != "pending":
+            raise HTTPException(status_code=403, detail="Forbidden: You are not a participant in this battle")
+
     now = datetime.now(timezone.utc)
 
     # Mark requesting player active
@@ -252,6 +356,7 @@ async def get_battle(
         "problem_source": battle.problem_source,
         "selected_slug": battle.selected_slug,
         "custom_problem": custom_prob_parsed,
+        "problem_id": str(battle.problem_id) if battle.problem_id else None,
         "start_time": battle.start_time.isoformat() if battle.start_time else None,
         "created_at": battle.created_at.isoformat(),
         "players": [_player_dict(p, now) for p in battle.players],
@@ -310,12 +415,7 @@ async def update_battle(
     player.last_active = now
     player.is_active = True
 
-    if req.score is not None:
-        player.score = req.score
-    if req.solved is not None:
-        player.solved = req.solved
-        if req.solved and not player.solved_at:
-            player.solved_at = now
+    # Ignore score and solved overrides from client (calculated on backend only)
     if req.attempts is not None:
         player.attempts = req.attempts
     if req.code is not None:
@@ -333,7 +433,7 @@ async def update_battle(
     battle = battle_result.scalars().first()
     if battle:
         all_solved = all(p.solved for p in battle.players)
-        if all_solved:
+        if all_solved and battle.status != "finished":
             battle.status = "finished"
 
     await db.commit()
@@ -376,6 +476,24 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
+    try:
+        battle_uuid = uuid.UUID(battle_id)
+    except ValueError:
+        await websocket.close(code=4004, reason="Invalid battle ID format")
+        return
+
+    # Spectator protection on connect
+    async with AsyncSessionLocal() as db:
+        stmt = select(BattlePlayer).where(
+            BattlePlayer.battle_id == battle_uuid,
+            BattlePlayer.username == user.username
+        )
+        res = await db.execute(stmt)
+        player = res.scalars().first()
+        if not player:
+            await websocket.close(code=4003, reason="Not a participant in this battle")
+            return
+
     await manager.connect(battle_id, websocket)
     try:
         await manager.broadcast(battle_id, {
@@ -394,7 +512,7 @@ async def websocket_endpoint(
                 async with AsyncSessionLocal() as db:
                     # Verify the authenticated user owns this player_index
                     verify_stmt = select(BattlePlayer).where(
-                        BattlePlayer.battle_id == uuid.UUID(battle_id),
+                        BattlePlayer.battle_id == battle_uuid,
                         BattlePlayer.player_index == p_idx,
                     )
                     verify_result = await db.execute(verify_stmt)
@@ -403,14 +521,13 @@ async def websocket_endpoint(
                         await websocket.send_json({"type": "error", "message": "Cannot update another player"})
                         continue
 
-                    score = data.get("score")
-                    solved = data.get("solved")
+                    # Ignore score and solved from client WebSocket message (calculated on backend)
                     attempts = data.get("attempts")
                     code = data.get("code")
                     lang = data.get("lang")
 
                     stmt = select(BattlePlayer).where(
-                        BattlePlayer.battle_id == uuid.UUID(battle_id),
+                        BattlePlayer.battle_id == battle_uuid,
                         BattlePlayer.player_index == p_idx,
                     )
                     result = await db.execute(stmt)
@@ -419,12 +536,6 @@ async def websocket_endpoint(
                         now = datetime.now(timezone.utc)
                         player.last_active = now
                         player.is_active = True
-                        if score is not None:
-                            player.score = score
-                        if solved is not None:
-                            player.solved = solved
-                            if solved and not player.solved_at:
-                                player.solved_at = now
                         if attempts is not None:
                             player.attempts = attempts
                         if code is not None:
@@ -435,34 +546,29 @@ async def websocket_endpoint(
                         # Check all-solved finish condition (fresh load)
                         battle_stmt = (
                             select(Battle)
-                            .where(Battle.id == uuid.UUID(battle_id))
+                            .where(Battle.id == battle_uuid)
                             .options(selectinload(Battle.players))
                         )
                         battle_result = await db.execute(battle_stmt)
                         battle = battle_result.scalars().first()
                         if battle:
                             all_solved = all(p.solved for p in battle.players)
-                            if all_solved:
+                            if all_solved and battle.status != "finished":
                                 battle.status = "finished"
 
                         await db.commit()
+                        db_score = player.score
+                        db_solved = player.solved
 
                 await manager.broadcast(battle_id, {
                     "type": "state_update",
                     "player_index": p_idx,
-                    "score": score,
-                    "solved": solved,
-                    "attempts": attempts,
+                    "score": db_score,
+                    "solved": db_solved,
+                    "attempts": attempts if attempts is not None else (player.attempts if player else 0),
                     "code": code,
                     "lang": lang,
                 })
-
-                if solved:
-                    await manager.broadcast(battle_id, {
-                        "type": "win_event",
-                        "winner_index": p_idx,
-                        "score": score,
-                    })
 
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -477,3 +583,32 @@ async def websocket_endpoint(
     except Exception as e:
         print(f"[WebSocket] Error: {e}")
         manager.disconnect(battle_id, websocket)
+
+
+async def start_redis_listener(redis_url: str):
+    """Listens to 'battle_events' Redis channel and broadcasts messages to active WebSocket clients."""
+    print("[RedisListener] Starting redis battle_events pubsub listener...")
+    import redis.asyncio as aioredis
+    import json
+    r = aioredis.from_url(redis_url, decode_responses=True)
+    pubsub = r.pubsub()
+    await pubsub.subscribe("battle_events")
+    try:
+        while True:
+            # We read message with a timeout of 1.0 second to allow cancellation
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message:
+                try:
+                    data = json.loads(message["data"])
+                    b_id = data.get("battle_id")
+                    if b_id:
+                        # Broadcast this message to all active WebSocket clients for this battle
+                        await manager.broadcast(str(b_id), data)
+                except Exception as e:
+                    print(f"[RedisListener] Error parsing or broadcasting message: {e}")
+            await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        print("[RedisListener] Redis listener task cancelled.")
+    finally:
+        await pubsub.unsubscribe("battle_events")
+        await r.close()

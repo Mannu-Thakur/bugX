@@ -1,43 +1,85 @@
+# ==========================
 # Python
+# ==========================
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
-.env
-backend/judge0.conf
-*.egg-info/
 .pytest_cache/
 .mypy_cache/
 htmlcov/
 
-# Node / frontend (Phase 6)
+# Environment files
+.env
+*.env
+backend/judge0.conf
+
+# ==========================
+# Node / Frontend
+# ==========================
 node_modules/
 dist/
 frontend/dist/
-frontend/.debug-profile/
-frontend/.headless-profile*/
+
+# Browser profiles
+.debug-profile/
+.headless-profile*/
+
+# Screenshots
 frontend/problem-*.png
 
+# ==========================
+# Logs
+# ==========================
+*.log
+
+# ==========================
+# Databases
+# ==========================
+*.db
+
+# ==========================
+# Storage / Temp
+# ==========================
+backend/storage/
+backend/tmp/
+backend/tmp_pytest/
+tmp/
+tmp_pytest/
+.sandbox/
+
+# ==========================
 # IDE / OS
+# ==========================
 .idea/
-.vscode/*
-!.vscode/tasks.json
+.vscode/
 *.swp
 .DS_Store
 Thumbs.db
 
-# Docker / logs
-*.log
-
-# Databases & local user storage
-*.db
-backend/storage/
-backend/tmp/
-
+# ==========================
+# Scripts
+# ==========================
 auto_push.ps1
 
-# offline execution sandbox
-.sandbox/
+# Build artifacts
+frontend/dist/
 
-# temp pytest output
-backend/tmp_pytest/
+# SQLite database
+backend/sqlite_fallback.db
+
+# Python virtual env (alternative names)
+env/
+
+# Coverage files
+.coverage
+
+# Local secrets
+backend/.env
+
+# Uvicorn logs
+uvicorn*.log
+vite*.log
+
+backend/scratch/

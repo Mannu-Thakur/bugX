@@ -15,17 +15,30 @@ export const OAuthCallbackPage: React.FC = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const remember = searchParams.get('remember') === '1';
     const errorParam = searchParams.get('error');
 
     if (errorParam) {
       setError(decodeURIComponent(errorParam));
+      // Immediately sanitize history to remove error details from the address bar
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.warn('Failed to sanitize URL history:', e);
+      }
       return;
     }
 
     if (token) {
-      setToken(token);
-      // Full page reload triggers AuthProvider session hydration
-      window.location.href = '/problems';
+      setToken(token, remember);
+      // Immediately sanitize URL history to remove the JWT from history logs
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.warn('Failed to sanitize URL history:', e);
+      }
+      // Replace location to load problems list and trigger session hydration
+      window.location.replace('/problems');
     } else {
       setError('No authentication token received. Please try again.');
     }

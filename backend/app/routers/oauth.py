@@ -16,9 +16,12 @@ settings = get_settings()
 
 
 @router.get("/oauth/{provider}/authorize")
-async def oauth_authorize(provider: str) -> Any:
+async def oauth_authorize(
+    provider: str,
+    remember: bool = Query(False),
+) -> Any:
     """Redirect the user to the OAuth provider's authorization page."""
-    url = get_authorize_url(provider)
+    url = get_authorize_url(provider, remember=remember)
     return RedirectResponse(url=url, status_code=302)
 
 
@@ -62,5 +65,9 @@ async def oauth_callback(
             url=f"{frontend_url}/auth/callback?error={quote('An unexpected error occurred. Please try again.')}"
         )
 
-    params = urlencode({"token": result["token"], "username": result["username"]})
+    params = urlencode({
+        "token": result["token"],
+        "username": result["username"],
+        "remember": "1" if result.get("remember") else "0",
+    })
     return RedirectResponse(url=f"{frontend_url}/auth/callback?{params}")

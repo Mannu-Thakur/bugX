@@ -7,7 +7,7 @@ export function useUserStats() {
   return useQuery({
     queryKey: ['user-stats'],
     queryFn: () => fetchUserStats(),
-    staleTime: 10_000,
+    staleTime: 5_000,
     retry: 1,
   });
 }

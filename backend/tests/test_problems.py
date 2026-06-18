@@ -315,7 +315,35 @@ async def test_leetcode_importer_resolve_slug():
 
 
 @pytest.mark.asyncio
-async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession):
+async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession, monkeypatch):
+    import httpx
+    from unittest.mock import AsyncMock
+
+    original_get = httpx.AsyncClient.get
+    original_post = httpx.AsyncClient.post
+
+    async def mock_get(self, url, *args, **kwargs):
+        url_str = str(url)
+        if "http://test" in url_str or url_str.startswith("/"):
+            return await original_get(self, url, *args, **kwargs)
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Problem not found"
+        mock_resp.json = lambda: {"problems": [], "error": {"code": 404, "message": "Not Found"}}
+        return mock_resp
+
+    async def mock_post(self, url, *args, **kwargs):
+        url_str = str(url)
+        if "http://test" in url_str or url_str.startswith("/"):
+            return await original_post(self, url, *args, **kwargs)
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 404
+        mock_resp.json = lambda: {"data": {"question": None}}
+        return mock_resp
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+    monkeypatch.setattr("httpx.AsyncClient.post", mock_post)
+
     # This slug definitely doesn't exist on LeetCode or GFG practice portal
     non_existent_slug = "non-existent-problem-slug-999"
 
@@ -327,5 +355,165 @@ async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession):
     # It should fail with 404 Not Found instead of creating a garbage fallback problem
     assert resp.status_code == 404
     data = resp.json()
-    assert "Could not find problem" in data["detail"]
-    assert "on LeetCode or GeeksforGeeks" in data["detail"]
+    assert "detail" in data
+    assert "Could not find problem" in data["detail"]["message"] or "Could not locate problem" in data["detail"]["message"]
+
+@pytest.mark.asyncio
+async def test_gfg_discovery_pipeline_and_errors(client: AsyncClient, monkeypatch):
+    from app.services.gfg_importer import GFGImporter
+    from unittest.mock import AsyncMock
+    import httpx
+
+    original_get = httpx.AsyncClient.get
+
+    async def mock_get(self, url, *args, **kwargs):
+        url_str = str(url)
+        if "http://test" in url_str or url_str.startswith("/"):
+            return await original_get(self, url, *args, **kwargs)
+            
+        mock_resp = AsyncMock()
+        if "problems/search" in url_str:
+            params = kwargs.get("params", {})
+            query = params.get("query", "")
+            mock_resp.status_code = 200
+            
+            if "Longest" in query:
+                mock_resp.json = lambda: {
+                    "problems": [
+                        {
+                            "id": 703043,
+                            "slug": "longest-sub-array-with-sum-k0809",
+                            "problem_name": "Longest Subarray with Sum K",
+                            "problem_url": "https://www.geeksforgeeks.org/problems/longest-sub-array-with-sum-k0809/1"
+                        }
+                    ]
+                }
+            else:
+                mock_resp.json = lambda: {"problems": []}
+            return mock_resp
+            
+        elif "metainfo" in url_str:
+            # Force Stage 1 candidate check to return 404 so we test Stage 2 and Stage 3
+            mock_resp.status_code = 404
+            mock_resp.json = lambda: {}
+            return mock_resp
+            
+        else:
+            mock_resp.status_code = 404
+            return mock_resp
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    # 1. Test resolve_slug with direct URL
+    slug1, trace1 = await GFGImporter.resolve_slug("https://www.geeksforgeeks.org/problems/longest-sub-array-with-sum-k/1")
+    assert slug1 == "longest-sub-array-with-sum-k"
+    assert trace1["is_url"] is True
+
+    # 2. Test resolve_slug with exact title (Stage 2a)
+    slug2, trace2 = await GFGImporter.resolve_slug("Longest Subarray with Sum K")
+    assert slug2 == "longest-sub-array-with-sum-k0809"
+    assert trace2["stage"] == "stage2_exact_name"
+
+    # 3. Test resolve_slug with slight variation (Stage 3 fuzzy)
+    slug3, trace3 = await GFGImporter.resolve_slug("Longest Sub-array with Sum K")
+    assert slug3 == "longest-sub-array-with-sum-k0809"
+    assert trace3["stage"] == "stage3_fuzzy"
+
+    # 4. Test error handling for non-existent GFG problem via API import
+    resp = await client.post(
+        "/api/v1/problems/import",
+        json={"url_or_slug": "gfg:this-problem-truly-does-not-exist-at-all-99999"}
+    )
+    assert resp.status_code == 404
+    data = resp.json()
+    assert data["detail"]["error_type"] == "NOT_FOUND"
+    assert "truly does not exist" in data["detail"]["message"]
+
+@pytest.mark.asyncio
+async def test_gfg_fuzzy_matching_safety_and_ambiguity(monkeypatch):
+    from app.services.gfg_importer import GFGImporter
+    from unittest.mock import AsyncMock
+    import httpx
+
+    async def mock_get(self, url, *args, **kwargs):
+        url_str = str(url)
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        
+        if "problems/search" in url_str:
+            params = kwargs.get("params", {})
+            query = params.get("query", "")
+            
+            if query == "ambiguous-query":
+                mock_resp.json = lambda: {
+                    "problems": [
+                        {
+                            "slug": "ambiguous-query-a",
+                            "problem_name": "ambiguous-query-a",
+                            "problem_url": "https://www.geeksforgeeks.org/problems/ambiguous-query-a/1"
+                        },
+                        {
+                            "slug": "ambiguous-query-b",
+                            "problem_name": "ambiguous-query-b",
+                            "problem_url": "https://www.geeksforgeeks.org/problems/ambiguous-query-b/1"
+                        }
+                    ]
+                }
+            elif query == "low-confidence-query":
+                mock_resp.json = lambda: {
+                    "problems": [
+                        {
+                            "slug": "totally-different-slug",
+                            "problem_name": "Totally Different Problem Name",
+                            "problem_url": "https://www.geeksforgeeks.org/problems/totally-different-slug/1"
+                        }
+                    ]
+                }
+            else:
+                mock_resp.json = lambda: {"problems": []}
+            return mock_resp
+        else:
+            mock_resp.status_code = 404
+            return mock_resp
+
+    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
+
+    # 1. Test ambiguous query resolution (should fail with None and record ambiguity)
+    slug_ambig, trace_ambig = await GFGImporter.resolve_slug("ambiguous-query")
+    assert slug_ambig is None
+    assert trace_ambig["stage"] == "stage3_fuzzy_ambiguous"
+    assert "Ambiguity between" in trace_ambig["search_error"]
+
+    # 2. Test low confidence query resolution (should fail with None and record threshold failure)
+    slug_low, trace_low = await GFGImporter.resolve_slug("low-confidence-query")
+    assert slug_low is None
+    assert trace_low["stage"] == "failed_to_resolve"
+    assert "below safety threshold" in trace_low["search_error"]
+
+@pytest.mark.asyncio
+async def test_api_import_ambiguous_match_resolution(client: AsyncClient, monkeypatch):
+    from app.services.gfg_importer import GFGImporter
+    from app.services.importer_exceptions import AmbiguousProblemException
+
+    async def mock_import_problem(session, url_or_slug):
+        raise AmbiguousProblemException(
+            message="Multiple potential matches found.",
+            candidates=[
+                {"title": "Option A", "slug": "option-a", "platform": "gfg", "score": 0.9},
+                {"title": "Option B", "slug": "option-b", "platform": "gfg", "score": 0.88}
+            ]
+        )
+
+    monkeypatch.setattr("app.services.gfg_importer.GFGImporter.import_problem", mock_import_problem)
+
+    resp = await client.post(
+        "/api/v1/problems/import",
+        json={"url_or_slug": "gfg:ambiguous-term"}
+    )
+
+    assert resp.status_code == 409
+    data = resp.json()
+    assert data["detail"]["error_type"] == "AMBIGUOUS_MATCH"
+    assert len(data["detail"]["candidates"]) == 2
+    assert data["detail"]["candidates"][0]["slug"] == "option-a"
+

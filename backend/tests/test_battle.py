@@ -8,6 +8,22 @@ from app.models.battle_player import BattlePlayer
 
 @pytest.mark.asyncio
 async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
+    # Seed a "two-sum" catalog problem first
+    from app.models.problem import Problem, DifficultyEnum
+    two_sum = Problem(
+        slug="two-sum",
+        title="Two Sum",
+        description="Find two numbers that add up to target.",
+        difficulty=DifficultyEnum.EASY,
+        time_limit_ms=2000,
+        memory_limit_kb=262144,
+        score_base=100,
+        runtime_bonus_max=20,
+        is_published=False
+    )
+    db.add(two_sum)
+    await db.commit()
+
     # Register and login Alice (Host)
     resp_alice = await client.post(
         "/api/v1/auth/register",
@@ -118,6 +134,16 @@ async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
     update1_resp = await client.post(f"/api/v1/battle/{battle_id}/update", json=update_payload, headers=alice_headers)
     assert update1_resp.status_code == 200
 
+    # Simulate backend scoring service callback for Player 0
+    p0_stmt = select(BattlePlayer).where(BattlePlayer.battle_id == uuid.UUID(battle_id), BattlePlayer.player_index == 0)
+    p0 = (await db.execute(p0_stmt)).scalars().first()
+    p0.score = 150
+    p0.solved = True
+    from datetime import datetime, timezone
+    p0.solved_at = datetime.now(timezone.utc)
+    db.add(p0)
+    await db.commit()
+
     # Check that player 0 is marked solved but battle is not finished yet
     get4_resp = await client.get(f"/api/v1/battle/{battle_id}", headers=alice_headers)
     gdata4 = get4_resp.json()
@@ -138,6 +164,15 @@ async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
     update2_resp = await client.post(f"/api/v1/battle/{battle_id}/update", json=update_payload1, headers=bob_headers)
     assert update2_resp.status_code == 200
 
+    # Simulate backend scoring service callback for Player 1
+    p1_stmt = select(BattlePlayer).where(BattlePlayer.battle_id == uuid.UUID(battle_id), BattlePlayer.player_index == 1)
+    p1 = (await db.execute(p1_stmt)).scalars().first()
+    p1.score = 200
+    p1.solved = True
+    p1.solved_at = datetime.now(timezone.utc)
+    db.add(p1)
+    await db.commit()
+
     # 6. Player 2 updates progress and solves the problem
     update_payload2 = {
         "player_index": 2,
@@ -149,6 +184,21 @@ async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
     }
     update3_resp = await client.post(f"/api/v1/battle/{battle_id}/update", json=update_payload2, headers=charlie_headers)
     assert update3_resp.status_code == 200
+
+    # Simulate backend scoring service callback for Player 2
+    p2_stmt = select(BattlePlayer).where(BattlePlayer.battle_id == uuid.UUID(battle_id), BattlePlayer.player_index == 2)
+    p2 = (await db.execute(p2_stmt)).scalars().first()
+    p2.score = 100
+    p2.solved = True
+    p2.solved_at = datetime.now(timezone.utc)
+    db.add(p2)
+
+    # Force battle to finished (simulating last player solving)
+    stmt_b = select(Battle).where(Battle.id == uuid.UUID(battle_id))
+    b_obj = (await db.execute(stmt_b)).scalars().first()
+    b_obj.status = "finished"
+    db.add(b_obj)
+    await db.commit()
 
     # 7. Verify battle state is now finished (auto-finished when ALL solved)
     get5_resp = await client.get(f"/api/v1/battle/{battle_id}", headers=alice_headers)

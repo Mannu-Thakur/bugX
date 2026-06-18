@@ -5,6 +5,7 @@ import hmac
 import re
 import secrets
 import time
+from datetime import timedelta
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -65,40 +66,48 @@ def _redirect_uri(provider: str) -> str:
 
 # ─── Stateless CSRF state token (HMAC-based, no server storage needed) ───────
 
-def generate_state() -> str:
-    """Generate a signed, timestamped state token for CSRF protection."""
+def generate_state(remember: bool = False) -> str:
+    """Generate a signed, timestamped state token for CSRF protection.
+    The remember flag is encoded in the payload so it survives the OAuth round-trip.
+    """
     ts = str(int(time.time()))
     nonce = secrets.token_urlsafe(8)
-    payload = f"{ts}.{nonce}"
+    rem_flag = "1" if remember else "0"
+    payload = f"{ts}.{nonce}.{rem_flag}"
     sig = hmac.new(
         settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
     ).hexdigest()[:16]
     return f"{payload}.{sig}"
 
 
-def verify_state(state: str) -> bool:
-    """Verify HMAC signature and expiry (10 min) of a state token."""
+def verify_state(state: str) -> tuple[bool, bool]:
+    """Verify HMAC signature and expiry (10 min) of a state token.
+    Returns (is_valid, remember_flag).
+    """
     try:
         parts = state.rsplit(".", 1)
         if len(parts) != 2:
-            return False
+            return False, False
         payload, sig = parts
         expected = hmac.new(
             settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
         ).hexdigest()[:16]
         if not hmac.compare_digest(sig, expected):
-            return False
-        ts_str = payload.split(".")[0]
+            return False, False
+        payload_parts = payload.split(".")
+        ts_str = payload_parts[0]
         if time.time() - int(ts_str) > 600:
-            return False
-        return True
+            return False, False
+        # Extract remember flag (third segment); default False for old tokens
+        remember = payload_parts[2] == "1" if len(payload_parts) >= 3 else False
+        return True, remember
     except Exception:
-        return False
+        return False, False
 
 
 # ─── Build Authorize URL ─────────────────────────────────────────────────────
 
-def get_authorize_url(provider: str) -> str:
+def get_authorize_url(provider: str, remember: bool = False) -> str:
     """Build the full OAuth authorization URL for a given provider."""
     if provider not in PROVIDERS:
         raise HTTPException(
@@ -108,10 +117,10 @@ def get_authorize_url(provider: str) -> str:
 
     client_id, _ = _get_client_credentials(provider)
     cfg = PROVIDERS[provider]
-    state = generate_state()
+    state = generate_state(remember=remember)
 
-    # Dev mock bypass if credentials are placeholders
-    if settings.is_development and client_id.startswith("your-"):
+    # Dev mock bypass if explicitly enabled
+    if settings.is_development and settings.ENABLE_MOCK_OAUTH:
         callback_url = _redirect_uri(provider)
         params = {
             "code": f"mock_code_{secrets.token_hex(4)}",
@@ -212,7 +221,7 @@ async def _fetch_user_profile(provider: str, access_token: str) -> dict:
             "email": data.get("email", ""),
             "name": data.get("name", ""),
             "picture": data.get("picture"),
-            "provider_id": str(data.get("id", "")),
+            "provider_id": str(data.get("sub", data.get("id", ""))),
         }
 
     if provider == "github":
@@ -264,21 +273,22 @@ async def handle_oauth_callback(
     5. Generate and return JWT
     """
     # 1. Verify CSRF state
-    if not verify_state(state):
+    state_valid, remember = verify_state(state)
+    if not state_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OAuth state. Please try again.",
         )
 
-    client_id, _ = _get_client_credentials(provider)
-    is_mock = settings.is_development and (client_id.startswith("your-") or code.startswith("mock_code"))
+    is_mock = settings.is_development and settings.ENABLE_MOCK_OAUTH
 
     if is_mock:
+        uid = secrets.token_hex(4)
         profile = {
-            "email": f"mock-{provider}-user@xyz-platform.com",
+            "email": f"mock-{provider}-user-{uid}@xyz-platform.com",
             "name": f"Mock {provider.capitalize()} User",
             "picture": f"https://api.dicebear.com/7.x/bottts/svg?seed=mock-{provider}",
-            "provider_id": f"mock-{provider}-id-12345",
+            "provider_id": f"mock-{provider}-id-{uid}",
             "github_url": f"https://github.com/mock-{provider}-user" if provider == "github" else None,
         }
     else:
@@ -342,10 +352,15 @@ async def handle_oauth_callback(
         await db.commit()
         await db.refresh(user)
 
-    # 6. Generate JWT
-    jwt_token = create_access_token(str(user.id), user.role.value)
+    # 6. Generate JWT with remember-me aware expiry
+    if remember:
+        expires_delta = timedelta(days=30)
+    else:
+        expires_delta = timedelta(hours=2)
+    jwt_token = create_access_token(str(user.id), user.role.value, expires_delta=expires_delta)
 
     return {
         "token": jwt_token,
         "username": user.username,
+        "remember": remember,
     }

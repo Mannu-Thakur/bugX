@@ -14,6 +14,30 @@ from app.repositories.user_repo import UserRepo
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
+async def _is_token_blocklisted(token: str) -> bool:
+    """Check if a token has been blocklisted (logged out) in Redis."""
+    from app.core.config import get_settings
+    from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+
+    settings = get_settings()
+    try:
+        redis = Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+        )
+        try:
+            result = await redis.get(f"token_blocklist:{token}")
+            return result is not None
+        finally:
+            await redis.aclose()
+    except (RedisError, Exception):
+        # If Redis is down, allow the request through — the token will expire naturally
+        return False
+
+
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -24,6 +48,10 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     if not token:
+        raise credentials_exception
+
+    # Check blocklist first
+    if await _is_token_blocklisted(token):
         raise credentials_exception
 
     try:
@@ -73,6 +101,10 @@ async def get_optional_user(
         return None
 
     token = auth_header.split(" ")[1]
+
+    # Check blocklist
+    if await _is_token_blocklisted(token):
+        return None
 
     try:
         payload = decode_token(token)

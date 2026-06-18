@@ -39,9 +39,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       setGithubUrl(user.githubUrl || '');
       setLinkedinUrl(user.linkedinUrl || '');
       setPortfolioUrl(user.portfolioUrl || '');
-      setFullName(localStorage.getItem('profile_fullname') || 'Mannu Kumar thakur');
-      setBio(localStorage.getItem('profile_bio') || 'B.Tech CE | I breathe brackets & bugs | From Brute Force to Optimised one.');
-      setLocation(localStorage.getItem('profile_location') || 'India');
+      setFullName(user.fullName || '');
+      setBio(user.bio || '');
+      setLocation(user.location || '');
       setErrors({});
     }
   }, [user, isOpen]);
@@ -115,15 +115,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         githubUrl: githubUrl || null,
         linkedinUrl: linkedinUrl || null,
         portfolioUrl: portfolioUrl || null,
+        fullName: fullName || null,
+        bio: bio || null,
+        location: location || null,
       });
-
-      // Save local items
-      localStorage.setItem('profile_fullname', fullName);
-      localStorage.setItem('profile_bio', bio);
-      localStorage.setItem('profile_location', location);
-
-      // Trigger custom event to notify ProfilePage to re-read localStorage
-      window.dispatchEvent(new Event('profile_local_updated'));
 
       onClose();
     } catch {

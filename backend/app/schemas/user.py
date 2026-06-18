@@ -19,6 +19,9 @@ class UserProfile(UserBase):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    full_name: Optional[str] = None
+    bio: Optional[str] = None
+    location: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -32,6 +35,9 @@ class UserUpdate(BaseModel):
     github_url: Optional[str] = Field(None, max_length=512)
     linkedin_url: Optional[str] = Field(None, max_length=512)
     portfolio_url: Optional[str] = Field(None, max_length=512)
+    full_name: Optional[str] = Field(None, max_length=255)
+    bio: Optional[str] = Field(None, max_length=1000)
+    location: Optional[str] = Field(None, max_length=255)
 
 
 class UserFileResponse(BaseModel):

@@ -112,3 +112,68 @@ async def test_user_file_vault_upload_download_delete(client: AsyncClient, db: A
         assert resp_list_after_delete.json() == []
     finally:
         settings.STORAGE_DIR = old_storage_dir
+
+
+@pytest.mark.asyncio
+async def test_get_my_stats_streak_stale(client: AsyncClient, db: AsyncSession):
+    # 1. Register a user
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "streak@example.com", "username": "streakuser", "password": "Password123"}
+    )
+    token = resp.json()["access_token"]
+    auth = {"Authorization": f"Bearer {token}"}
+
+    # 2. Query the user from the database to get their user ID
+    from sqlalchemy import select
+    from app.models.user import User
+    from app.models.user_stats import UserStats
+    from datetime import datetime, timedelta, timezone
+
+    user_stmt = select(User).where(User.username == "streakuser")
+    res = await db.execute(user_stmt)
+    user = res.scalar_one()
+
+    # 3. Create or update UserStats in the DB with a stale last_active_date (e.g., 3 days ago)
+    stats_stmt = select(UserStats).where(UserStats.user_id == user.id)
+    stats = (await db.execute(stats_stmt)).scalar()
+    
+    three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).date()
+    
+    if stats:
+        stats.current_streak = 5
+        stats.best_streak = 10
+        stats.last_active_date = three_days_ago
+    else:
+        stats = UserStats(
+            user_id=user.id,
+            total_solved=0,
+            easy_solved=0,
+            medium_solved=0,
+            hard_solved=0,
+            total_score=0,
+            current_streak=5,
+            best_streak=10,
+            last_active_date=three_days_ago
+        )
+        db.add(stats)
+    
+    await db.commit()
+
+    # 4. Fetch the stats via the endpoint and check that the current_streak returned is 0
+    resp_stats = await client.get("/api/v1/users/me/stats", headers=auth)
+    assert resp_stats.status_code == 200
+    data = resp_stats.json()
+    assert data["current_streak"] == 0
+    assert data["best_streak"] == 10  # Best streak should remain unchanged
+
+    # 5. Now check a scenario where last_active_date is yesterday (diff == 1)
+    # The current_streak should NOT be reset to 0 in the response
+    stats.last_active_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    await db.commit()
+
+    resp_stats_yesterday = await client.get("/api/v1/users/me/stats", headers=auth)
+    assert resp_stats_yesterday.status_code == 200
+    data_yesterday = resp_stats_yesterday.json()
+    assert data_yesterday["current_streak"] == 5
+

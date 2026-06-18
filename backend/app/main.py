@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 await _ensure_user_profile_columns(conn)
+                await _ensure_battle_columns(conn)
 
             # Seed base problems
             async with AsyncSessionLocal() as session:
@@ -45,7 +46,20 @@ def create_app() -> FastAPI:
         except Exception as e:
             print(f"Startup database initialization error: {e}")
 
+        # Start redis pub/sub listener for battle events
+        import asyncio
+        from app.routers.battle import start_redis_listener
+        redis_listener_task = asyncio.create_task(start_redis_listener(settings.REDIS_URL))
+
         yield
+
+        # Shutdown redis listener
+        redis_listener_task.cancel()
+        try:
+            await redis_listener_task
+        except asyncio.CancelledError:
+            pass
+
         await app.state.rate_limit_service.close()
 
     app = FastAPI(
@@ -150,6 +164,9 @@ async def _ensure_user_profile_columns(conn) -> None:
         "portfolio_url": "VARCHAR(512)",
         "oauth_provider": "VARCHAR(50)",
         "oauth_id": "VARCHAR(255)",
+        "full_name": "VARCHAR(255)",
+        "bio": "TEXT",
+        "location": "VARCHAR(255)",
     }
 
     def existing_columns(sync_conn) -> set[str]:
@@ -173,6 +190,36 @@ async def _ensure_user_profile_columns(conn) -> None:
         await conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
     except Exception:
         pass
+
+
+async def _ensure_battle_columns(conn) -> None:
+    # 1. Alter battles table to add problem_id
+    def existing_battle_cols(sync_conn) -> set[str]:
+        try:
+            return {column["name"] for column in inspect(sync_conn).get_columns("battles")}
+        except Exception:
+            return set()
+
+    battle_existing = await conn.run_sync(existing_battle_cols)
+    if "problem_id" not in battle_existing and battle_existing:
+        try:
+            await conn.execute(text("ALTER TABLE battles ADD COLUMN problem_id UUID"))
+        except Exception:
+            pass
+
+    # 2. Alter submissions table to add battle_id
+    def existing_submission_cols(sync_conn) -> set[str]:
+        try:
+            return {column["name"] for column in inspect(sync_conn).get_columns("submissions")}
+        except Exception:
+            return set()
+
+    sub_existing = await conn.run_sync(existing_submission_cols)
+    if "battle_id" not in sub_existing and sub_existing:
+        try:
+            await conn.execute(text("ALTER TABLE submissions ADD COLUMN battle_id UUID"))
+        except Exception:
+            pass
 
 
 def _client_ip(request: Request) -> str:

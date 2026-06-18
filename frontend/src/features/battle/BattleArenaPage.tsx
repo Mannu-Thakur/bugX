@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import {
   Swords, Trophy, Clock, Play, Send, Terminal,
@@ -8,12 +8,15 @@ import {
 } from 'lucide-react';
 import { MOCK_PROBLEM_DETAILS } from '../../shared/lib/mockData';
 import { api, getToken } from '../../shared/lib/api';
+import { useAuth } from '../auth/useAuth';
+import { userStorage } from '../../shared/lib/userState';
 import { cn } from '../../shared/lib/cn';
 import { safeParseDate } from '../../shared/lib/date';
 import { ENV } from '../../shared/config/env';
 type BattleLanguage = 'javascript' | 'python' | 'cpp' | 'java';
 
 interface BattleProblem {
+  id?: string;
   title: string;
   description: string;
   constraints: string;
@@ -33,6 +36,7 @@ const getTemplateCode = (templates: any[], language: string) => {
 const normalizeProblemForBattle = (source: any): BattleProblem => {
   const templates = source.templates || [];
   return {
+    id: source.id,
     title: source.title,
     description: source.description || 'No description provided.',
     constraints: source.constraints || source.expected_complexity || 'No constraints provided.',
@@ -439,14 +443,17 @@ function playSystemSound(type: 'click' | 'submit' | 'victory' | 'defeat' | 'low-
 
 export const BattleArenaPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // Resolve Room/Config from URL or SessionStorage
+  // Resolve Room/Config from URL or useParams or SessionStorage
+  const { battleId } = useParams<{ battleId: string }>();
   const params = new URLSearchParams(window.location.search);
-  const roomId = params.get('room');
+  const roomId = battleId || params.get('room');
 
   const [config, setConfig] = useState<any>(null);
   const [problem, setProblem] = useState<BattleProblem | null>(null);
   const [players, setPlayers] = useState<PlayerState[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Authentication & Player Context
   const [myPlayerIndex, setMyPlayerIndex] = useState<number | null>(null);
@@ -461,9 +468,22 @@ export const BattleArenaPage: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number>(15 * 60);
   const [isTimeLow, setIsTimeLow] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>(() => {
+    return document.documentElement.classList.contains('light') ? 'light' : 'vs-dark';
+  });
+
+  useEffect(() => {
+    const updateTheme = () => {
+      setEditorTheme(document.documentElement.classList.contains('light') ? 'light' : 'vs-dark');
+    };
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // UI Panels
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(true);
+  const [showScoreboard, setShowScoreboard] = useState(true);
   const [descriptionWidth, setDescriptionWidth] = useState(450);
   const terminalHeight = 240;
   const [showTerminal, setShowTerminal] = useState(true);
@@ -476,9 +496,20 @@ export const BattleArenaPage: React.FC = () => {
   const editorRef = useRef<any>(null);
   const hasSavedHistoryRef = useRef(false);
 
-  // 1. Initial configuration load
+  // 1. Initial configuration load & responsive initialization
   useEffect(() => {
     const rawConfig = sessionStorage.getItem('battleConfig');
+    if (!roomId && !rawConfig) {
+      navigate('/battle');
+      return;
+    }
+
+    // Collapse side panels on smaller viewports
+    if (window.innerWidth < 1024) {
+      setShowDescriptionPanel(false);
+      setShowScoreboard(false);
+    }
+
     if (rawConfig) {
       const parsed = JSON.parse(rawConfig);
       if (roomId && parsed.battleId !== roomId) {
@@ -526,6 +557,7 @@ export const BattleArenaPage: React.FC = () => {
         if (config.problemSource === 'custom' && config.customProblem) {
           const custom = config.customProblem;
           setProblem({
+            id: config.problemId,
             title: custom.title,
             description: custom.description,
             constraints: custom.constraints || 'No constraints provided.',
@@ -550,18 +582,32 @@ export const BattleArenaPage: React.FC = () => {
           }
         }
       } catch (err: any) {
-        alert(err.message || 'Failed to load problem definition.');
+        setLoadError(err.message || 'Failed to load problem definition.');
       }
     };
 
     loadProblem();
   }, [config]);
 
-  // Set default templates for players once problem is loaded
+  // Set default templates for players once problem is loaded, restoring from localStorage draft if available
   useEffect(() => {
     if (!problem || !players.length) return;
     setPlayers(prev => prev.map(p => {
       if (!p.code) {
+        const userPrefix = user ? `user_${user.id}_` : '';
+        const localCodeKey = roomId ? `${userPrefix}battle_code_${roomId}_${p.playerIndex}` : null;
+        const localLangKey = roomId ? `${userPrefix}battle_lang_${roomId}_${p.playerIndex}` : null;
+        const savedCode = localCodeKey ? localStorage.getItem(localCodeKey) : null;
+        const savedLang = localLangKey ? localStorage.getItem(localLangKey) as BattleLanguage : null;
+
+        if (savedCode) {
+          return {
+            ...p,
+            code: savedCode,
+            lang: savedLang || 'javascript'
+          };
+        }
+
         return {
           ...p,
           code: problem.jsTemplate,
@@ -570,7 +616,7 @@ export const BattleArenaPage: React.FC = () => {
       }
       return p;
     }));
-  }, [problem, players.length]);
+  }, [problem, players.length, roomId, user]);
 
   // Invite Mode: Fetch Battle Room State from API
   useEffect(() => {
@@ -579,6 +625,7 @@ export const BattleArenaPage: React.FC = () => {
     const fetchBattleState = async () => {
       try {
         const room = await api.battle.get(roomId, myPlayerIndex !== null ? myPlayerIndex : undefined);
+        setLoadError(null); // Clear any loading errors on success
         setBattleStatus(room.status);
         setTimeLeft(room.time_left !== null ? room.time_left : room.time_limit * 60);
         setBattleActive(room.status === 'active' && room.time_left > 0);
@@ -589,9 +636,11 @@ export const BattleArenaPage: React.FC = () => {
             battleId: room.id,
             mode: 'invite',
             timeLimit: room.time_limit,
+            maxPlayers: room.max_players,
             problemSource: room.problem_source,
             selectedSlug: room.selected_slug,
-            customProblem: room.custom_problem
+            customProblem: room.custom_problem,
+            problemId: room.problem_id
           });
         }
 
@@ -613,8 +662,9 @@ export const BattleArenaPage: React.FC = () => {
           };
         });
         setPlayers(mergedPlayers);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load battle data:", err);
+        setLoadError(err.message || 'Failed to fetch arena details. The lobby may have been closed or invalid.');
       }
     };
 
@@ -733,6 +783,24 @@ export const BattleArenaPage: React.FC = () => {
             return p;
           }));
           if (soundEnabled) playSystemSound('victory');
+        } else if (msg.type === 'battle_finished') {
+          setBattleActive(false);
+          setBattleStatus('finished');
+          if (msg.players) {
+            setPlayers(prev => prev.map(p => {
+              const matched = msg.players.find((x: any) => x.player_index === p.playerIndex);
+              if (matched) {
+                return {
+                  ...p,
+                  score: matched.score,
+                  solved: matched.solved,
+                  attempts: matched.attempts,
+                  solvedAt: matched.solved_at
+                };
+              }
+              return p;
+            }));
+          }
         }
       } catch (err) {
         console.error("[WebSocket] Message error:", err);
@@ -867,9 +935,15 @@ export const BattleArenaPage: React.FC = () => {
         };
 
         try {
-          const current = JSON.parse(localStorage.getItem('battle_history') || '[]');
-          const next = [historyEntry, ...(Array.isArray(current) ? current : [])].slice(0, 50);
-          localStorage.setItem('battle_history', JSON.stringify(next));
+          if (user) {
+            const current = userStorage.getBattleHistory(user.id);
+            const next = [historyEntry, ...current].slice(0, 50);
+            userStorage.setBattleHistory(user.id, next);
+          } else {
+            const current = JSON.parse(localStorage.getItem('battle_history') || '[]');
+            const next = [historyEntry, ...(Array.isArray(current) ? current : [])].slice(0, 50);
+            localStorage.setItem('battle_history', JSON.stringify(next));
+          }
         } catch (err) {
           console.error("Failed to save battle history:", err);
         }
@@ -900,6 +974,15 @@ export const BattleArenaPage: React.FC = () => {
     const targetIdx = config.mode === 'local' ? activeTabPlayerIndex : myPlayerIndex;
     if (targetIdx === null) return;
 
+    if (roomId) {
+      const userPrefix = user ? `user_${user.id}_` : '';
+      localStorage.setItem(`${userPrefix}battle_code_${roomId}_${targetIdx}`, newCode);
+      const player = players.find(x => x.playerIndex === targetIdx);
+      if (player) {
+        localStorage.setItem(`${userPrefix}battle_lang_${roomId}_${targetIdx}`, player.lang);
+      }
+    }
+
     setPlayers(prev => prev.map(p => {
       if (p.playerIndex === targetIdx) {
         return { ...p, code: newCode };
@@ -924,6 +1007,12 @@ export const BattleArenaPage: React.FC = () => {
     else if (lang === 'cpp') template = problem.cppTemplate;
     else if (lang === 'java') template = problem.javaTemplate;
 
+    if (roomId) {
+      const userPrefix = user ? `user_${user.id}_` : '';
+      localStorage.setItem(`${userPrefix}battle_code_${roomId}_${targetIdx}`, template);
+      localStorage.setItem(`${userPrefix}battle_lang_${roomId}_${targetIdx}`, lang);
+    }
+
     setPlayers(prev => prev.map(p => {
       if (p.playerIndex === targetIdx) {
         return { ...p, lang, code: template };
@@ -937,6 +1026,107 @@ export const BattleArenaPage: React.FC = () => {
   };
 
   // Run Code Locally (Sample cases only)
+  // Helper to poll remote execution status
+  const pollSubmission = (subId: string, playerIndex: number) => {
+    let attemptsCount = 0;
+    const interval = setInterval(() => {
+      attemptsCount++;
+      if (attemptsCount > 45) { // 45 seconds timeout
+        clearInterval(interval);
+        setPlayers(prev => prev.map(x => {
+          if (x.playerIndex === playerIndex) {
+            return {
+              ...x,
+              terminal: { status: 'failed', logs: ['Execution timeout: sandboxed runner did not reply within 45 seconds.'] }
+            };
+          }
+          return x;
+        }));
+        return;
+      }
+
+      api.submissions.get(subId)
+        .then(sub => {
+          // Update status in terminal logs
+          setPlayers(prev => prev.map(x => {
+            if (x.playerIndex === playerIndex) {
+              return {
+                ...x,
+                terminal: {
+                  status: 'running',
+                  logs: [
+                    `AlgoAxis Sandbox Status: ${sub.status}`,
+                    `Compiling & executing solution... (${attemptsCount}s)`
+                  ]
+                }
+              };
+            }
+            return x;
+          }));
+
+          if (sub.status !== 'PENDING' && sub.status !== 'RUNNING') {
+            clearInterval(interval);
+            // Fetch case results
+            api.submissions.getResults(subId)
+              .then(results => {
+                setPlayers(prev => prev.map(x => {
+                  if (x.playerIndex === playerIndex) {
+                    const logs: string[] = [];
+                    if (sub.status === 'COMPILE_ERROR') {
+                      logs.push(`[COMPILE ERROR]\n${sub.error_message || 'Compilation failed.'}`);
+                    } else if (sub.status === 'RUNTIME_ERROR') {
+                      logs.push(`[RUNTIME ERROR]\n${sub.error_message || 'Execution failed.'}`);
+                    } else if (sub.status === 'TIME_LIMIT') {
+                      logs.push(`[TIME LIMIT EXCEEDED] Execution timed out.`);
+                    } else if (sub.status === 'MEMORY_LIMIT') {
+                      logs.push(`[MEMORY LIMIT EXCEEDED] Execution exceeded memory limits.`);
+                    } else if (sub.status === 'WRONG_ANSWER') {
+                      logs.push(`[WRONG ANSWER] Code output did not match expected output.`);
+                      logs.push(`Passed ${sub.passed_count}/${sub.total_count} test cases.`);
+                    } else if (sub.status === 'ACCEPTED') {
+                      logs.push(`[ACCEPTED] Solution successfully verified!`);
+                      logs.push(`All ${sub.total_count} test cases passed.`);
+                      if (sub.runtime_ms !== null) logs.push(`Runtime: ${sub.runtime_ms} ms`);
+                      if (sub.memory_kb !== null) logs.push(`Memory: ${Math.round(sub.memory_kb / 1024 * 100) / 100} MB`);
+                    } else {
+                      logs.push(`Execution finished: ${sub.status}`);
+                      logs.push(`Passed ${sub.passed_count}/${sub.total_count} test cases.`);
+                    }
+
+                    const isSuccess = sub.status === 'ACCEPTED' || sub.status === 'SAMPLE_PASSED';
+
+                    return {
+                      ...x,
+                      testResults: results.map((r: any) => ({
+                        passed: r.passed,
+                        input: r.test_case_input,
+                        expectedOutput: r.expected_output,
+                        stdout: r.stdout,
+                        stderr: r.stderr,
+                        runtime: r.runtime_ms,
+                        memory: r.memory_kb
+                      })),
+                      terminal: {
+                        status: isSuccess ? 'success' : 'failed',
+                        logs
+                      }
+                    };
+                  }
+                  return x;
+                }));
+              })
+              .catch(err => {
+                console.error("Failed to load results:", err);
+              });
+          }
+        })
+        .catch(err => {
+          console.error("Polling error:", err);
+        });
+    }, 1000);
+  };
+
+  // Run Code Locally or Sandbox (Sample cases only)
   const handleRunCode = () => {
     const targetIdx = config.mode === 'local' ? activeTabPlayerIndex : myPlayerIndex;
     if (targetIdx === null || !problem) return;
@@ -946,8 +1136,46 @@ export const BattleArenaPage: React.FC = () => {
 
     if (soundEnabled) playSystemSound('click');
 
-    // Update attempts
     const nextAttempts = p.attempts + 1;
+
+    if (config.mode === 'invite') {
+      // Invite mode: Submit to backend sandbox for run execution
+      setPlayers(prev => prev.map(x => {
+        if (x.playerIndex === targetIdx) {
+          return {
+            ...x,
+            terminal: { status: 'running', logs: [`[${p.username}] Enqueueing execution job on AlgoAxis sandbox...`] }
+          };
+        }
+        return x;
+      }));
+
+      api.submissions.create({
+        problem_id: problem.id || config.problemId,
+        language: p.lang,
+        source_code: p.code,
+        run_samples_only: true,
+        battle_id: roomId || undefined
+      })
+      .then(res => {
+        pollSubmission(res.id, targetIdx);
+      })
+      .catch(err => {
+        setPlayers(prev => prev.map(x => {
+          if (x.playerIndex === targetIdx) {
+            return {
+              ...x,
+              terminal: { status: 'failed', logs: [`Error enqueueing job: ${err.message || err}`] }
+            };
+          }
+          return x;
+        }));
+      });
+
+      return;
+    }
+
+    // Local mode fallback
     setPlayers(prev => prev.map(x => {
       if (x.playerIndex === targetIdx) {
         return {
@@ -958,10 +1186,6 @@ export const BattleArenaPage: React.FC = () => {
       }
       return x;
     }));
-
-    if (config.mode === 'invite') {
-      broadcastUpdate({ attempts: nextAttempts });
-    }
 
     setTimeout(() => {
       const sampleCases = problem.testCases.slice(0, 2);
@@ -996,8 +1220,46 @@ export const BattleArenaPage: React.FC = () => {
 
     if (soundEnabled) playSystemSound('submit');
 
-    // Update attempts
     const nextAttempts = p.attempts + 1;
+
+    if (config.mode === 'invite') {
+      // Invite mode: Submit to backend sandbox for full verification
+      setPlayers(prev => prev.map(x => {
+        if (x.playerIndex === targetIdx) {
+          return {
+            ...x,
+            terminal: { status: 'running', logs: [`[${p.username}] Enqueueing verification job on AlgoAxis sandbox...`] }
+          };
+        }
+        return x;
+      }));
+
+      api.submissions.create({
+        problem_id: problem.id || config.problemId,
+        language: p.lang,
+        source_code: p.code,
+        run_samples_only: false,
+        battle_id: roomId || undefined
+      })
+      .then(res => {
+        pollSubmission(res.id, targetIdx);
+      })
+      .catch(err => {
+        setPlayers(prev => prev.map(x => {
+          if (x.playerIndex === targetIdx) {
+            return {
+              ...x,
+              terminal: { status: 'failed', logs: [`Error enqueueing job: ${err.message || err}`] }
+            };
+          }
+          return x;
+        }));
+      });
+
+      return;
+    }
+
+    // Local mode fallback
     setPlayers(prev => prev.map(x => {
       if (x.playerIndex === targetIdx) {
         return {
@@ -1008,10 +1270,6 @@ export const BattleArenaPage: React.FC = () => {
       }
       return x;
     }));
-
-    if (config.mode === 'invite') {
-      broadcastUpdate({ attempts: nextAttempts });
-    }
 
     setTimeout(() => {
       const execution = executeCode(p.code, p.lang, problem.testCases);
@@ -1025,16 +1283,11 @@ export const BattleArenaPage: React.FC = () => {
           if (execution.success && !x.solved) {
             updatedSolved = true;
             updatedSolvedAt = new Date().toISOString();
-            // Scoring Formula
             const speedBonus = Math.floor((timeLeft / (config.timeLimit * 60)) * 50);
             const penaltyMultiplier = Math.max(0.75, 1 - (p.attempts * 0.05));
             updatedScore = Math.floor((problem.scoreBase + speedBonus) * penaltyMultiplier);
 
             if (soundEnabled) playSystemSound('victory');
-
-            if (config.mode === 'invite') {
-              broadcastUpdate({ score: updatedScore, solved: true });
-            }
           }
 
           return {
@@ -1057,7 +1310,7 @@ export const BattleArenaPage: React.FC = () => {
         return x;
       }));
 
-      // Check end game condition
+      // Check end game condition (local mode only)
       setTimeout(() => {
         setPlayers(latestPlayers => {
           const allSolved = latestPlayers.every(pl => pl.solved);
@@ -1125,32 +1378,30 @@ export const BattleArenaPage: React.FC = () => {
   if (roomId && !isJoined && config?.mode !== 'local') {
     return (
       <div className="min-h-screen bg-[#07090e] text-gray-200 flex flex-col items-center justify-center p-6 select-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#4F7DFF]/4 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#7A5FFF]/3 rounded-full blur-[120px] pointer-events-none" />
 
-        <form onSubmit={handleJoinRoom} className="bg-dark-panel border border-dark-border max-w-md w-full rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden z-10">
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-
-          <div className="inline-flex p-4 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 mx-auto animate-pulse flex justify-center">
-            <Swords className="w-8 h-8" />
+        <form onSubmit={handleJoinRoom} className="relative max-w-sm w-full z-10 space-y-7">
+          {/* Icon */}
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#4F7DFF]/10 border border-[#4F7DFF]/20 flex items-center justify-center">
+              <Swords className="w-5 h-5 text-[#4F7DFF]" />
+            </div>
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-bold tracking-tight text-gray-100">Join Code Battle</h2>
+              <p className="text-sm text-gray-500">Enter a display name to join the arena.</p>
+            </div>
           </div>
 
-          <div className="space-y-1 text-center">
-            <h2 className="text-xl font-black tracking-tight text-gray-100">JOIN CODE BATTLE</h2>
-            <p className="text-xs text-gray-400">
-              An online competitive arena is waiting for you.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Your Display Name</label>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-gray-500">Display name</label>
             <input
               type="text"
               required
               maxLength={20}
               value={usernameInput}
               onChange={e => setUsernameInput(e.target.value)}
-              className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-gray-600 shadow-inner"
+              className="battle-input"
               placeholder="e.g. CodeWarrior"
             />
           </div>
@@ -1158,9 +1409,9 @@ export const BattleArenaPage: React.FC = () => {
           <button
             type="submit"
             disabled={isJoining || !usernameInput.trim()}
-            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
+            className="battle-btn-primary w-full py-3"
           >
-            {isJoining ? 'Connecting...' : 'Enter Battle Arena'}
+            {isJoining ? 'Connecting…' : 'Enter Battle Arena'}
           </button>
         </form>
       </div>
@@ -1172,84 +1423,121 @@ export const BattleArenaPage: React.FC = () => {
     const inviteLink = `${window.location.origin}/battle/arena?room=${roomId}`;
     return (
       <div className="min-h-screen bg-[#07090e] text-gray-200 flex flex-col items-center justify-center p-6 select-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#4F7DFF]/4 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#7A5FFF]/3 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="bg-dark-panel border border-dark-border max-w-xl w-full rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden z-10">
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-
-          <div className="inline-flex p-4 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 mx-auto animate-pulse flex justify-center">
-            <Swords className="w-10 h-10" />
-          </div>
-
-          <div className="space-y-1 text-center">
-            <h2 className="text-2xl font-black tracking-tight text-gray-100">BATTLE ARENA LOBBY</h2>
-            <p className="text-xs text-gray-400 font-semibold tracking-wider uppercase">
-              Waiting for combatants ({players.length} / {config.maxPlayers})
-            </p>
+        <div className="relative max-w-lg w-full z-10 space-y-8">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#4F7DFF]/10 border border-[#4F7DFF]/20 flex items-center justify-center">
+              <Swords className="w-5 h-5 text-[#4F7DFF]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold text-gray-100">Waiting for Players</h2>
+              <p className="text-sm text-gray-500">{players.length} / {config.maxPlayers} combatants joined</p>
+            </div>
           </div>
 
           {/* Connected players list */}
-          <div className="bg-dark-bg border border-dark-border rounded-xl p-4 divide-y divide-dark-border max-h-[220px] overflow-y-auto custom-scrollbar">
+          <div className="divide-y divide-dark-border/40 max-h-[220px] overflow-y-auto custom-scrollbar">
             {players.map((p, idx) => {
               const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
               return (
-                <div key={idx} className="flex justify-between items-center py-2.5">
-                  <span className={cn("text-sm font-black flex items-center gap-2", color.text)}>
-                    <span className={cn("w-2 h-2 rounded-full", color.dot)} />
-                    {p.username} {p.playerIndex === 0 && <span className="text-[9px] bg-blue-500/10 border border-blue-500/20 px-1 py-0.5 rounded ml-1">HOST</span>}
+                <div key={idx} className="flex justify-between items-center py-3">
+                  <span className={cn("text-sm font-semibold flex items-center gap-2", color.text)}>
+                    <span className={cn("w-1.5 h-1.5 rounded-full", color.dot)} />
+                    {p.username}
+                    {p.playerIndex === 0 && <span className="text-[9px] bg-[#4F7DFF]/10 border border-[#4F7DFF]/20 text-[#7fa8ff] px-1.5 py-0.5 rounded-md ml-1 font-bold">HOST</span>}
                   </span>
-                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
-                    p.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-500/10 text-gray-400'
+                  <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg ${
+                    p.isActive ? 'bg-emerald-500/8 text-emerald-400' : 'text-gray-500'
                   }`}>
-                    {p.isActive ? 'Ready' : 'Connected'}
+                    {p.isActive ? 'Ready' : 'Connecting'}
                   </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Share Link box */}
-          <div className="space-y-2 text-left">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Share Invite Link</label>
+          {/* Divider */}
+          <div className="h-px bg-dark-border/40" />
+
+          {/* Share Link */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-gray-500">Share Invite Link</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 readOnly
                 value={inviteLink}
-                className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none"
+                className="flex-1 battle-input font-mono text-[11px]"
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
               <button
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(inviteLink);
-                    alert("Invite link copied!");
+                    alert('Invite link copied!');
                   } catch {
-                    alert("Copy manually from text field.");
+                    alert('Copy manually from text field.');
                   }
                 }}
-                className="px-4 bg-dark-bg border border-dark-border hover:bg-dark-hover rounded-lg text-xs font-bold transition-all text-gray-300"
+                className="px-3 py-2 bg-dark-bg border border-dark-border hover:border-[#4F7DFF]/40 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-gray-200"
               >
                 Copy
               </button>
             </div>
           </div>
 
-          {/* Action button */}
+          {/* Action */}
           {myPlayerIndex === 0 ? (
-            <button
-              onClick={handleHostStart}
-              disabled={players.length < 2}
-              className="w-full py-3 bg-gradient-to-r from-red-600 via-orange-600 to-yellow-600 hover:from-red-500 hover:via-orange-500 hover:to-yellow-500 text-white font-extrabold text-sm rounded-xl transition-all shadow-lg shadow-orange-500/15 disabled:opacity-50 active:scale-[0.98]"
-            >
-              Start Code Battle
-            </button>
+            <div className="space-y-2 w-full">
+              <button
+                onClick={handleHostStart}
+                disabled={players.length < 2}
+                className="battle-btn-primary w-full py-3 text-sm"
+              >
+                Start Battle
+              </button>
+              {players.length < 2 && (
+                <p className="text-[10px] text-gray-500 text-center animate-pulse">
+                  Waiting for at least one opponent to join before starting.
+                </p>
+              )}
+            </div>
           ) : (
-            <div className="text-center text-xs text-gray-400 animate-pulse flex items-center justify-center gap-2 bg-dark-bg/50 border border-dark-border py-3 rounded-xl select-none">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-              Waiting for Host to start match...
+            <div className="text-center text-xs text-gray-500 flex items-center justify-center gap-2 py-3 select-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4F7DFF]/70 animate-pulse" />
+              Waiting for host to start…
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Load/Error screen
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#07090e] text-gray-200 flex flex-col items-center justify-center p-6 select-none">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-rose-500/3 rounded-full blur-[120px] pointer-events-none" />
+        <div className="relative max-w-sm w-full z-10 space-y-6 text-center animate-fade-in">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto">
+            <Swords className="w-5 h-5 text-rose-400" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-gray-100">Arena Error</h2>
+            <p className="text-sm text-gray-400 leading-relaxed">{loadError}</p>
+          </div>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('battleConfig');
+              navigate('/battle');
+            }}
+            className="battle-btn-secondary w-full py-2.5"
+          >
+            Return to Setup
+          </button>
         </div>
       </div>
     );
@@ -1260,8 +1548,8 @@ export const BattleArenaPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-[60vh] bg-[#07090e] h-screen">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-gray-400 font-medium">Entering Battle Arena...</span>
+          <div className="w-8 h-8 border-2 border-[#4F7DFF]/50 border-t-[#4F7DFF] rounded-full animate-spin" />
+          <span className="text-xs text-gray-500 font-medium">Entering Arena…</span>
         </div>
       </div>
     );
@@ -1292,7 +1580,7 @@ export const BattleArenaPage: React.FC = () => {
               animationDelay: `${p.delay}s`,
               animationDuration: `${p.duration}s`,
               transform: `rotate(${p.angle}deg)`,
-              opacity: 0.85
+              opacity: 0.8
             }}
           />
         ))}
@@ -1310,22 +1598,22 @@ export const BattleArenaPage: React.FC = () => {
           }
         `}} />
 
-        <div className="bg-dark-panel border border-dark-border max-w-2xl w-full rounded-2xl p-8 space-y-6 shadow-2xl relative overflow-hidden z-10">
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#4F7DFF]/3 rounded-full blur-[140px] pointer-events-none" />
 
-          <div className="inline-flex p-4 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 mx-auto justify-center flex">
-            <Trophy className="w-12 h-12" />
-          </div>
-
-          <div className="text-center space-y-1">
-            <h2 className="text-3xl font-black tracking-tight text-gray-100 uppercase">Battle Arena Finished</h2>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
-              Problem: {problem.title}
-            </p>
+        <div className="relative max-w-xl w-full z-10 space-y-8 animate-fade-in">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+              <Trophy className="w-7 h-7 text-yellow-400" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-bold tracking-tight text-gray-100">Battle Complete</h2>
+              <p className="text-sm text-gray-500">{problem.title}</p>
+            </div>
           </div>
 
           {/* Ranked List */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {sortedLeaderboard.map((p, idx) => {
               const color = PLAYER_COLORS[p.playerIndex % PLAYER_COLORS.length];
               const isWinner = idx === 0 && p.solved;
@@ -1334,39 +1622,38 @@ export const BattleArenaPage: React.FC = () => {
                 <div
                   key={idx}
                   className={cn(
-                    "flex items-center justify-between p-4 rounded-xl border transition-all duration-300",
+                    "flex items-center justify-between py-3.5 px-4 rounded-xl transition-all duration-300",
                     isWinner
-                      ? "bg-yellow-500/10 border-yellow-500/40 shadow-lg shadow-yellow-500/5 scale-[1.02]"
-                      : "bg-dark-bg/60 border-dark-border"
+                      ? "bg-yellow-500/6 border border-yellow-500/20"
+                      : "border border-transparent hover:border-dark-border/50"
                   )}
                 >
-                  <div className="flex items-center gap-4">
-                    {/* Rank */}
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-dark-bg border border-dark-border select-none">
-                      {idx === 0 ? <Medal className="w-5 h-5 text-yellow-500" /> :
-                       idx === 1 ? <Medal className="w-5 h-5 text-slate-400" /> :
-                       idx === 2 ? <Medal className="w-5 h-5 text-amber-600" /> :
-                       <span className="text-xs font-bold text-gray-500">#{idx + 1}</span>}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-dark-bg/60 select-none">
+                      {idx === 0 ? <Medal className="w-4 h-4 text-yellow-500" /> :
+                       idx === 1 ? <Medal className="w-4 h-4 text-slate-400" /> :
+                       idx === 2 ? <Medal className="w-4 h-4 text-amber-600" /> :
+                       <span className="text-[10px] font-bold text-gray-600">#{idx + 1}</span>}
                     </div>
 
-                    <div className="text-left">
-                      <span className={cn("text-base font-black flex items-center gap-2", color.text)}>
-                        <span className={cn("w-2 h-2 rounded-full", color.dot)} />
+                    <div>
+                      <span className={cn("text-sm font-semibold flex items-center gap-2", color.text)}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", color.dot)} />
                         {p.username}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-bold block">
-                        Attempts: {p.attempts} · Solved: {p.solved ? 'YES' : 'NO'}
+                      <span className="text-[10px] text-gray-600 block mt-0.5">
+                        {p.attempts} attempt{p.attempts !== 1 ? 's' : ''} · {p.solved ? 'Solved' : 'Not solved'}
                       </span>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <span className={cn("text-xl font-black block", isWinner ? "text-yellow-400" : "text-gray-100")}>
-                      {p.score} <span className="text-[10px] text-gray-400 font-bold">PTS</span>
+                    <span className={cn("text-base font-bold block", isWinner ? 'text-yellow-400' : 'text-gray-300')}>
+                      {p.score} <span className="text-[10px] text-gray-600 font-medium">pts</span>
                     </span>
                     {p.solvedAt && (
-                      <span className="text-[9px] text-gray-500 font-mono">
-                        Time: {safeParseDate(p.solvedAt).toLocaleTimeString()}
+                      <span className="text-[9px] text-gray-600 font-mono">
+                        {safeParseDate(p.solvedAt).toLocaleTimeString()}
                       </span>
                     )}
                   </div>
@@ -1375,17 +1662,17 @@ export const BattleArenaPage: React.FC = () => {
             })}
           </div>
 
-          <div className="pt-4 flex gap-4">
-            <button
-              onClick={() => {
-                sessionStorage.removeItem('battleConfig');
-                navigate('/battle');
-              }}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-sm rounded-xl transition-all border border-slate-700 active:scale-[0.98]"
-            >
-              Return to Lobby
-            </button>
-          </div>
+          <div className="h-px bg-dark-border/30" />
+
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('battleConfig');
+              navigate('/battle');
+            }}
+            className="battle-btn-secondary w-full py-3"
+          >
+            Return to Arena Setup
+          </button>
         </div>
       </div>
     );
@@ -1415,13 +1702,13 @@ export const BattleArenaPage: React.FC = () => {
       ))}
 
       {/* Arena Header Bar */}
-      <header className="bg-dark-panel/90 backdrop-blur-md border-b border-dark-border px-4 py-2 flex items-center justify-between select-none shrink-0 shadow-lg relative z-10">
+      <header className="bg-dark-panel/90 backdrop-blur-md border-b border-dark-border px-4 py-2 flex items-center justify-between select-none shrink-0 relative z-10">
 
         {/* Left Side: Exit + Toggle Panel */}
         <div className="flex items-center gap-2">
           <Link to="/battle" onClick={() => sessionStorage.removeItem('battleConfig')}>
-            <button className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-dark-bg border border-dark-border text-xs text-gray-400 hover:text-gray-200 transition-colors">
-              <ArrowLeft className="w-4 h-4" /> Leave Arena
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors active:scale-95">
+              <ArrowLeft className="w-3.5 h-3.5" /> Leave
             </button>
           </Link>
 
@@ -1429,48 +1716,65 @@ export const BattleArenaPage: React.FC = () => {
             <button
               onClick={() => setShowDescriptionPanel(!showDescriptionPanel)}
               className={cn(
-                "flex items-center gap-1 px-3 py-1.5 rounded-md border text-xs font-bold transition-all select-none active:scale-95",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all select-none active:scale-95",
                 showDescriptionPanel
-                  ? "bg-dark-bg border-dark-border text-gray-400 hover:text-gray-200 hover:border-gray-500"
-                  : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
+                  ? "border-transparent text-gray-500 hover:text-gray-300"
+                  : "text-[#7fa8ff] border-[#4F7DFF]/30 hover:text-[#a8c3ff]"
               )}
+              style={!showDescriptionPanel ? { backgroundColor: 'rgba(79,125,255,0.08)' } : undefined}
+              aria-label="Toggle Problem Panel"
             >
-              <BookOpen className="w-4 h-4" />
-              <span>{showDescriptionPanel ? "Hide Problem" : "Show Problem"}</span>
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{showDescriptionPanel ? 'Hide Problem' : 'Show Problem'}</span>
             </button>
           )}
 
-          <div className="flex items-center gap-2 ml-2">
-            <Swords className="w-4 h-4 text-orange-500 animate-pulse" />
-            <span className="text-xs uppercase font-black tracking-widest text-orange-500 bg-orange-500/10 px-2.5 py-1 rounded border border-orange-500/20">
-              {config.mode === 'local' ? 'Local Duel' : 'Arena Battle'}
-            </span>
-          </div>
+          <button
+            onClick={() => setShowScoreboard(!showScoreboard)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all select-none active:scale-95",
+              showScoreboard
+                ? "border-transparent text-gray-500 hover:text-gray-300"
+                : "text-amber-400 border-amber-500/30 hover:text-amber-300"
+            )}
+            style={!showScoreboard ? { backgroundColor: 'rgba(245,158,11,0.08)' } : undefined}
+            aria-label="Toggle Scoreboard Panel"
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{showScoreboard ? 'Hide Scores' : 'Show Scores'}</span>
+          </button>
+
+          <span className="arena-mode-badge hidden md:inline-flex">
+            <Swords className="w-3 h-3" />
+            {config.mode === 'local' ? 'Local Duel' : 'Arena Battle'}
+          </span>
         </div>
 
-        {/* Center: Digital Timer */}
-        <div className="flex items-center gap-2 bg-dark-bg/80 border border-dark-border px-4 py-1 rounded-full shadow-inner">
-          <Clock className={cn("w-4 h-4", isTimeLow ? "text-red-500 animate-bounce" : "text-amber-400")} />
+        {/* Center: Timer */}
+        <div className="flex items-center gap-2">
+          <Clock className={cn("w-3.5 h-3.5", isTimeLow ? "text-rose-400" : "text-gray-500")} />
           <span className={cn(
-            "font-mono font-black text-lg tracking-wider select-none",
-            isTimeLow ? "text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse" : "text-amber-400"
+            "font-mono font-bold text-base tracking-wider select-none",
+            isTimeLow ? "text-rose-400 animate-pulse" : "text-gray-200"
           )}>
             {formatTime(timeLeft)}
           </span>
         </div>
 
-        {/* Right Side: Sounds & Concede / Force End */}
+        {/* Right Side */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-1.5 rounded-md bg-dark-bg hover:bg-dark-hover border border-dark-border text-gray-400 hover:text-gray-200 transition-colors"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
             title="Toggle Sound Effects"
+            aria-label="Toggle Sound Effects"
           >
-            {soundEnabled ? <Volume2 className="w-4.5 h-4.5 text-emerald-400" /> : <VolumeX className="w-4.5 h-4.5 text-gray-500" />}
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
           </button>
           <button
             onClick={handleConcede}
-            className="px-3 py-1.5 bg-red-950/20 hover:bg-red-950/40 text-red-400 border border-red-500/20 hover:border-red-500/40 font-bold text-xs rounded-md transition-all active:scale-95"
+            className="px-3 py-1.5 text-rose-400/80 hover:text-rose-400 border border-rose-500/15 hover:border-rose-500/30 font-medium text-xs rounded-lg transition-all active:scale-95"
+            aria-label="Concede Match"
           >
             Concede
           </button>
@@ -1648,7 +1952,7 @@ export const BattleArenaPage: React.FC = () => {
                 activeEditingPlayer?.lang === 'java' ? 'java' :
                 activeEditingPlayer?.lang === 'python' ? 'python' : 'javascript'
               }
-              theme="vs-dark"
+              theme={editorTheme}
               value={activeEditingPlayer?.code || ''}
               onChange={handleCodeChange}
               onMount={(editor) => {
@@ -1758,72 +2062,83 @@ export const BattleArenaPage: React.FC = () => {
         </div>
 
         {/* Column 3: Live Scoreboard Sidebar */}
-        <div className="w-[260px] border-l border-dark-border bg-dark-panel flex flex-col h-full overflow-hidden shrink-0 select-none">
-          <div className="p-3 border-b border-dark-border select-none bg-dark-bg/25 flex items-center gap-2 shrink-0">
-            <Trophy className="w-4 h-4 text-yellow-500" />
-            <h2 className="text-xs font-black uppercase tracking-wider text-gray-200">
-              Live Scoreboard
-            </h2>
-          </div>
+        {showScoreboard && (
+          <div className="w-[260px] border-l border-dark-border bg-dark-panel flex flex-col h-full overflow-hidden shrink-0 select-none">
+            <div className="p-3 border-b border-dark-border select-none bg-dark-bg/25 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-500" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-gray-200">
+                  Live Scoreboard
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowScoreboard(false)}
+                className="p-1 rounded bg-dark-bg hover:bg-dark-hover border border-dark-border text-gray-400 hover:text-gray-200 transition-colors"
+                aria-label="Close Scoreboard Panel"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-          {/* List of all players sorted by score desc */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-            {[...players]
-              .sort((a, b) => b.score - a.score)
-              .map((p, idx) => {
-                const color = PLAYER_COLORS[p.playerIndex % PLAYER_COLORS.length];
-                return (
-                  <div
-                    key={p.playerIndex}
-                    className={cn(
-                      "p-3 rounded-xl border flex flex-col gap-1.5 transition-all duration-300 bg-dark-bg/40 border-dark-border/70",
-                      p.solved && "border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_12px_rgba(16,185,129,0.04)]"
-                    )}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-gray-500">#{idx + 1}</span>
-
-                      {/* Solved badge */}
-                      {p.solved ? (
-                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.2 rounded font-black select-none uppercase">
-                          Solved
-                        </span>
-                      ) : (
-                        <span className="text-[8px] bg-amber-500/5 text-amber-500 border border-amber-500/10 px-1 py-0.2 rounded font-bold select-none uppercase animate-pulse">
-                          Coding
-                        </span>
+            {/* List of all players sorted by score desc */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              {[...players]
+                .sort((a, b) => b.score - a.score)
+                .map((p, idx) => {
+                  const color = PLAYER_COLORS[p.playerIndex % PLAYER_COLORS.length];
+                  return (
+                    <div
+                      key={p.playerIndex}
+                      className={cn(
+                        "p-3 rounded-xl border flex flex-col gap-1.5 transition-all duration-300 bg-dark-bg/40 border-dark-border/70",
+                        p.solved && "border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_12px_rgba(16,185,129,0.04)]"
                       )}
-                    </div>
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-gray-500">#{idx + 1}</span>
 
-                    <div className="flex justify-between items-baseline">
-                      <span className={cn("text-xs font-black truncate max-w-[130px] flex items-center gap-1.5", color.text)}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", color.dot, !p.isActive && "bg-gray-600")} />
-                        {p.username}
-                      </span>
-                      <span className="text-sm font-black text-gray-100">
-                        {p.score} <span className="text-[8px] text-gray-500 font-bold">PTS</span>
-                      </span>
-                    </div>
+                        {/* Solved badge */}
+                        {p.solved ? (
+                          <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.2 rounded font-black select-none uppercase">
+                            Solved
+                          </span>
+                        ) : (
+                          <span className="text-[8px] bg-amber-500/5 text-amber-500 border border-amber-500/10 px-1 py-0.2 rounded font-bold select-none uppercase animate-pulse">
+                            Coding
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="flex justify-between text-[8px] text-gray-500 font-bold border-t border-dark-border/30 pt-1 mt-0.5">
-                      <span>ATTEMPTS: {p.attempts}</span>
-                      {p.solvedAt && (
-                        <span className="font-mono">
-                          {safeParseDate(p.solvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      <div className="flex justify-between items-baseline">
+                        <span className={cn("text-xs font-black truncate max-w-[130px] flex items-center gap-1.5", color.text)}>
+                          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", color.dot, !p.isActive && "bg-gray-600")} />
+                          {p.username}
                         </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+                        <span className="text-sm font-black text-gray-100">
+                          {p.score} <span className="text-[8px] text-gray-500 font-bold">PTS</span>
+                        </span>
+                      </div>
 
-          <div className="p-3 border-t border-dark-border bg-dark-bg/20 select-none text-center">
-            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">
-              Match ID: {config.battleId.slice(0, 8)}
-            </span>
+                      <div className="flex justify-between text-[8px] text-gray-500 font-bold border-t border-dark-border/30 pt-1 mt-0.5">
+                        <span>ATTEMPTS: {p.attempts}</span>
+                        {p.solvedAt && (
+                          <span className="font-mono">
+                            {safeParseDate(p.solvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="p-3 border-t border-dark-border bg-dark-bg/20 select-none text-center">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">
+                Match ID: {config.battleId.slice(0, 8)}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
       </main>
 

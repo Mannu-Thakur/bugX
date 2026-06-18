@@ -34,6 +34,9 @@ export interface User {
   githubUrl: string | null;
   linkedinUrl: string | null;
   portfolioUrl: string | null;
+  fullName: string | null;
+  bio: string | null;
+  location: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -174,6 +177,7 @@ export interface SubmissionCreatePayload {
   language: string;
   source_code: string;
   run_samples_only?: boolean;
+  battle_id?: string;
 }
 
 export interface SubmissionResponse {
@@ -241,19 +245,37 @@ export interface ApiError {
   detail: unknown;
 }
 
-// Token Storage
+// Token Storage — Remember Me aware
+// When remember=true, store in localStorage (survives browser close).
+// When remember=false, store in sessionStorage (cleared on browser close).
+// A small flag in localStorage tracks which storage is active.
 const TOKEN_KEY = 'access_token';
+const REMEMBER_KEY = 'remember_me';
 
 export const getToken = (): string | null => {
-  return localStorage.getItem(TOKEN_KEY);
+  const remembered = localStorage.getItem(REMEMBER_KEY) === '1';
+  if (remembered) {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 };
 
-export const setToken = (token: string): void => {
-  localStorage.setItem(TOKEN_KEY, token);
+export const setToken = (token: string, remember: boolean = true): void => {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(REMEMBER_KEY, '1');
+    sessionStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.setItem(REMEMBER_KEY, '0');
+  }
 };
 
 export const clearToken = (): void => {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REMEMBER_KEY);
 };
 
 // Response / Error Normalization
@@ -285,6 +307,14 @@ export async function normalizeError(response: Response): Promise<ApiError> {
       message = data.message;
     } else if (typeof detail === 'string') {
       message = detail;
+    } else if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+      const detailObj = detail as Record<string, unknown>;
+      if (typeof detailObj.message === 'string') {
+        message = detailObj.message;
+      }
+      if (typeof detailObj.error_type === 'string') {
+        code = detailObj.error_type;
+      }
     } else if (Array.isArray(detail)) {
       // FastAPI ValidationError parsing e.g. [{loc: ['body', 'password'], msg: '...', type: '...'}]
       const parts = (detail as Array<{ loc?: (string | number)[]; msg: string; type: string }>).map((err) => {
@@ -408,6 +438,10 @@ interface RawUser {
   linkedinUrl?: string | null;
   portfolio_url?: string | null;
   portfolioUrl?: string | null;
+  full_name?: string | null;
+  fullName?: string | null;
+  bio?: string | null;
+  location?: string | null;
   is_active?: boolean;
   isActive?: boolean;
   created_at?: string;
@@ -424,6 +458,9 @@ const normalizeUser = (raw: RawUser): User => ({
   githubUrl: raw.githubUrl ?? raw.github_url ?? null,
   linkedinUrl: raw.linkedinUrl ?? raw.linkedin_url ?? null,
   portfolioUrl: raw.portfolioUrl ?? raw.portfolio_url ?? null,
+  fullName: raw.fullName ?? raw.full_name ?? null,
+  bio: raw.bio ?? null,
+  location: raw.location ?? null,
   isActive: raw.isActive ?? raw.is_active ?? true,
   createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
 });
@@ -435,6 +472,9 @@ export interface UserUpdatePayload {
   githubUrl?: string | null;
   linkedinUrl?: string | null;
   portfolioUrl?: string | null;
+  fullName?: string | null;
+  bio?: string | null;
+  location?: string | null;
 }
 
 const toUserUpdatePayload = (body: UserUpdatePayload) => ({
@@ -444,6 +484,9 @@ const toUserUpdatePayload = (body: UserUpdatePayload) => ({
   ...(body.githubUrl !== undefined ? { github_url: body.githubUrl } : {}),
   ...(body.linkedinUrl !== undefined ? { linkedin_url: body.linkedinUrl } : {}),
   ...(body.portfolioUrl !== undefined ? { portfolio_url: body.portfolioUrl } : {}),
+  ...(body.fullName !== undefined ? { full_name: body.fullName } : {}),
+  ...(body.bio !== undefined ? { bio: body.bio } : {}),
+  ...(body.location !== undefined ? { location: body.location } : {}),
 });
 
 interface RawStudyFileItem {
@@ -483,6 +526,11 @@ export const api = {
       request<{ message: string }>('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify(body),
+      }),
+
+    logout: () =>
+      request<{ message: string }>('/auth/logout', {
+        method: 'POST',
       }),
   },
 

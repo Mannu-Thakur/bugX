@@ -9,6 +9,7 @@ class SubmissionCreate(BaseModel):
     language: str
     source_code: str = Field(..., max_length=65536)
     run_samples_only: bool = False
+    battle_id: Optional[UUID] = None
 
     @field_validator('language')
     @classmethod

@@ -68,8 +68,8 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
     >
       {/* Left Pane */}
       <div
-        className="h-full overflow-hidden rounded-xl border border-dark-border bg-dark-panel shadow-md flex flex-col"
-        style={{ width: `${leftWidth}%` }}
+        className="h-full overflow-hidden rounded-xl bg-dark-panel flex flex-col"
+        style={{ width: `${leftWidth}%`, border: '1px solid rgba(255,255,255,0.04)' }}
       >
         {left}
       </div>
@@ -78,18 +78,20 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       <div
         onMouseDown={startResize}
         onTouchStart={startResize}
-        className="w-[6px] h-full hover:bg-blue-500/10 active:bg-blue-500/20 transition-all duration-200 cursor-col-resize flex flex-col justify-center items-center gap-1 select-none z-10 group"
+        className="w-1 h-full rounded-full cursor-col-resize flex flex-col justify-center items-center select-none z-10 group shrink-0"
+        style={{ background: 'transparent' }}
       >
-        <div className="w-0.5 h-8 bg-gray-500/30 group-hover:bg-blue-400/50 rounded-full transition-colors" />
+        <div className="w-px h-10 bg-white/[0.07] group-hover:bg-white/20 rounded-full transition-colors duration-200" />
       </div>
 
       {/* Right Pane */}
       <div
-        className="h-full overflow-hidden flex-1 rounded-xl border border-dark-border bg-dark-panel shadow-md flex flex-col"
-        style={{ width: `${100 - leftWidth}%` }}
+        className="h-full overflow-hidden flex-1 rounded-xl flex flex-col"
+        style={{ width: `${100 - leftWidth}%`, background: '#1e1e1e', border: '1px solid rgba(255,255,255,0.06)' }}
       >
         {right}
       </div>
     </div>
   );
 };
+
