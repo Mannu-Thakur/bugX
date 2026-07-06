@@ -3,7 +3,7 @@ import uuid
 import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # ── Tag schemas ───────────────────────────────────────────────────────────────
@@ -74,6 +74,7 @@ class ProblemCreate(BaseModel):
     score_base: int = Field(100, gt=0)
     runtime_bonus_max: int = Field(20, ge=0)
     expected_complexity: Optional[str] = Field(None, max_length=20)
+    comparison_mode: str = Field("strict", pattern="^(strict|order_agnostic)$")
     tag_ids: List[uuid.UUID] = Field(default_factory=list)
     templates: List[TemplateCreate] = Field(..., min_length=1)
     test_cases: List[TestCaseCreate] = Field(..., min_length=1)
@@ -112,6 +113,7 @@ class ProblemUpdate(BaseModel):
     score_base: Optional[int] = Field(None, gt=0)
     runtime_bonus_max: Optional[int] = Field(None, ge=0)
     expected_complexity: Optional[str] = Field(None, max_length=20)
+    comparison_mode: Optional[str] = Field(None, pattern="^(strict|order_agnostic)$")
     is_published: Optional[bool] = None
     tag_ids: Optional[List[uuid.UUID]] = None
 
@@ -133,6 +135,13 @@ class ProblemListItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @model_validator(mode="after")
+    def adjust_score_base(self) -> "ProblemListItem":
+        mapping = {"EASY": 3, "MEDIUM": 6, "HARD": 10}
+        diff_str = self.difficulty.value if hasattr(self.difficulty, "value") else str(self.difficulty)
+        self.score_base = mapping.get(diff_str.upper(), 3)
+        return self
+
 
 class ProblemDetail(BaseModel):
     id: uuid.UUID
@@ -152,8 +161,18 @@ class ProblemDetail(BaseModel):
     sample_test_cases: List[TestCaseResponse] = []
     user_status: Optional[UserStatusEmbed] = None
     hints: List[str] = []
+    comparison_mode: str = "strict"
+    source: Optional[str] = "local"
+    external_problem_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def adjust_score_base(self) -> "ProblemDetail":
+        mapping = {"EASY": 3, "MEDIUM": 6, "HARD": 10}
+        diff_str = self.difficulty.value if hasattr(self.difficulty, "value") else str(self.difficulty)
+        self.score_base = mapping.get(diff_str.upper(), 3)
+        return self
 
 
 class PaginatedProblems(BaseModel):

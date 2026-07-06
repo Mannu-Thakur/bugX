@@ -73,3 +73,48 @@ export async function fetchUserSubmissions(
     `/users/me/submissions?page=${page}&limit=${limit}`,
   );
 }
+
+export interface PublicProfileData {
+  user: {
+    username: string;
+    fullName: string | null;
+    bio: string | null;
+    location: string | null;
+    avatarUrl: string | null;
+    createdAt: string | null;
+    leetcodeUrl: string | null;
+    githubUrl: string | null;
+    linkedinUrl: string | null;
+    portfolioUrl: string | null;
+  };
+  stats: UserStats;
+  submissions: SubmissionSummary[];
+}
+
+/** GET /api/v1/users/profile/{username} */
+export async function fetchPublicProfile(username: string): Promise<PublicProfileData> {
+  const res = await fetch(`${ENV.API_URL}/users/profile/${username}`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      message = body.detail ?? body.message ?? message;
+    } catch { /* ignore */ }
+    throw { status: res.status, message };
+  }
+
+  const data = await res.json();
+  if (data && data.submissions) {
+    data.submissions = data.submissions.map((sub: any) => ({
+      ...sub,
+      status: (sub.status || '').toLowerCase()
+    }));
+  }
+  return data;
+}
+

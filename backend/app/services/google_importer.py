@@ -232,61 +232,25 @@ class GoogleImporter:
         alias_slug = GOOGLE_ALIASES.get(direct_slug) or GOOGLE_ALIASES.get(query.lower())
         target_slug = alias_slug
 
-        if not target_slug:
-            # 3. Search LeetCode REST algorithms list / resolve slug
-            try:
-                target_slug = await LeetCodeImporter.resolve_slug(query)
-            except Exception as e:
-                print(f"[GoogleImporter] Slug resolution error: {e}")
-
-        # 3b. If resolve_slug just reformatted the query (no real match found),
-        # try our own _search_leetcode which has word-by-word matching
-        formatted_slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
-        if not target_slug or target_slug == formatted_slug:
-            try:
-                search_result = await cls._search_leetcode(query)
-                if search_result:
-                    print(f"[GoogleImporter] _search_leetcode found: {search_result}")
-                    target_slug = search_result
-            except Exception as e:
-                print(f"[GoogleImporter] _search_leetcode error: {e}")
-
-        if not target_slug:
-            target_slug = formatted_slug
-
-        if not target_slug:
-            raise Exception("Could not resolve a valid problem slug from search query.")
-
-        print(f"[GoogleImporter] Resolved query '{url_or_slug}' to slug '{target_slug}'")
-
-        # 4. Try importing using LeetCodeImporter, and fallback to GFGImporter if it fails
-        try:
-            return await LeetCodeImporter.import_problem(session, target_slug)
-        except Exception as e:
-            print(f"[GoogleImporter] LeetCode import failed for slug '{target_slug}': {e}")
-
-            # Fallback to GFGImporter
-            gfg_err = None
-            try:
-                print(f"[GoogleImporter] Attempting GFG import fallback for slug '{target_slug}'...")
-                from app.services.gfg_importer import GFGImporter
-                gfg_slug = GFGImporter._parse_slug(target_slug)
-                return await GFGImporter.import_problem(session, gfg_slug)
-            except Exception as ge:
-                gfg_err = ge
-                print(f"[GoogleImporter] GFG fallback failed: {ge}")
-
-            # If GFG also fails, try curated
+        if target_slug:
             curated = await cls._import_curated_problem(session, target_slug)
             if curated:
-                print(f"[GoogleImporter] Fallback to curated problem successfully resolved for '{target_slug}'")
+                print(f"[GoogleImporter] Found curated match: {target_slug}")
                 return curated
 
-            # If everything else fails, raise the exception to trigger the dynamic synthesis fallback
-            raise Exception(
-                f"Failed to fetch problem '{target_slug}' from LeetCode or GFG. "
-                f"Original LeetCode error: {str(e)} | GFG error: {str(gfg_err)}"
-            )
+        # 3. Delegate lookup and import to ImportOrchestrator
+        from app.services.import_orchestrator import ImportOrchestrator
+        try:
+            print(f"[GoogleImporter] Delegating import of query '{query}' to ImportOrchestrator...")
+            return await ImportOrchestrator.import_problem(session, query)
+        except Exception as e:
+            print(f"[GoogleImporter] Orchestrator import failed for '{query}': {e}. Trying curated fallback...")
+            fallback_slug = target_slug or re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
+            curated = await cls._import_curated_problem(session, fallback_slug)
+            if curated:
+                print(f"[GoogleImporter] Fallback to curated problem successfully resolved for '{fallback_slug}'")
+                return curated
+            raise e
 
     @staticmethod
     async def _get_or_create_tags(session: AsyncSession, tag_names: list[str]) -> list[Tag]:
@@ -324,6 +288,8 @@ class GoogleImporter:
             for index, (tc_input, expected, is_sample) in enumerate(data["tests"])
         ]
 
+        comp_mode = "order_agnostic" if any(kw in slug.lower() for kw in ["three-sum", "3sum", "3-sum", "two-sum", "group-anagrams"]) else "strict"
+
         problem = Problem(
             slug=slug,
             title=data["title"],
@@ -337,6 +303,7 @@ class GoogleImporter:
             tags=tags,
             templates=templates,
             test_cases=test_cases,
+            comparison_mode=comp_mode
         )
         session.add(problem)
         await session.flush()

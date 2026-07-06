@@ -4,7 +4,8 @@ from typing import Optional, List
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.problem import Problem, DifficultyEnum
+from sqlalchemy import select
+from app.models.problem import Problem, DifficultyEnum, user_problems
 from app.models.problem_template import ProblemTemplate, ArgStyleEnum
 from app.models.test_case import TestCase
 from app.models.tag import Tag
@@ -24,7 +25,12 @@ class ProblemController:
         difficulty: Optional[str],
         tag: Optional[str],
         search: Optional[str],
-        sort: str
+        sort: str,
+        company: Optional[str] = None,
+        topic: Optional[str] = None,
+        source: Optional[str] = None,
+        solved: Optional[str] = None,
+        bookmarked: Optional[str] = None
     ) -> dict:
         items, total = await ProblemRepo.list_problems(
             self.db,
@@ -33,7 +39,13 @@ class ProblemController:
             difficulty=difficulty,
             tag=tag,
             search=search,
-            sort=sort
+            sort=sort,
+            current_user=current_user,
+            company=company,
+            topic=topic,
+            source=source,
+            solved=solved,
+            bookmarked=bookmarked
         )
         pages = (total + limit - 1) // limit if total > 0 else 0
 
@@ -60,6 +72,20 @@ class ProblemController:
         problem = await ProblemRepo.get_by_slug(self.db, slug)
         if not problem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+
+        # Verify access visibility
+        if not problem.is_public:
+            if not current_user:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+            if current_user.role.value != "ADMIN":
+                # Check if user is mapped to this problem
+                assoc_stmt = select(user_problems).where(
+                    user_problems.c.user_id == current_user.id,
+                    user_problems.c.problem_id == problem.id
+                )
+                assoc_res = await self.db.execute(assoc_stmt)
+                if not assoc_res.first():
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
 
         # Admin can view unpublished problems
         if not problem.is_published:
@@ -99,7 +125,9 @@ class ProblemController:
             "templates": problem.templates,
             "sample_test_cases": sample_test_cases,
             "user_status": user_status,
-            "hints": hints_list
+            "hints": hints_list,
+            "source": problem.source,
+            "external_problem_id": problem.external_problem_id
         }
 
     async def get_random_problem(
@@ -111,7 +139,8 @@ class ProblemController:
         problem = await ProblemRepo.get_random_problem(
             self.db,
             difficulty=difficulty,
-            tag=tag
+            tag=tag,
+            current_user=current_user
         )
         if not problem:
             raise HTTPException(
@@ -161,6 +190,16 @@ class ProblemController:
         if not problem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
 
+        # Verify access visibility
+        if not problem.is_public and current_user.role.value != "ADMIN":
+            assoc_stmt = select(user_problems).where(
+                user_problems.c.user_id == current_user.id,
+                user_problems.c.problem_id == problem.id
+            )
+            assoc_res = await self.db.execute(assoc_stmt)
+            if not assoc_res.first():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+
         sub = await ProblemRepo.get_best_qualifying_submission(self.db, current_user.id, problem.id)
         if not sub:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Best submission not found")
@@ -171,6 +210,16 @@ class ProblemController:
         problem = await ProblemRepo.get_by_slug(self.db, slug)
         if not problem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+
+        # Verify access visibility
+        if not problem.is_public and current_user.role.value != "ADMIN":
+            assoc_stmt = select(user_problems).where(
+                user_problems.c.user_id == current_user.id,
+                user_problems.c.problem_id == problem.id
+            )
+            assoc_res = await self.db.execute(assoc_stmt)
+            if not assoc_res.first():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
 
         sub = await ProblemRepo.get_last_submission(self.db, current_user.id, problem.id)
         if not sub:
@@ -242,6 +291,9 @@ class ProblemController:
             ))
 
         # Create Problem object
+        mapping = {"EASY": 3, "MEDIUM": 6, "HARD": 10}
+        score_val = mapping.get(req.difficulty.upper(), 3)
+
         problem = Problem(
             slug=req.slug,
             title=req.title,
@@ -249,7 +301,7 @@ class ProblemController:
             difficulty=DifficultyEnum(req.difficulty),
             time_limit_ms=req.time_limit_ms,
             memory_limit_kb=req.memory_limit_kb,
-            score_base=req.score_base,
+            score_base=score_val,
             runtime_bonus_max=req.runtime_bonus_max,
             expected_complexity=req.expected_complexity,
             is_published=False,  # unpublished by default
@@ -293,6 +345,8 @@ class ProblemController:
             problem.description = req.description
         if req.difficulty is not None:
             problem.difficulty = DifficultyEnum(req.difficulty)
+            mapping = {"EASY": 3, "MEDIUM": 6, "HARD": 10}
+            problem.score_base = mapping.get(req.difficulty.upper(), 3)
         if req.time_limit_ms is not None:
             problem.time_limit_ms = req.time_limit_ms
         if req.memory_limit_kb is not None:

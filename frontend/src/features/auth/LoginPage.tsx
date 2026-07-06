@@ -25,7 +25,7 @@ const LinkedInIcon = () => (
 
 /* ─── Brand Icon: GitHub ───────────────────────────────────────────── */
 const GitHubIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#24292f">
+  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
     <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
   </svg>
 );
@@ -95,7 +95,7 @@ export const LoginPage: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
       {/* ── Card ─────────────────────────────────────────────── */}
       <div
-        className="relative w-full max-w-[460px] mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden animate-zoom-in"
+        className="relative w-full max-w-[460px] mx-4 bg-dark-panel border border-dark-border rounded-2xl shadow-2xl overflow-hidden animate-zoom-in"
         style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
       >
         {/* Close button */}
@@ -103,7 +103,7 @@ export const LoginPage: React.FC = () => {
           id="login-close-btn"
           type="button"
           onClick={() => navigate(-1)}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
@@ -112,13 +112,13 @@ export const LoginPage: React.FC = () => {
         <div className="px-8 pt-8 pb-7 space-y-5">
           {/* ── Header ── */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">Log in</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-gray-100 leading-tight">Log in</h1>
+            <p className="mt-1 text-sm text-gray-400">
               New user?{' '}
               <Link
                 to="/register"
                 id="login-register-link"
-                className="text-blue-500 font-semibold hover:text-blue-600 transition-colors"
+                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors"
               >
                 Register Now
               </Link>
@@ -130,7 +130,7 @@ export const LoginPage: React.FC = () => {
             id="oauth-google-btn"
             type="button"
             onClick={() => handleOAuth('google')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 transition-all duration-200 hover:shadow-sm"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.07] border border-dark-border rounded-lg text-sm font-semibold text-gray-200 transition-all duration-200 hover:shadow-sm"
           >
             <GoogleIcon />
             Continue with Google
@@ -142,8 +142,9 @@ export const LoginPage: React.FC = () => {
             <button
               id="oauth-linkedin-btn"
               type="button"
-              onClick={() => handleOAuth('linkedin')}
-              className="w-11 h-11 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow"
+              onClick={() => toast.info('LinkedIn login is coming soon!')}
+              title="LinkedIn login (coming soon)"
+              className="w-11 h-11 flex items-center justify-center rounded-full border border-dark-border bg-white/[0.02] hover:bg-white/[0.08] hover:border-dark-border text-blue-400 hover:text-blue-300 transition-all duration-200 shadow-sm hover:shadow"
               aria-label="Continue with LinkedIn"
             >
               <LinkedInIcon />
@@ -154,7 +155,7 @@ export const LoginPage: React.FC = () => {
               id="oauth-github-btn"
               type="button"
               onClick={() => handleOAuth('github')}
-              className="w-11 h-11 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:bg-gray-100 hover:border-gray-400 transition-all duration-200 shadow-sm hover:shadow"
+              className="w-11 h-11 flex items-center justify-center rounded-full border border-dark-border bg-white/[0.02] hover:bg-white/[0.08] hover:border-dark-border text-gray-250 hover:text-white transition-all duration-200 shadow-sm hover:shadow"
               aria-label="Continue with GitHub"
             >
               <GitHubIcon />
@@ -163,16 +164,16 @@ export const LoginPage: React.FC = () => {
 
           {/* ── OR Divider ── */}
           <div className="relative flex items-center">
-            <div className="flex-1 border-t border-gray-200" />
-            <span className="mx-3 text-xs text-gray-400 font-medium">or</span>
-            <div className="flex-1 border-t border-gray-200" />
+            <div className="flex-1 border-t border-dark-border" />
+            <span className="mx-3 text-xs text-gray-500 font-medium">or</span>
+            <div className="flex-1 border-t border-dark-border" />
           </div>
 
           {/* ── Form ── */}
           <form onSubmit={handleLogin} className="space-y-4" noValidate>
             {/* Username or Email */}
             <div className="space-y-1.5">
-              <label htmlFor="login-email" className="block text-sm font-semibold text-gray-800">
+              <label htmlFor="login-email" className="block text-sm font-semibold text-gray-300">
                 Username or Email
               </label>
               <input
@@ -183,10 +184,10 @@ export const LoginPage: React.FC = () => {
                 placeholder="Username or Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full px-3.5 py-2.5 text-sm text-gray-900 bg-white border rounded-lg outline-none placeholder-gray-400
+                className={`w-full px-3.5 py-2.5 text-sm text-gray-100 bg-dark-input border rounded-lg outline-none placeholder-gray-600
                   transition-all duration-200
-                  focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                  ${errors.email ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-300 hover:border-gray-400'}`}
+                  focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
+                  ${errors.email ? 'border-red-500/50 ring-2 ring-red-500/10' : 'border-dark-border hover:border-white/[0.1]'}`}
               />
               {errors.email && (
                 <p className="text-xs text-red-500 mt-1">{errors.email}</p>
@@ -195,7 +196,7 @@ export const LoginPage: React.FC = () => {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label htmlFor="login-password" className="block text-sm font-semibold text-gray-800">
+              <label htmlFor="login-password" className="block text-sm font-semibold text-gray-300">
                 Password
               </label>
               <div className="relative">
@@ -206,15 +207,15 @@ export const LoginPage: React.FC = () => {
                   placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 pr-11 text-sm text-gray-900 bg-white border rounded-lg outline-none placeholder-gray-400
+                  className={`w-full px-3.5 py-2.5 pr-11 text-sm text-gray-100 bg-dark-input border rounded-lg outline-none placeholder-gray-600
                     transition-all duration-200
-                    focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                    ${errors.password ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-300 hover:border-gray-400'}`}
+                    focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
+                    ${errors.password ? 'border-red-500/50 ring-2 ring-red-500/10' : 'border-dark-border hover:border-white/[0.1]'}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-300 transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
@@ -233,14 +234,14 @@ export const LoginPage: React.FC = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 accent-blue-600 cursor-pointer"
+                  className="w-4 h-4 rounded border-dark-border bg-dark-input text-blue-500 accent-blue-500 cursor-pointer"
                 />
-                <span className="text-sm text-gray-600">Remember Me</span>
+                <span className="text-sm text-gray-400">Remember Me</span>
               </label>
               <Link
                 to="/forgot-password"
                 id="login-forgot-link"
-                className="text-sm font-semibold text-blue-500 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
               >
                 Forgot password
               </Link>
@@ -272,20 +273,20 @@ export const LoginPage: React.FC = () => {
           </form>
 
           {/* ── Privacy Footer ── */}
-          <div className="text-center space-y-2 pt-2 border-t border-gray-100">
-            <p className="text-[11px] text-gray-450 leading-relaxed">
+          <div className="text-center space-y-2 pt-2 border-t border-dark-border">
+            <p className="text-[11px] text-gray-500 leading-relaxed">
               By using bugX, you agree to our terms and policies.
             </p>
-            <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
-              <Link to="/privacy" className="hover:text-blue-500 hover:underline transition-colors font-medium">
+            <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+              <Link to="/privacy" className="hover:text-blue-400 hover:underline transition-colors font-medium">
                 Privacy Policy
               </Link>
-              <span className="text-gray-350">•</span>
-              <Link to="/cookies" className="hover:text-blue-500 hover:underline transition-colors font-medium">
+              <span className="text-gray-600">•</span>
+              <Link to="/cookies" className="hover:text-blue-400 hover:underline transition-colors font-medium">
                 Cookie Policy
               </Link>
-              <span className="text-gray-350">•</span>
-              <Link to="/terms" className="hover:text-blue-500 hover:underline transition-colors font-medium">
+              <span className="text-gray-600">•</span>
+              <Link to="/terms" className="hover:text-blue-400 hover:underline transition-colors font-medium">
                 Terms of Service
               </Link>
             </div>

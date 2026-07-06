@@ -40,7 +40,7 @@ export const BattleLobbyPage: React.FC = () => {
 
   // Problem Source
   const [problemSource, setProblemSource] = useState<'catalog' | 'custom'>('catalog');
-  const [selectedSlug, setSelectedSlug] = useState(MOCK_PROBLEMS[0]?.slug || '');
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
 
   const { data: catalogData, isLoading: catalogLoading } = useQuery({
     queryKey: ['battle', 'catalog-problems'],
@@ -69,44 +69,80 @@ export const BattleLobbyPage: React.FC = () => {
 
   useEffect(() => {
     if (!catalogProblems.length) return;
-    if (!catalogProblems.some(p => p.slug === selectedSlug)) {
-      setSelectedSlug(catalogProblems[0].slug);
-    }
-  }, [catalogProblems, selectedSlug]);
+    setSelectedSlugs(prev => {
+      const valid = prev.filter(slug => catalogProblems.some(p => p.slug === slug));
+      return valid.length ? valid : [catalogProblems[0].slug];
+    });
+  }, [catalogProblems]);
 
-  // Custom Problem
-  const [customProblem, setCustomProblem] = useState<CustomProblem>({
-    title: '',
-    description: '',
-    testCases: [
-      { input: '', expectedOutput: '' },
-      { input: '', expectedOutput: '' },
-    ],
-    pythonTemplate: 'def solve(data):\n    # Write your solution\n    pass',
-    jsTemplate: 'function solve(data) {\n    // Write your solution\n}',
-    cppTemplate: 'class Solution {\npublic:\n    vector<int> solve(vector<int>& nums) {\n        // Write your solution here\n        return {};\n    }\n};',
-    javaTemplate: 'import java.util.*;\n\nclass Solution {\n    public List<Integer> solve(List<Integer> nums) {\n        // Write your solution here\n        return new ArrayList<>();\n    }\n}',
-  });
+  // Custom Problems (up to 3)
+  const [customProblems, setCustomProblems] = useState<CustomProblem[]>([
+    {
+      title: '',
+      description: '',
+      testCases: [
+        { input: '', expectedOutput: '' },
+        { input: '', expectedOutput: '' },
+      ],
+      pythonTemplate: 'def solve(data):\n    # Write your solution\n    pass',
+      jsTemplate: 'function solve(data) {\n    // Write your solution\n}',
+      cppTemplate: 'class Solution {\npublic:\n    vector<int> solve(vector<int>& nums) {\n        // Write your solution here\n        return {};\n    }\n};',
+      javaTemplate: 'import java.util.*;\n\nclass Solution {\n    public List<Integer> solve(List<Integer> nums) {\n        // Write your solution here\n        return new ArrayList<>();\n    }\n}',
+    }
+  ]);
+  const [activeCustomIdx, setActiveCustomIdx] = useState<number>(0);
+
+  const addCustomProblem = () => {
+    if (customProblems.length >= 3) return;
+    setCustomProblems(prev => [
+      ...prev,
+      {
+        title: '',
+        description: '',
+        testCases: [
+          { input: '', expectedOutput: '' },
+          { input: '', expectedOutput: '' },
+        ],
+        pythonTemplate: 'def solve(data):\n    # Write your solution\n    pass',
+        jsTemplate: 'function solve(data) {\n    // Write your solution\n}',
+        cppTemplate: 'class Solution {\npublic:\n    vector<int> solve(vector<int>& nums) {\n        // Write your solution here\n        return {};\n    }\n};',
+        javaTemplate: 'import java.util.*;\n\nclass Solution {\n    public List<Integer> solve(List<Integer> nums) {\n        // Write your solution here\n        return new ArrayList<>();\n    }\n}',
+      }
+    ]);
+    setActiveCustomIdx(customProblems.length);
+  };
+
+  const removeCustomProblem = (idx: number) => {
+    if (customProblems.length <= 1) return;
+    setCustomProblems(prev => prev.filter((_, i) => i !== idx));
+    setActiveCustomIdx(prev => Math.max(0, prev - 1));
+  };
+
+  const updateActiveCustomProblem = (updater: (prev: CustomProblem) => CustomProblem) => {
+    setCustomProblems(prev => prev.map((p, i) => i === activeCustomIdx ? updater(p) : p));
+  };
 
   const addTestCase = () => {
-    setCustomProblem(prev => ({
-      ...prev,
-      testCases: [...prev.testCases, { input: '', expectedOutput: '' }],
+    updateActiveCustomProblem(p => ({
+      ...p,
+      testCases: [...p.testCases, { input: '', expectedOutput: '' }],
     }));
   };
 
   const removeTestCase = (idx: number) => {
-    if (customProblem.testCases.length <= 1) return;
-    setCustomProblem(prev => ({
-      ...prev,
-      testCases: prev.testCases.filter((_, i) => i !== idx),
-    }));
+    updateActiveCustomProblem(p => {
+      if (p.testCases.length <= 1) return p;
+      return {
+        ...p,
+        testCases: p.testCases.filter((_, i) => i !== idx),
+      };
+    });
   };
 
   const updateTestCase = (idx: number, field: 'input' | 'expectedOutput', value: string) => {
-    setCustomProblem(prev => ({
-      ...prev,
-      testCases: prev.testCases.map((tc, i) => i === idx ? { ...tc, [field]: value } : tc),
+    updateActiveCustomProblem(p => ({
+      ...p,
+      testCases: p.testCases.map((tc, i) => i === idx ? { ...tc, [field]: value } : tc),
     }));
   };
 
@@ -118,12 +154,16 @@ export const BattleLobbyPage: React.FC = () => {
     if (mode === 'local' && !player2Name.trim()) { alert('Please enter the opponent display name.'); return false; }
 
     if (problemSource === 'custom') {
-      if (!customProblem.title.trim()) { alert('Please enter a problem title.'); return false; }
-      if (!customProblem.description.trim()) { alert('Please enter a problem description.'); return false; }
-      if (customProblem.testCases.some(tc => !tc.input.trim() || !tc.expectedOutput.trim())) {
-        alert('Please fill all test case inputs and expected outputs.'); return false;
+      if (customProblems.length === 0) { alert('Please add at least one custom problem.'); return false; }
+      for (let i = 0; i < customProblems.length; i++) {
+        const cp = customProblems[i];
+        if (!cp.title.trim()) { alert(`Please enter a title for Problem ${i + 1}.`); return false; }
+        if (!cp.description.trim()) { alert(`Please enter a description for Problem ${i + 1}.`); return false; }
+        if (cp.testCases.some(tc => !tc.input.trim() || !tc.expectedOutput.trim())) {
+          alert(`Please fill all test case inputs and expected outputs for Problem ${i + 1}.`); return false;
+        }
       }
-    } else if (!selectedSlug) { alert('Please choose a catalog problem.'); return false; }
+    } else if (selectedSlugs.length === 0) { alert('Please choose at least one catalog problem.'); return false; }
 
     return true;
   };
@@ -136,8 +176,10 @@ export const BattleLobbyPage: React.FC = () => {
     maxPlayers: mode === 'local' ? 2 : maxPlayers,
     timeLimit: Math.max(1, Math.min(240, Number(timeLimit) || 15)),
     problemSource,
-    selectedSlug: problemSource === 'catalog' ? selectedSlug : null,
-    customProblem: problemSource === 'custom' ? customProblem : null,
+    selectedSlug: problemSource === 'catalog' ? selectedSlugs[0] : null,
+    selectedSlugs: problemSource === 'catalog' ? selectedSlugs : null,
+    customProblem: problemSource === 'custom' ? customProblems[0] : null,
+    customProblems: problemSource === 'custom' ? customProblems : null,
   });
 
   const handleStartBattle = () => {
@@ -162,8 +204,10 @@ export const BattleLobbyPage: React.FC = () => {
         player_usernames: [player1Name.trim()],
         time_limit: Math.max(1, Math.min(240, Number(timeLimit) || 15)),
         problem_source: problemSource,
-        selected_slug: problemSource === 'catalog' ? selectedSlug : null,
-        custom_problem: problemSource === 'custom' ? customProblem : null,
+        selected_slug: problemSource === 'catalog' ? selectedSlugs[0] : null,
+        selected_slugs: problemSource === 'catalog' ? selectedSlugs : null,
+        custom_problem: problemSource === 'custom' ? customProblems[0] : null,
+        custom_problems: problemSource === 'custom' ? customProblems : null,
       };
 
       const res = await api.battle.create(payload);
@@ -180,7 +224,9 @@ export const BattleLobbyPage: React.FC = () => {
         timeLimit: payload.time_limit,
         problemSource,
         selectedSlug: payload.selected_slug,
+        selectedSlugs: payload.selected_slugs,
         customProblem: payload.custom_problem,
+        customProblems: payload.custom_problems,
         myPlayerIndex: 0,
       }));
 
@@ -213,10 +259,10 @@ export const BattleLobbyPage: React.FC = () => {
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-100">
-          Battle Arena
+          Contest Arena
         </h1>
         <p className="text-sm text-gray-500 max-w-lg leading-relaxed">
-          Challenge friends or run competitive coding contests. One shared problem, one clock, separate workspaces.
+          Challenge friends or run competitive coding contests. Select up to 3 problems, one clock, separate workspaces.
         </p>
       </div>
 
@@ -487,8 +533,8 @@ export const BattleLobbyPage: React.FC = () => {
         {problemSource === 'catalog' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium uppercase tracking-wider select-none px-0.5">
-              <span>{catalogProblems.length} Problems Available</span>
-              <span>Click to Select</span>
+              <span>{catalogProblems.length} Problems Available (Select at most 3)</span>
+              <span>Click to Add/Remove</span>
             </div>
 
             <div className="max-h-[340px] overflow-y-auto custom-scrollbar pr-1">
@@ -507,11 +553,22 @@ export const BattleLobbyPage: React.FC = () => {
               {!catalogLoading && catalogProblems.length > 0 && (
                 <div className="space-y-1">
                   {catalogProblems.map(p => {
-                    const isSelected = selectedSlug === p.slug;
+                    const slugIdx = selectedSlugs.indexOf(p.slug);
+                    const isSelected = slugIdx !== -1;
                     return (
                       <button
                         key={p.slug}
-                        onClick={() => setSelectedSlug(p.slug)}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedSlugs(prev => prev.filter(s => s !== p.slug));
+                          } else {
+                            if (selectedSlugs.length >= 3) {
+                              alert("You can select at most 3 problems.");
+                              return;
+                            }
+                            setSelectedSlugs(prev => [...prev, p.slug]);
+                          }
+                        }}
                         className={`problem-row group w-full ${isSelected ? 'problem-row-selected' : ''}`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -523,6 +580,11 @@ export const BattleLobbyPage: React.FC = () => {
                           }`}>
                             {p.title}
                           </span>
+                          {isSelected && (
+                            <span className="text-[10px] bg-[#4F7DFF]/20 text-[#4F7DFF] px-1.5 py-0.5 rounded font-black select-none uppercase">
+                              Q{slugIdx + 1}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0">
@@ -551,104 +613,150 @@ export const BattleLobbyPage: React.FC = () => {
         {/* Custom Problem Creator */}
         {problemSource === 'custom' && (
           <div className="space-y-6 animate-fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
-              {/* Meta Inputs */}
-              <div className="lg:col-span-5 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-gray-500">Problem Title</label>
-                  <input
-                    type="text"
-                    value={customProblem.title}
-                    onChange={e => setCustomProblem(p => ({ ...p, title: e.target.value }))}
-                    className="battle-input"
-                    placeholder="e.g. Reverse Array In Place"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-gray-500">Problem Description</label>
-                  <textarea
-                    value={customProblem.description}
-                    onChange={e => setCustomProblem(p => ({ ...p, description: e.target.value }))}
-                    rows={4}
-                    className="battle-input resize-none"
-                    placeholder="Given an array of integers, return the array reversed…"
-                  />
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-medium text-gray-500">Test Cases</label>
+            {/* Custom Problems Tabs */}
+            <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+              {customProblems.map((p, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 bg-[#0b0e14]/40 border border-white/5 p-1 rounded-xl">
+                  <button
+                    onClick={() => setActiveCustomIdx(idx)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                      activeCustomIdx === idx
+                        ? 'bg-[#7A5FFF] text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    Problem {idx + 1}{p.title ? `: ${p.title}` : ''}
+                  </button>
+                  {customProblems.length > 1 && (
                     <button
-                      onClick={addTestCase}
-                      className="text-[11px] font-medium text-[#4F7DFF] hover:text-[#7A5FFF] flex items-center gap-1 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeCustomProblem(idx);
+                      }}
+                      className="px-1 text-gray-500 hover:text-rose-400 transition-colors text-xs font-bold"
                     >
-                      <Plus className="w-3 h-3" /> Add
+                      ×
                     </button>
+                  )}
+                </div>
+              ))}
+              {customProblems.length < 3 && (
+                <button
+                  onClick={addCustomProblem}
+                  className="px-3 py-1.5 rounded-lg border border-dashed border-[#7A5FFF]/40 hover:border-[#7A5FFF] text-[11px] font-semibold text-[#7A5FFF] transition-all duration-150 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Add Problem
+                </button>
+              )}
+            </div>
+
+            {customProblems[activeCustomIdx] && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                {/* Meta Inputs */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-medium text-gray-500">Problem Title</label>
+                    <input
+                      type="text"
+                      value={customProblems[activeCustomIdx].title}
+                      onChange={e => {
+                        const val = e.target.value;
+                        updateActiveCustomProblem(p => ({ ...p, title: val }));
+                      }}
+                      className="battle-input"
+                      placeholder="e.g. Reverse Array In Place"
+                    />
                   </div>
 
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                    {customProblem.testCases.map((tc, idx) => (
-                      <div key={idx} className="grid grid-cols-2 gap-2 bg-dark-bg/40 p-3 rounded-xl border border-white/5 relative group animate-fade-in">
-                        <div className="space-y-1">
-                          <label className="text-[9px] uppercase text-gray-600 font-medium tracking-wider">Input</label>
-                          <input
-                            type="text"
-                            value={tc.input}
-                            onChange={e => updateTestCase(idx, 'input', e.target.value)}
-                            className="w-full bg-dark-panel border border-white/5 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all"
-                            placeholder="[1, 2, 3]"
-                          />
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-medium text-gray-500">Problem Description</label>
+                    <textarea
+                      value={customProblems[activeCustomIdx].description}
+                      onChange={e => {
+                        const val = e.target.value;
+                        updateActiveCustomProblem(p => ({ ...p, description: val }));
+                      }}
+                      rows={4}
+                      className="battle-input resize-none"
+                      placeholder="Given an array of integers, return the array reversed…"
+                    />
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-gray-500">Test Cases</label>
+                      <button
+                        onClick={addTestCase}
+                        className="text-[11px] font-medium text-[#4F7DFF] hover:text-[#7A5FFF] flex items-center gap-1 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Add
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                      {customProblems[activeCustomIdx].testCases.map((tc, idx) => (
+                        <div key={idx} className="grid grid-cols-2 gap-2 bg-dark-bg/40 p-3 rounded-xl border border-white/5 relative group animate-fade-in">
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase text-gray-600 font-medium tracking-wider">Input</label>
+                            <input
+                              type="text"
+                              value={tc.input}
+                              onChange={e => updateTestCase(idx, 'input', e.target.value)}
+                              className="w-full bg-dark-panel border border-white/5 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all"
+                              placeholder="[1, 2, 3]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase text-gray-600 font-medium tracking-wider">Expected Output</label>
+                            <input
+                              type="text"
+                              value={tc.expectedOutput}
+                              onChange={e => updateTestCase(idx, 'expectedOutput', e.target.value)}
+                              className="w-full bg-dark-panel border border-white/5 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all"
+                              placeholder="[3, 2, 1]"
+                            />
+                          </div>
+                          {customProblems[activeCustomIdx].testCases.length > 1 && (
+                            <button
+                              onClick={() => removeTestCase(idx)}
+                              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 rounded-full text-rose-400 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              ×
+                            </button>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] uppercase text-gray-600 font-medium tracking-wider">Expected Output</label>
-                          <input
-                            type="text"
-                            value={tc.expectedOutput}
-                            onChange={e => updateTestCase(idx, 'expectedOutput', e.target.value)}
-                            className="w-full bg-dark-panel border border-white/5 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all"
-                            placeholder="[3, 2, 1]"
-                          />
-                        </div>
-                        {customProblem.testCases.length > 1 && (
-                          <button
-                            onClick={() => removeTestCase(idx)}
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 rounded-full text-rose-400 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            ×
-                          </button>
-                        )}
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Code Templates */}
+                <div className="lg:col-span-7 space-y-3">
+                  <label className="text-[11px] font-medium text-gray-500 block">Starter Code Templates</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { key: 'pythonTemplate', label: 'Python 3' },
+                      { key: 'jsTemplate', label: 'JavaScript' },
+                      { key: 'cppTemplate', label: 'C++ (GCC 17)' },
+                      { key: 'javaTemplate', label: 'Java (JDK 17)' },
+                    ].map(lang => (
+                      <div key={lang.key} className="space-y-1">
+                        <span className="text-[10px] text-gray-600 font-medium block">{lang.label}</span>
+                        <textarea
+                          value={(customProblems[activeCustomIdx] as any)[lang.key]}
+                          onChange={e => {
+                            const val = e.target.value;
+                            updateActiveCustomProblem(p => ({ ...p, [lang.key]: val }));
+                          }}
+                          rows={5}
+                          className="w-full bg-dark-bg border border-white/5 rounded-xl px-2.5 py-2 text-xs text-gray-300 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all resize-none shadow-inner"
+                        />
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-
-              {/* Code Templates */}
-              <div className="lg:col-span-7 space-y-3">
-                <label className="text-[11px] font-medium text-gray-500 block">Starter Code Templates</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { key: 'pythonTemplate', label: 'Python 3' },
-                    { key: 'jsTemplate', label: 'JavaScript' },
-                    { key: 'cppTemplate', label: 'C++ (GCC 17)' },
-                    { key: 'javaTemplate', label: 'Java (JDK 17)' },
-                  ].map(lang => (
-                    <div key={lang.key} className="space-y-1">
-                      <span className="text-[10px] text-gray-600 font-medium block">{lang.label}</span>
-                      <textarea
-                        value={(customProblem as any)[lang.key]}
-                        onChange={e => setCustomProblem(p => ({ ...p, [lang.key]: e.target.value }))}
-                        rows={5}
-                        className="w-full bg-dark-bg border border-white/5 rounded-xl px-2.5 py-2 text-xs text-gray-300 font-mono focus:outline-none focus:border-[#4F7DFF]/40 transition-all resize-none shadow-inner"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
+            )}
           </div>
         )}
       </div>

@@ -104,3 +104,39 @@ async def get_my_submissions(
 ) -> Any:
     controller = UserController(db)
     return await controller.get_my_submissions(current_user, page, limit, problem_id)
+
+
+@router.get("/profile/{username}")
+async def get_public_profile(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    from app.repositories.user_repo import UserRepo
+    from fastapi import HTTPException
+    
+    repo = UserRepo(db)
+    user = await repo.get_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    controller = UserController(db)
+    stats = await controller.get_my_stats(user)
+    submissions = await controller.get_my_submissions(user, page=1, limit=10)
+    
+    return {
+        "user": {
+            "username": user.username,
+            "fullName": user.full_name,
+            "bio": user.bio,
+            "location": user.location,
+            "avatarUrl": user.avatar_url,
+            "createdAt": user.created_at.isoformat() if user.created_at else None,
+            "leetcodeUrl": user.leetcode_url,
+            "githubUrl": user.github_url,
+            "linkedinUrl": user.linkedin_url,
+            "portfolioUrl": user.portfolio_url,
+        },
+        "stats": stats,
+        "submissions": submissions["items"]
+    }
+

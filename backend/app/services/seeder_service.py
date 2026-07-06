@@ -443,11 +443,265 @@ BASE_SEED_PROBLEMS = [
             {"input": "[5, 4, -1, 7, 8]", "expected_output": "23", "is_sample": False},
             {"input": "[-1, -2, -3, -4]", "expected_output": "-1", "is_sample": False}
         ]
+    },
+    {
+        "slug": "populating-next-right-pointers",
+        "title": "Populating Next Right Pointers in Each Node",
+        "difficulty": "MEDIUM",
+        "score_base": 200,
+        "description": (
+            "You are given a perfect binary tree where all leaves are on the same level, "
+            "and every parent has two children. The binary tree has the following definition:\n\n"
+            "```\nstruct Node {\n  int val;\n  Node *left;\n  Node *right;\n  Node *next;\n}\n```\n\n"
+            "Populate each next pointer to point to its next right node. "
+            "If there is no next right node, the next pointer should be set to NULL.\n\n"
+            "Initially, all next pointers are set to NULL.\n\n"
+            "*Note*: The tree is given as a level-order array. "
+            "Output is serialized as a level-order list where `\"#\"` marks the end of each level."
+        ),
+        "expected_complexity": "O(N)",
+        "tags": ["Trees", "BFS"],
+        "templates": [
+            {
+                "language": "python",
+                "template_code": (
+                    "from typing import Optional\n\n"
+                    "class Solution:\n"
+                    "    def connect(self, root: Optional[Node]) -> Optional[Node]:\n"
+                    "        # Write your solution here\n"
+                    "        pass"
+                ),
+                "function_name": "connect",
+                "arg_style": "single"
+            },
+            {
+                "language": "javascript",
+                "template_code": (
+                    "/**\n"
+                    " * @param {Node} root\n"
+                    " * @return {Node}\n"
+                    " */\n"
+                    "var connect = function(root) {\n"
+                    "    // Write your solution here\n"
+                    "    return root;\n"
+                    "};"
+                ),
+                "function_name": "connect",
+                "arg_style": "single"
+            },
+            {
+                "language": "cpp",
+                "template_code": (
+                    "class Solution {\n"
+                    "public:\n"
+                    "    Node* connect(Node* root) {\n"
+                    "        // Write your solution here\n"
+                    "        return root;\n"
+                    "    }\n"
+                    "};"
+                ),
+                "function_name": "connect",
+                "arg_style": "single"
+            },
+            {
+                "language": "java",
+                "template_code": (
+                    "class Solution {\n"
+                    "    public Node connect(Node root) {\n"
+                    "        // Write your solution here\n"
+                    "        return root;\n"
+                    "    }\n"
+                    "}"
+                ),
+                "function_name": "connect",
+                "arg_style": "single"
+            }
+        ],
+        "test_cases": [
+            {
+                "input": "[1, 2, 3, 4, 5, 6, 7]",
+                "expected_output": "[1, \"#\", 2, 3, \"#\", 4, 5, 6, 7, \"#\"]",
+                "is_sample": True,
+                "weight": 1
+            },
+            {
+                "input": "[]",
+                "expected_output": "[]",
+                "is_sample": True,
+                "weight": 1
+            },
+            {
+                "input": "[1]",
+                "expected_output": "[1, \"#\"]",
+                "is_sample": False,
+                "weight": 1
+            },
+            {
+                "input": "[1, 2, 3]",
+                "expected_output": "[1, \"#\", 2, 3, \"#\"]",
+                "is_sample": False,
+                "weight": 1
+            },
+            {
+                "input": "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]",
+                "expected_output": "[1, \"#\", 2, 3, \"#\", 4, 5, 6, 7, \"#\", 8, 9, 10, 11, 12, 13, 14, 15, \"#\"]",
+                "is_sample": False,
+                "weight": 2
+            }
+        ]
+    },
+    {
+        "slug": "reverse-nodes-in-k-group",
+        "title": "Reverse Nodes in K Group",
+        "difficulty": "HARD",
+        "score_base": 400,
+        "description": (
+            "Given the head of a linked list, reverse the nodes of the list k at a time, "
+            "and return the modified list.\n\n"
+            "k is a positive integer and is less than or equal to the length of the linked list. "
+            "If the number of nodes is not a multiple of k then left-out nodes, in the end, should "
+            "remain as is.\n\n"
+            "You may not alter the values in the list's nodes, only nodes themselves may be changed.\n\n"
+            "*Note*: Input is represented as an array of values and an integer k."
+        ),
+        "expected_complexity": "O(N)",
+        "tags": ["Linked List", "Recursion"],
+        "templates": [
+            {
+                "language": "python",
+                "template_code": (
+                    "def reverseKGroup(head: list[int], k: int) -> list[int]:\n"
+                    "    # Write your solution here\n"
+                    "    pass"
+                ),
+                "function_name": "reverseKGroup",
+                "arg_style": "positional"
+            },
+            {
+                "language": "javascript",
+                "template_code": (
+                    "var reverseKGroup = function(head, k) {\n"
+                    "    // Write your solution here\n"
+                    "};"
+                ),
+                "function_name": "reverseKGroup",
+                "arg_style": "positional"
+            }
+        ],
+        "test_cases": [
+            {"input": "[[1, 2, 3, 4, 5], 2]", "expected_output": "[2, 1, 4, 3, 5]",  "is_sample": True},
+            {"input": "[[1, 2, 3, 4, 5], 3]", "expected_output": "[3, 2, 1, 4, 5]",  "is_sample": False},
+            {"input": "[[1, 2, 3, 4, 5], 1]", "expected_output": "[1, 2, 3, 4, 5]",  "is_sample": False},
+            {"input": "[[1, 2, 3, 4, 5], 5]", "expected_output": "[5, 4, 3, 2, 1]",  "is_sample": False},
+            {"input": "[[1, 2], 2]",           "expected_output": "[2, 1]",             "is_sample": False},
+            {"input": "[[1], 1]",              "expected_output": "[1]",                "is_sample": False}
+        ]
     }
 ]
 
 async def seed_problems(session: AsyncSession) -> None:
     from app.services.code_wrapper_service import CodeWrapperService
+    from app.models.company import Company
+    from app.models.topic import Topic
+    from sqlalchemy.orm import selectinload
+
+    # 1. Seed companies
+    companies_data = [
+        {"name": "Google", "slug": "google", "logo_light": None, "logo_dark": None, "brand_color": "#4285F4"},
+        {"name": "Amazon", "slug": "amazon", "logo_light": None, "logo_dark": None, "brand_color": "#FF9900"},
+        {"name": "Meta", "slug": "meta", "logo_light": None, "logo_dark": None, "brand_color": "#1877F2"},
+        {"name": "Microsoft", "slug": "microsoft", "logo_light": None, "logo_dark": None, "brand_color": "#F25022"},
+        {"name": "Apple", "slug": "apple", "logo_light": None, "logo_dark": None, "brand_color": "#000000"},
+        {"name": "Uber", "slug": "uber", "logo_light": None, "logo_dark": None, "brand_color": "#000000"}
+    ]
+    
+    companies_map = {}
+    for c_info in companies_data:
+        c_stmt = select(Company).where(Company.slug == c_info["slug"])
+        c_res = await session.execute(c_stmt)
+        company = c_res.scalar_one_or_none()
+        if not company:
+            company = Company(
+                name=c_info["name"],
+                slug=c_info["slug"],
+                logo_light=c_info["logo_light"],
+                logo_dark=c_info["logo_dark"],
+                brand_color=c_info["brand_color"]
+            )
+            session.add(company)
+            await session.flush()
+        companies_map[c_info["slug"]] = company
+
+    # 2. Seed topics (corresponding to standard tags)
+    topics_list = [
+        "Arrays", "Strings", "Hash Tables", "Dynamic Programming", "Math", 
+        "Two Pointers", "Binary Search", "Sorting", "Graph", "Recursion", 
+        "Trees", "DFS", "BFS", "Backtracking", "Greedy", "Sliding Window", 
+        "Linked List", "Stack"
+    ]
+    
+    topics_map = {}
+    for t_name in topics_list:
+        from app.services.topic_service import slugify
+        t_slug = slugify(t_name)
+        t_stmt = select(Topic).where(Topic.slug == t_slug)
+        t_res = await session.execute(t_stmt)
+        topic = t_res.scalar_one_or_none()
+        if not topic:
+            topic = Topic(name=t_name, slug=t_slug)
+            session.add(topic)
+            await session.flush()
+        topics_map[t_slug] = topic
+
+    # 3. For any existing problems, link them to topics based on their tags,
+    # and link some of them to companies.
+    prob_stmt = select(Problem).options(selectinload(Problem.tags), selectinload(Problem.companies), selectinload(Problem.topics))
+    prob_res = await session.execute(prob_stmt)
+    existing_problems = prob_res.scalars().all()
+    
+    for problem in existing_problems:
+        # Link to Topic if tag name matches a topic
+        for tag in problem.tags:
+            from app.services.topic_service import slugify
+            tag_slug = slugify(tag.name)
+            if tag_slug in topics_map and topics_map[tag_slug] not in problem.topics:
+                problem.topics.append(topics_map[tag_slug])
+        
+        # Explicit company links for base problems
+        slug = problem.slug.lower()
+        linked_cos = []
+        if "two-sum" in slug or "2sum" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "longest-substring" in slug:
+            linked_cos = ["google", "amazon", "microsoft"]
+        elif "median-of-two" in slug:
+            linked_cos = ["google", "uber"]
+        elif "climbing-stairs" in slug:
+            linked_cos = ["apple", "amazon"]
+        elif "container-with-most-water" in slug:
+            linked_cos = ["google", "meta"]
+        elif "reverse-linked-list" in slug:
+            linked_cos = ["microsoft", "apple", "uber"]
+        elif "binary-tree" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "merge-k-sorted" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "trapping-rain-water" in slug:
+            linked_cos = ["google", "amazon"]
+        elif "coin-change" in slug:
+            linked_cos = ["amazon", "meta"]
+        elif "valid-parentheses" in slug:
+            linked_cos = ["google", "amazon", "meta", "microsoft"]
+        elif "three-sum" in slug or "3sum" in slug:
+            linked_cos = ["meta"]
+        elif "group-anagrams" in slug:
+            linked_cos = ["google", "amazon"]
+        
+        for co_slug in linked_cos:
+            if co_slug in companies_map and companies_map[co_slug] not in problem.companies:
+                problem.companies.append(companies_map[co_slug])
+                
+    await session.flush()
 
     # Check if problems already exist
     stmt = select(func.count(Problem.id))
@@ -481,26 +735,31 @@ async def seed_problems(session: AsyncSession) -> None:
                 arg_style=ArgStyleEnum(t_data["arg_style"])
             ))
 
-        # Dynamically generate C++ and Java templates from the Python template
+        # Dynamically generate C++ and Java templates from the Python template,
+        # but only if they are not already explicitly provided in the problem definition.
         py_tpl = next(t for t in p_data["templates"] if t["language"] == "python")
         fn_name = py_tpl["function_name"]
         arg_style = py_tpl["arg_style"]
 
-        cpp_code = CodeWrapperService.generate_cpp_template(fn_name, py_tpl["template_code"])
-        java_code = CodeWrapperService.generate_java_template(fn_name, py_tpl["template_code"])
+        has_cpp = any(t["language"] == "cpp" for t in p_data["templates"])
+        has_java = any(t["language"] == "java" for t in p_data["templates"])
 
-        templates_objs.append(ProblemTemplate(
-            language="cpp",
-            template_code=cpp_code,
-            function_name=fn_name,
-            arg_style=ArgStyleEnum(arg_style)
-        ))
-        templates_objs.append(ProblemTemplate(
-            language="java",
-            template_code=java_code,
-            function_name=fn_name,
-            arg_style=ArgStyleEnum(arg_style)
-        ))
+        if not has_cpp:
+            cpp_code = CodeWrapperService.generate_cpp_template(fn_name, py_tpl["template_code"])
+            templates_objs.append(ProblemTemplate(
+                language="cpp",
+                template_code=cpp_code,
+                function_name=fn_name,
+                arg_style=ArgStyleEnum(arg_style)
+            ))
+        if not has_java:
+            java_code = CodeWrapperService.generate_java_template(fn_name, py_tpl["template_code"])
+            templates_objs.append(ProblemTemplate(
+                language="java",
+                template_code=java_code,
+                function_name=fn_name,
+                arg_style=ArgStyleEnum(arg_style)
+            ))
             
         # Create test cases
         testcase_objs = []
@@ -514,6 +773,10 @@ async def seed_problems(session: AsyncSession) -> None:
             ))
             
         # Create problem
+        mapping = {"EASY": 3, "MEDIUM": 6, "HARD": 10}
+        score_base = mapping.get(p_data["difficulty"].upper(), 3)
+        comp_mode = "order_agnostic" if any(kw in p_data["slug"].lower() for kw in ["three-sum", "3sum", "3-sum", "two-sum", "group-anagrams"]) else "strict"
+
         problem = Problem(
             slug=p_data["slug"],
             title=p_data["title"],
@@ -521,15 +784,63 @@ async def seed_problems(session: AsyncSession) -> None:
             difficulty=DifficultyEnum(p_data["difficulty"]),
             time_limit_ms=2000,
             memory_limit_kb=262144,
-            score_base=p_data["score_base"],
+            score_base=score_base,
             runtime_bonus_max=20,
             is_published=True,
             tags=tags_objs,
             templates=templates_objs,
-            test_cases=testcase_objs
+            test_cases=testcase_objs,
+            comparison_mode=comp_mode
         )
         
         session.add(problem)
+
+    # 4. Link newly added base problems as well before final commit
+    prob_stmt = select(Problem).options(selectinload(Problem.tags), selectinload(Problem.companies), selectinload(Problem.topics))
+    prob_res = await session.execute(prob_stmt)
+    all_problems = prob_res.scalars().all()
+    
+    for problem in all_problems:
+        # Link to Topic if tag name matches a topic
+        for tag in problem.tags:
+            from app.services.topic_service import slugify
+            tag_slug = slugify(tag.name)
+            if tag_slug in topics_map and topics_map[tag_slug] not in problem.topics:
+                problem.topics.append(topics_map[tag_slug])
         
-    await session.commit()
+        # Explicit company links for base problems
+        slug = problem.slug.lower()
+        linked_cos = []
+        if "two-sum" in slug or "2sum" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "longest-substring" in slug:
+            linked_cos = ["google", "amazon", "microsoft"]
+        elif "median-of-two" in slug:
+            linked_cos = ["google", "uber"]
+        elif "climbing-stairs" in slug:
+            linked_cos = ["apple", "amazon"]
+        elif "container-with-most-water" in slug:
+            linked_cos = ["google", "meta"]
+        elif "reverse-linked-list" in slug:
+            linked_cos = ["microsoft", "apple", "uber"]
+        elif "binary-tree" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "merge-k-sorted" in slug:
+            linked_cos = ["google", "amazon", "meta"]
+        elif "trapping-rain-water" in slug:
+            linked_cos = ["google", "amazon"]
+        elif "coin-change" in slug:
+            linked_cos = ["amazon", "meta"]
+        elif "valid-parentheses" in slug:
+            linked_cos = ["google", "amazon", "meta", "microsoft"]
+        elif "three-sum" in slug or "3sum" in slug:
+            linked_cos = ["meta"]
+        elif "group-anagrams" in slug:
+            linked_cos = ["google", "amazon"]
+        
+        for co_slug in linked_cos:
+            if co_slug in companies_map and companies_map[co_slug] not in problem.companies:
+                problem.companies.append(companies_map[co_slug])
+        
+    await session.flush()
     print("Database seeding completed successfully.")

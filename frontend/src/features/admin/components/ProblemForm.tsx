@@ -110,7 +110,14 @@ export const ProblemForm: React.FC<ProblemFormProps> = ({ mode, initialData, onS
   const [difficulty, setDifficulty] = useState<string>(initialData?.difficulty || 'EASY');
   const [timeLimitMs, setTimeLimitMs] = useState(initialData?.time_limit_ms ?? 2000);
   const [memoryLimitKb, setMemoryLimitKb] = useState(initialData?.memory_limit_kb ?? 262144);
-  const [scoreBase, setScoreBase] = useState(initialData?.score_base ?? 100);
+  const [scoreBase, setScoreBase] = useState(initialData?.score_base ?? 1);
+  const handleDifficultyChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setDifficulty(val);
+    if (val === 'EASY') setScoreBase(1);
+    else if (val === 'MEDIUM') setScoreBase(3);
+    else if (val === 'HARD') setScoreBase(6);
+  }, []);
   const [runtimeBonusMax, setRuntimeBonusMax] = useState(20);
   const [expectedComplexity, setExpectedComplexity] = useState('');
   const [tagIds, setTagIds] = useState<string[]>(initialData?.tags?.map((t) => t.id) || []);
@@ -372,7 +379,7 @@ export const ProblemForm: React.FC<ProblemFormProps> = ({ mode, initialData, onS
                   { value: 'HARD', label: 'Hard' },
                 ]}
                 value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
+                onChange={handleDifficultyChange}
                 error={errors.difficulty}
               />
               <Input

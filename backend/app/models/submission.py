@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 
 from app.core.database import Base
 
@@ -42,6 +42,11 @@ class Submission(Base):
     battle_id = Column(UUID(as_uuid=True), ForeignKey("battles.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    code = synonym("source_code")
+    runtime = synonym("runtime_ms")
+    memory = synonym("memory_kb")
+    submitted_at = synonym("created_at")
 
     results = relationship("SubmissionResult", back_populates="submission", cascade="all, delete-orphan")
     problem = relationship("Problem", lazy="selectin")

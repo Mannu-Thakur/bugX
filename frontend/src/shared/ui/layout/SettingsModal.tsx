@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Code, Keyboard } from 'lucide-react';
+import { X, Clock, Code, Keyboard, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useAuth } from '../../../features/auth/useAuth';
 import { userStorage } from '../../lib/userState';
+import { XProvider } from '../../../features/x/XContext';
+import { XSettings } from '../../../features/x/XSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'timer' | 'editor' | 'shortcuts';
+type SettingsTab = 'timer' | 'editor' | 'shortcuts' | 'x';
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('timer');
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // Load initial settings
   const [autoReset, setAutoReset] = useState(() => localStorage.getItem('bugx_autoReset') === 'true');
@@ -45,6 +54,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     window.addEventListener('bugx-settings-changed', handleSync);
     return () => window.removeEventListener('bugx-settings-changed', handleSync);
   }, [user]);
+
+  // Trap scroll when open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -96,66 +117,85 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
       {/* Modal Card */}
       <div
-        className="relative z-10 w-[560px] max-w-[95vw] bg-dark-panel border border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
-        style={{ maxHeight: '80vh', minHeight: 340 }}
+        className={cn(
+          "relative z-10 max-w-[95vw] bg-dark-panel border border-dark-border rounded-2xl shadow-2xl flex flex-row overflow-hidden animate-scale-in transition-all duration-300",
+          activeTab === 'x' ? 'w-[840px]' : 'w-[560px]'
+        )}
+        style={{ maxHeight: '80vh', minHeight: 360 }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-border shrink-0">
-          <span className="text-sm font-bold text-dark-text">Settings</span>
+        {/* Sidebar */}
+        <div className="w-38 shrink-0 p-2.5 flex flex-col gap-1 bg-dark-bg select-none">
+          {/* Sidebar Header */}
+          <div className="pt-1.5 px-3 pb-2 text-sm font-bold text-dark-text shrink-0 select-none">
+            Settings
+          </div>
+          
           <button
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-dark-text/40 hover:text-dark-text hover:bg-dark-hover transition-all cursor-pointer"
-            aria-label="Close settings"
+            onClick={() => setActiveTab('timer')}
+            className={cn(
+              'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
+              activeTab === 'timer'
+                ? 'bg-dark-hover text-dark-text shadow-sm'
+                : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
+            )}
           >
-            <X className="w-3.5 h-3.5" />
+            <Clock className="w-3.5 h-3.5" />
+            Timer
+          </button>
+          <button
+            onClick={() => setActiveTab('editor')}
+            className={cn(
+              'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
+              activeTab === 'editor'
+                ? 'bg-dark-hover text-dark-text shadow-sm'
+                : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
+            )}
+          >
+            <Code className="w-3.5 h-3.5" />
+            Code Editor
+          </button>
+          <button
+            onClick={() => setActiveTab('shortcuts')}
+            className={cn(
+              'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
+              activeTab === 'shortcuts'
+                ? 'bg-dark-hover text-dark-text shadow-sm'
+                : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
+            )}
+          >
+            <Keyboard className="w-3.5 h-3.5" />
+            Shortcuts
+          </button>
+          <button
+            onClick={() => setActiveTab('x')}
+            className={cn(
+              'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
+              activeTab === 'x'
+                ? 'bg-dark-hover text-dark-text shadow-sm'
+                : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
+            )}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+            X Assistant
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex flex-1 min-h-0">
-          {/* Sidebar */}
-          <div className="w-38 shrink-0 border-r border-dark-border p-2.5 flex flex-col gap-1 bg-dark-panel">
+        {/* Content Pane */}
+        <div className="flex-1 flex flex-col min-h-0 bg-dark-panel">
+          {/* Header containing just the close button */}
+          <div className="flex items-center justify-end px-5 py-4 shrink-0">
             <button
-              onClick={() => setActiveTab('timer')}
-              className={cn(
-                'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
-                activeTab === 'timer'
-                  ? 'bg-dark-hover text-dark-text shadow-sm'
-                  : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
-              )}
+              onClick={onClose}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-dark-text/40 hover:text-dark-text hover:bg-dark-hover transition-all cursor-pointer"
+              aria-label="Close settings"
             >
-              <Clock className="w-3.5 h-3.5" />
-              Timer
-            </button>
-            <button
-              onClick={() => setActiveTab('editor')}
-              className={cn(
-                'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
-                activeTab === 'editor'
-                  ? 'bg-dark-hover text-dark-text shadow-sm'
-                  : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
-              )}
-            >
-              <Code className="w-3.5 h-3.5" />
-              Code Editor
-            </button>
-            <button
-              onClick={() => setActiveTab('shortcuts')}
-              className={cn(
-                'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
-                activeTab === 'shortcuts'
-                  ? 'bg-dark-hover text-dark-text shadow-sm'
-                  : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
-              )}
-            >
-              <Keyboard className="w-3.5 h-3.5" />
-              Shortcuts
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Tab Panel */}
-          <div className="flex-1 p-5 overflow-y-auto bg-dark-panel">
+          {/* Tab Panel Content */}
+          <div className="flex-1 px-5 pb-5 overflow-y-auto">
             {activeTab === 'timer' && (
               <div className="space-y-6">
                 {/* Auto Reset */}
@@ -182,8 +222,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </button>
                 </div>
 
-                <hr className="border-dark-border" />
-
                 {/* Super Alarm */}
                 <div className="flex items-start justify-between gap-6">
                   <div className="flex-1">
@@ -207,8 +245,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     />
                   </button>
                 </div>
-
-                <hr className="border-dark-border" />
 
                 {/* Focus Mode */}
                 <div className="space-y-3">
@@ -261,8 +297,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </select>
                 </div>
 
-                <hr className="border-dark-border" />
-
                 {/* Tab Size */}
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -285,7 +319,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             )}
 
             {activeTab === 'shortcuts' && (
-              <div className="divide-y divide-dark-border/40">
+              <div className="space-y-3.5">
                 {[
                   ['Ctrl + Enter', 'Run Code'],
                   ['Ctrl + Shift + Enter', 'Submit Solution'],
@@ -296,13 +330,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   ['Ctrl + D', 'Select Next Occurrence'],
                   ['Ctrl + F', 'Find in Editor'],
                 ].map(([keys, action]) => (
-                  <div key={keys} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                  <div key={keys} className="flex items-center justify-between py-1.5">
                     <span className="text-xs font-medium text-dark-text/80">{action}</span>
                     <kbd className="px-2 py-0.5 bg-dark-bg border border-dark-border rounded text-[10px] font-mono text-dark-text/60 whitespace-nowrap">
                       {keys}
                     </kbd>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {activeTab === 'x' && (
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                <XProvider>
+                  <XSettings />
+                </XProvider>
               </div>
             )}
           </div>

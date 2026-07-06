@@ -3,13 +3,7 @@ import html as html_module
 from typing import List, Dict, Any
 from app.models.problem import DifficultyEnum
 
-from app.services.importer_exceptions import ImportFailedException
-
-class ProblemImportValidationError(ImportFailedException):
-    """Exception raised when an imported problem fails validation checks."""
-    def __init__(self, message: str, errors: List[str] = None):
-        super().__init__(message)
-        self.errors = errors or [message]
+from app.services.importer_exceptions import ImportFailedException, ProblemImportValidationError
 
 class ProblemImportValidationService:
     @staticmethod

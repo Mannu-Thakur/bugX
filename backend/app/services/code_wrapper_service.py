@@ -13,6 +13,7 @@ Supports: Python, JavaScript, C++ (g++17), Java (JDK 17+)
 """
 
 import re
+import json
 from app.models.problem_template import ArgStyleEnum
 
 
@@ -101,6 +102,14 @@ class CodeWrapperService:
         "list[list[str]]": "vector<vector<string>>",
         "List[List[str]]": "vector<vector<string>>",
         "list": "vector<int>", "List": "vector<int>",
+        # Custom tree/linked-list node types (raw Python type annotation variants)
+        "TreeNode": "TreeNode*", "Optional[TreeNode]": "TreeNode*",
+        "Node": "Node*",        "Optional[Node]": "Node*",
+        "ListNode": "ListNode*", "Optional[ListNode]": "ListNode*",
+        # Normalized type keys (returned by _normalize_type) — NOTE: no "list" here
+        # because "list" already maps to "vector<int>" above (bare Python list annotation).
+        # ListNode is handled by the explicit "ListNode" / "Optional[ListNode]" keys.
+        "tree": "TreeNode*", "node": "Node*",
     }
 
     # ── Python annotation → Java type ─────────────────────────────────
@@ -115,6 +124,12 @@ class CodeWrapperService:
         "List[List[str]]": "List<List<String>>",
         "list": "int[]", "List": "int[]",
         "None": "void",
+        # Custom tree/linked-list node types (raw Python type annotation variants)
+        "TreeNode": "TreeNode", "Optional[TreeNode]": "TreeNode",
+        "Node": "Node",         "Optional[Node]": "Node",
+        "ListNode": "ListNode", "Optional[ListNode]": "ListNode",
+        # Normalized type keys (returned by _normalize_type)
+        "tree": "TreeNode", "node": "Node",
     }
 
     # ── Default return values ─────────────────────────────────────────
@@ -128,6 +143,126 @@ class CodeWrapperService:
         "boolean": "false", "String": '""',
     }
 
+    @classmethod
+    def _normalize_type(cls, t: str) -> str:
+        if not t:
+            return "int"
+        t = t.strip()
+        # Strip Python forward-reference quotes: 'Node' -> Node, "TreeNode" -> TreeNode
+        if len(t) >= 2 and ((t[0] == "'" and t[-1] == "'") or (t[0] == '"' and t[-1] == '"')):
+            t = t[1:-1].strip()
+        t = re.sub(r'Optional\s*\[(.*?)\]', r'\1', t)
+        t = re.sub(r'Union\s*\[(.*?)\]', r'\1', t)
+        t = re.sub(r'(.*?)\s*\|\s*None', r'\1', t)
+        t = re.sub(r'None\s*\|\s*(.*?)', r'\1', t)
+        t = t.strip()
+        # Handle Optional['Node'] style after stripping Optional wrapper
+        if len(t) >= 2 and ((t[0] == "'" and t[-1] == "'") or (t[0] == '"' and t[-1] == '"')):
+            t = t[1:-1].strip()
+        t = t.replace('&', '').replace('*', '').strip()
+        t = re.sub(r'\s+', '', t)
+        t_lower = t.lower()
+
+        if t == "TreeNode":
+            return "tree"
+        if t == "Node":
+            return "node"
+        if t == "ListNode":
+            return "list"
+
+        if "vector<vector<" in t_lower or "list[list[" in t_lower or "list<list<" in t_lower or "[][]" in t_lower:
+            if "int" in t_lower or "integer" in t_lower:
+                return "matrix_int"
+            if "str" in t_lower or "string" in t_lower:
+                return "matrix_string"
+            if "char" in t_lower or "character" in t_lower:
+                return "matrix_char"
+            if "float" in t_lower or "double" in t_lower:
+                return "matrix_float"
+            if "bool" in t_lower or "boolean" in t_lower:
+                return "matrix_bool"
+            return "matrix_any"
+
+        if "vector<" in t_lower or "list[" in t_lower or "list<" in t_lower or "[]" in t_lower or t_lower in ("list", "vector"):
+            if "int" in t_lower or "integer" in t_lower:
+                return "array_int"
+            if "str" in t_lower or "string" in t_lower:
+                return "array_string"
+            if "char" in t_lower or "character" in t_lower:
+                return "array_char"
+            if "float" in t_lower or "double" in t_lower:
+                return "array_float"
+            if "bool" in t_lower or "boolean" in t_lower:
+                return "array_bool"
+            return "array_any"
+
+        if t_lower in ("int", "integer", "long", "longlong", "longlongint"):
+            return "int"
+        if t_lower in ("float", "double"):
+            return "float"
+        if t_lower in ("str", "string"):
+            return "string"
+        if t_lower in ("bool", "boolean"):
+            return "bool"
+        if t_lower in ("char", "character"):
+            return "char"
+        if t_lower in ("void", "none"):
+            return "void"
+
+        return "int"
+
+    @classmethod
+    def _get_problem_schema(cls, language, source_code, function_name, python_template=None):
+        params = []
+        return_type = None
+
+        if python_template:
+            py_params, py_ret = cls._parse_python_signature(python_template, function_name)
+            if py_params:
+                params = [(pname, cls._normalize_type(ptype)) for pname, ptype in py_params]
+                return_type = cls._normalize_type(py_ret)
+                return params, return_type
+
+        if language == "python":
+            py_params, py_ret = cls._parse_python_signature(source_code, function_name)
+            if py_params:
+                params = [(pname, cls._normalize_type(ptype)) for pname, ptype in py_params]
+                return_type = cls._normalize_type(py_ret)
+        elif language in ("cpp", "c++"):
+            cpp_ret, cpp_params = cls._parse_cpp_signature(source_code, function_name)
+            if cpp_params:
+                params = [(pname, cls._normalize_type(ptype)) for ptype, pname in cpp_params]
+                return_type = cls._normalize_type(cpp_ret)
+        elif language == "java":
+            java_ret, java_params = cls._parse_java_signature(source_code, function_name)
+            if java_params:
+                params = [(pname, cls._normalize_type(ptype)) for ptype, pname in java_params]
+                return_type = cls._normalize_type(java_ret)
+        elif language == "javascript":
+            js_params = cls._parse_js_parameters(source_code, function_name)
+            params = [(pname, "int") for pname in js_params]
+            return_type = "int"
+
+        return params, return_type
+
+    @staticmethod
+    def _parse_js_parameters(source_code, function_name):
+        clean_code = CodeWrapperService._strip_comments(source_code)
+        patterns = [
+            r'function\s+' + re.escape(function_name) + r'\s*\(([^)]*)\)',
+            r'\b' + re.escape(function_name) + r'\s*=\s*function\s*\(([^)]*)\)',
+            r'\b' + re.escape(function_name) + r'\s*=\s*\(([^)]*)\)\s*=>',
+            r'\b' + re.escape(function_name) + r'\s*=\s*([a-zA-Z0-9_]+)\s*=>',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, clean_code)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    return [p.strip() for p in params_str.split(',') if p.strip()]
+                return []
+        return []
+
     # ══════════════════════════════════════════════════════════════════
     #  PUBLIC: wrap_code
     # ══════════════════════════════════════════════════════════════════
@@ -139,6 +274,7 @@ class CodeWrapperService:
         function_name: str,
         arg_style: ArgStyleEnum,
         python_template: str = None,
+        debug_mode: bool = False,
     ) -> str:
         if function_name == "__init__":
             # Recover correct function name from python_template or source_code
@@ -164,13 +300,13 @@ class CodeWrapperService:
                 function_name = correct_name
 
         if language == "python":
-            return CodeWrapperService._wrap_python(source_code, function_name, arg_style)
+            return CodeWrapperService._wrap_python(source_code, function_name, arg_style, python_template, debug_mode)
         elif language == "javascript":
-            return CodeWrapperService._wrap_javascript(source_code, function_name, arg_style)
+            return CodeWrapperService._wrap_javascript(source_code, function_name, arg_style, python_template, debug_mode)
         elif language in ("cpp", "c++"):
-            return CodeWrapperService._wrap_cpp(source_code, function_name, arg_style, python_template)
+            return CodeWrapperService._wrap_cpp(source_code, function_name, arg_style, python_template, debug_mode)
         elif language == "java":
-            return CodeWrapperService._wrap_java(source_code, function_name, arg_style, python_template)
+            return CodeWrapperService._wrap_java(source_code, function_name, arg_style, python_template, debug_mode)
         else:
             raise ValueError(f"Unsupported language: {language}")
 
@@ -182,11 +318,14 @@ class CodeWrapperService:
     def generate_cpp_template(cls, function_name: str, python_template: str) -> str:
         """Auto-generate a C++ Solution class from a Python function signature."""
         params, return_type = cls._parse_python_signature(python_template, function_name)
-        cpp_return = cls._PY_TO_CPP.get(return_type, "int") if return_type else "void"
+        # Normalize type then look up C++ equivalent; fall back to 'int'
+        norm_ret = cls._normalize_type(return_type) if return_type else None
+        cpp_return = cls._PY_TO_CPP.get(return_type, cls._PY_TO_CPP.get(norm_ret, "int")) if return_type else "void"
 
         cpp_params = []
         for pname, ptype in params:
-            cpp_type = cls._PY_TO_CPP.get(ptype, "int")
+            norm_p = cls._normalize_type(ptype)
+            cpp_type = cls._PY_TO_CPP.get(ptype, cls._PY_TO_CPP.get(norm_p, "int"))
             ref = "&" if cpp_type.startswith("vector") else ""
             cpp_params.append(f"{cpp_type}{ref} {pname}")
 
@@ -194,6 +333,8 @@ class CodeWrapperService:
             ret_stmt = ""
         elif cpp_return in cls._CPP_DEFAULTS:
             ret_stmt = f"\n        return {cls._CPP_DEFAULTS[cpp_return]};"
+        elif cpp_return.endswith("*"):
+            ret_stmt = "\n        return nullptr;"
         else:
             ret_stmt = "\n        return {};"
 
@@ -209,11 +350,13 @@ class CodeWrapperService:
     def generate_java_template(cls, function_name: str, python_template: str) -> str:
         """Auto-generate a Java Solution class from a Python function signature."""
         params, return_type = cls._parse_python_signature(python_template, function_name)
-        java_return = cls._PY_TO_JAVA.get(return_type, "int") if return_type else "void"
+        norm_ret = cls._normalize_type(return_type) if return_type else None
+        java_return = cls._PY_TO_JAVA.get(return_type, cls._PY_TO_JAVA.get(norm_ret, "int")) if return_type else "void"
 
         java_params = []
         for pname, ptype in params:
-            java_type = cls._PY_TO_JAVA.get(ptype, "int")
+            norm_p = cls._normalize_type(ptype)
+            java_type = cls._PY_TO_JAVA.get(ptype, cls._PY_TO_JAVA.get(norm_p, "int"))
             java_params.append(f"{java_type} {pname}")
 
         if java_return == "void":
@@ -225,6 +368,8 @@ class CodeWrapperService:
             ret_stmt = f"\n        return new {base}[0];"
         elif java_return.startswith("List"):
             ret_stmt = "\n        return new ArrayList<>();"
+        elif java_return in ("TreeNode", "Node", "ListNode"):
+            ret_stmt = "\n        return null;"
         else:
             ret_stmt = "\n        return null;"
 
@@ -242,124 +387,661 @@ class CodeWrapperService:
 
     @staticmethod
     def _detect_python_class(source_code, function_name):
-        """Detect if function_name is a method inside a class (e.g. class Solution)."""
-        class_match = re.search(r'class\s+(\w+)\s*[:(]', source_code)
-        if class_match:
+        """Detect if function_name is a method inside a class (e.g. class Solution).
+        Skips data structure classes like Node, TreeNode, ListNode."""
+        # Strip python comments first to avoid matching commented-out classes like '# class TreeNode:'
+        clean_code = "\n".join([line for line in source_code.split("\n") if not line.strip().startswith("#")])
+        # Iterate all class definitions - find the one that contains function_name as a method
+        for class_match in re.finditer(r'class\s+(\w+)\s*[:(]', clean_code):
             class_name = class_match.group(1)
+            # Skip known data structure classes - they are not the solution class
+            if class_name in ('Node', 'TreeNode', 'ListNode'):
+                continue
             # Check if function_name is a method of this class (has self param)
             method_pattern = r'def\s+' + re.escape(function_name) + r'\s*\(\s*self\b'
-            if re.search(method_pattern, source_code):
+            if re.search(method_pattern, clean_code[class_match.start():]):
                 return class_name
         return None
 
-    @staticmethod
-    def _wrap_python(source_code, function_name, arg_style):
-        # Detect class-based solutions (e.g. class Solution: def threeSum(self, nums):)
-        class_name = CodeWrapperService._detect_python_class(source_code, function_name)
-        if class_name:
-            call_prefix = f"{class_name}().{function_name}"
-        else:
-            call_prefix = function_name
+    @classmethod
+    def _wrap_python(cls, source_code, function_name, arg_style, python_template=None, debug_mode=False):
+        # Strip triple-quoted comment blocks that define helper classes.
+        # Replace the entire block with an empty string to avoid unterminated string literals.
+        source_code = re.sub(r'"""[\s\S]*?\bclass\s+(?:Node|TreeNode|ListNode)\b[\s\S]*?"""', '', source_code)
+        source_code = re.sub(r"'''[\s\S]*?\bclass\s+(?:Node|TreeNode|ListNode)\b[\s\S]*?'''", '', source_code)
+        # Also strip any standalone triple-quoted blocks (e.g. LeetCode hint blocks with class defs)
+        # that may remain and cause SyntaxError from unterminated string literals.
+        source_code = re.sub(r'(?m)^[ \t]*"""[\s\S]*?"""[ \t]*\n?', '', source_code)
+        source_code = re.sub(r"(?m)^[ \t]*'''[\s\S]*?'''[ \t]*\n?", '', source_code)
+        # Strip user-defined Node/TreeNode/ListNode class definitions (helpers provide canonical versions)
+        source_code = re.sub(
+            r'^class\s+(?:Node|TreeNode|ListNode)\s*(?:\(.*?\))?\s*:.*?(?=^class\s|\Z)',
+            '', source_code, flags=re.DOTALL | re.MULTILINE
+        )
+        # Detect class-based solutions
+        class_name = cls._detect_python_class(source_code, function_name)
+        call_prefix = f"{class_name}().{function_name}" if class_name else function_name
 
-        if arg_style == ArgStyleEnum.kwargs:
-            return f"""
-import json, sys
-{source_code}
-if __name__ == "__main__":
-    data = json.loads(sys.stdin.read())
-    result = {call_prefix}(**data)
-    print(json.dumps(result))
+        params, return_type = cls._get_problem_schema("python", source_code, function_name, python_template)
+
+        is_pos = (arg_style == ArgStyleEnum.positional)
+        is_single = (arg_style == ArgStyleEnum.single)
+        is_kwargs = (arg_style == ArgStyleEnum.kwargs)
+
+        # Generate parsing logic
+        parsing_code = ""
+        conversion_path = []
+        if is_single:
+            if params:
+                pname, ptype = params[0]
+                if ptype == "tree":
+                    parsing_code = "data = parse_TreeNode(data)"
+                    conversion_path.append(f"{pname}: tree -> TreeNode")
+                elif ptype == "node":
+                    parsing_code = "data = parse_Node(data)"
+                    conversion_path.append(f"{pname}: node -> Node")
+                elif ptype == "list":
+                    parsing_code = "data = parse_ListNode(data)"
+                    conversion_path.append(f"{pname}: list -> ListNode")
+                else:
+                    conversion_path.append(f"{pname}: passthrough")
+        elif is_pos:
+            parsing_lines = []
+            for i, (pname, ptype) in enumerate(params):
+                if ptype == "tree":
+                    parsing_lines.append(f"if len(args) > {i}: args[{i}] = parse_TreeNode(args[{i}])")
+                    conversion_path.append(f"param {i} ({pname}): tree -> TreeNode")
+                elif ptype == "node":
+                    parsing_lines.append(f"if len(args) > {i}: args[{i}] = parse_Node(args[{i}])")
+                    conversion_path.append(f"param {i} ({pname}): node -> Node")
+                elif ptype == "list":
+                    parsing_lines.append(f"if len(args) > {i}: args[{i}] = parse_ListNode(args[{i}])")
+                    conversion_path.append(f"param {i} ({pname}): list -> ListNode")
+                else:
+                    conversion_path.append(f"param {i} ({pname}): passthrough")
+            if parsing_lines:
+                parsing_code = "\n        ".join(parsing_lines)
+        elif is_kwargs:
+            parsing_lines = []
+            for pname, ptype in params:
+                if ptype == "tree":
+                    parsing_lines.append(f"if '{pname}' in data: data['{pname}'] = parse_TreeNode(data['{pname}'])")
+                    conversion_path.append(f"{pname}: tree -> TreeNode")
+                elif ptype == "node":
+                    parsing_lines.append(f"if '{pname}' in data: data['{pname}'] = parse_Node(data['{pname}'])")
+                    conversion_path.append(f"{pname}: node -> Node")
+                elif ptype == "list":
+                    parsing_lines.append(f"if '{pname}' in data: data['{pname}'] = parse_ListNode(data['{pname}'])")
+                    conversion_path.append(f"{pname}: list -> ListNode")
+                else:
+                    conversion_path.append(f"{pname}: passthrough")
+            if parsing_lines:
+                parsing_code = "\n        ".join(parsing_lines)
+
+        # Return value serialization
+        serialize_code = "result"
+        if return_type:
+            if return_type == "tree":
+                serialize_code = "serialize_TreeNode(result)"
+                conversion_path.append("return: TreeNode -> tree")
+            elif return_type == "node":
+                serialize_code = "serialize_Node(result)"
+                conversion_path.append("return: Node -> node")
+            elif return_type == "list":
+                serialize_code = "serialize_ListNode(result)"
+                conversion_path.append("return: ListNode -> list")
+            else:
+                conversion_path.append("return: passthrough")
+
+        schema_json = json.dumps([(pname, ptype) for pname, ptype in params])
+        conversion_path_str = " | ".join(conversion_path)
+
+        helpers = """import json, sys
+from typing import List, Dict, Tuple, Set, Optional, Union, Any
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+class Node:
+    def __init__(self, val=0, left=None, right=None, next=None):
+        self.val = val
+        self.left = left
+        self.right = right
+        self.next = next
+
+
+def parse_ListNode(data):
+    if not data or not isinstance(data, list):
+        return None
+    head = ListNode(data[0])
+    curr = head
+    for val in data[1:]:
+        curr.next = ListNode(val)
+        curr = curr.next
+    return head
+
+def serialize_ListNode(node):
+    res = []
+    curr = node
+    while curr:
+        res.append(curr.val)
+        curr = curr.next
+    return res
+
+def parse_TreeNode(data):
+    if not data or not isinstance(data, list) or data[0] is None:
+        return None
+    root = TreeNode(data[0])
+    queue = [root]
+    i = 1
+    while queue and i < len(data):
+        curr = queue.pop(0)
+        if i < len(data):
+            if data[i] is not None:
+                curr.left = TreeNode(data[i])
+                queue.append(curr.left)
+            i += 1
+        if i < len(data):
+            if data[i] is not None:
+                curr.right = TreeNode(data[i])
+                queue.append(curr.right)
+            i += 1
+    return root
+
+def serialize_TreeNode(root):
+    if not root:
+        return []
+    res = []
+    queue = [root]
+    while queue:
+        curr = queue.pop(0)
+        if curr:
+            res.append(curr.val)
+            queue.append(curr.left)
+            queue.append(curr.right)
+        else:
+            res.append(None)
+    while res and res[-1] is None:
+        res.pop()
+    return res
+
+def parse_Node(data):
+    if not data or not isinstance(data, list) or data[0] is None:
+        return None
+    root = Node(data[0])
+    queue = [root]
+    i = 1
+    while queue and i < len(data):
+        curr = queue.pop(0)
+        if i < len(data):
+            if data[i] is not None:
+                curr.left = Node(data[i])
+                queue.append(curr.left)
+            i += 1
+        if i < len(data):
+            if data[i] is not None:
+                curr.right = Node(data[i])
+                queue.append(curr.right)
+            i += 1
+    return root
+
+def serialize_Node(root):
+    if not root:
+        return []
+    res = []
+    level_start = root
+    while level_start:
+        curr = level_start
+        next_level_start = None
+        while curr:
+            res.append(curr.val)
+            if not next_level_start:
+                if curr.left:
+                    next_level_start = curr.left
+                elif curr.right:
+                    next_level_start = curr.right
+            curr = curr.next
+        res.append("#")
+        level_start = next_level_start
+    return res
 """
-        elif arg_style == ArgStyleEnum.single:
-            return f"""
-import json, sys
-{source_code}
-if __name__ == "__main__":
-    data = json.loads(sys.stdin.read())
-    result = {call_prefix}(data)
-    print(json.dumps(result))
+
+        diagnostics_pre = ""
+        diagnostics_post = ""
+        if debug_mode:
+            # Use repr() to safely embed strings as valid Python literals,
+            # avoiding SyntaxError from quotes/backslashes in schema_json.
+            safe_schema = repr(schema_json)
+            safe_conv = repr(conversion_path_str)
+            diagnostics_pre = f"""
+        sys.stderr.write("[DIAGNOSTICS] Language: python\\n")
+        sys.stderr.write("[DIAGNOSTICS] Parameter Schema: " + {safe_schema} + "\\n")
+        sys.stderr.write("[DIAGNOSTICS] Conversion Path: " + {safe_conv} + "\\n")
+        sys.stderr.write("[DIAGNOSTICS] Serialized Input: " + json.dumps(args if {is_pos} else data) + "\\n")
 """
-        elif arg_style == ArgStyleEnum.positional:
-            return f"""
-import json, sys
-{source_code}
+            diagnostics_post = """
+        sys.stderr.write("[DIAGNOSTICS] Serialized Output: " + json.dumps(serialized_result) + "\\n")
+"""
+
+        if is_kwargs:
+            main_block = f"""
 if __name__ == "__main__":
-    args = json.loads(sys.stdin.read())
-    result = {call_prefix}(*args)
-    print(json.dumps(result))
+    try:
+        data = json.loads(sys.stdin.read())
+        args = data
+        {diagnostics_pre}
+        {parsing_code}
+        result = {call_prefix}(**data)
+        serialized_result = {serialize_code}
+        {diagnostics_post}
+        print(json.dumps(serialized_result))
+    except Exception as e:
+        sys.stderr.write(f"[WRAPPER_EXCEPTION] {{type(e).__name__}}: {{str(e)}}\\n")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
+"""
+        elif is_single:
+            main_block = f"""
+if __name__ == "__main__":
+    try:
+        data = json.loads(sys.stdin.read())
+        args = data
+        {diagnostics_pre}
+        {parsing_code}
+        result = {call_prefix}(data)
+        serialized_result = {serialize_code}
+        {diagnostics_post}
+        print(json.dumps(serialized_result))
+    except Exception as e:
+        sys.stderr.write(f"[WRAPPER_EXCEPTION] {{type(e).__name__}}: {{str(e)}}\\n")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
+"""
+        elif is_pos:
+            main_block = f"""
+if __name__ == "__main__":
+    try:
+        args = json.loads(sys.stdin.read())
+        data = args
+        {diagnostics_pre}
+        {parsing_code}
+        result = {call_prefix}(*args)
+        serialized_result = {serialize_code}
+        {diagnostics_post}
+        print(json.dumps(serialized_result))
+    except Exception as e:
+        sys.stderr.write(f"[WRAPPER_EXCEPTION] {{type(e).__name__}}: {{str(e)}}\\n")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 """
         else:
             raise ValueError(f"Unknown arg_style {arg_style} for python")
 
+        return f"""{helpers}
+{source_code}
+{main_block}
+"""
+
     @staticmethod
     def _detect_js_class(source_code, function_name):
-        """Detect if function_name is a method inside a JS/TS class."""
-        class_match = re.search(r'class\s+(\w+)\s*\{', source_code)
-        if class_match:
+        """Detect if function_name is a method inside a JS/TS class.
+        Finds the class that CONTAINS the function as a method, skipping data structure classes."""
+        # Strip comments first to avoid matching commented-out classes
+        clean_code = CodeWrapperService._strip_comments(source_code)
+        # Iterate all class definitions — find the one that contains function_name
+        for class_match in re.finditer(r'class\s+(\w+)\s*\{', clean_code):
             class_name = class_match.group(1)
-            # Check if function_name appears as a method (no 'function' keyword, inside class body)
+            # Skip known data structure classes — they are not the solution class
+            if class_name in ('Node', 'TreeNode', 'ListNode'):
+                continue
+            # Check if function_name appears as a method inside the code starting at this class
             method_pattern = r'\b' + re.escape(function_name) + r'\s*\('
-            if re.search(method_pattern, source_code):
+            if re.search(method_pattern, clean_code[class_match.start():]):
                 return class_name
         return None
 
-    @staticmethod
-    def _wrap_javascript(source_code, function_name, arg_style):
+    @classmethod
+    def _wrap_javascript(cls, source_code, function_name, arg_style, python_template=None, debug_mode=False):
+        # Strip LeetCode-style comment blocks defining Node/TreeNode/ListNode
+        source_code = re.sub(
+            r'/\*\*?\s*\*?\s*Definition for .*?\*/\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip user-defined Node/TreeNode/ListNode class definitions (helpers provide canonical ones)
+        source_code = re.sub(
+            r'class\s+(?:Node|TreeNode|ListNode)\s*\{.*?\}\s*',
+            '', source_code, flags=re.DOTALL
+        )
         # Detect class-based solutions
-        class_name = CodeWrapperService._detect_js_class(source_code, function_name)
-        if class_name:
-            call_prefix = f"new {class_name}().{function_name}"
-        else:
-            call_prefix = function_name
+        class_name = cls._detect_js_class(source_code, function_name)
+        call_prefix = f"new {class_name}().{function_name}" if class_name else function_name
+
+        # For JavaScript we cannot parse types from untyped JS — always use the Python template
+        # for schema (param types, return type) so Node/TreeNode/ListNode problems work correctly.
+        params, return_type = cls._get_problem_schema("javascript", source_code, function_name, python_template)
+        # If JS-only schema gave us all-int types but python_template has better info, prefer python_template
+        if python_template and all(ptype == "int" for _, ptype in params):
+            py_params, py_ret = cls._parse_python_signature(python_template, function_name)
+            if py_params:
+                params = [(pname, cls._normalize_type(ptype)) for pname, ptype in py_params]
+                return_type = cls._normalize_type(py_ret)
+
+        is_pos = (arg_style == ArgStyleEnum.positional)
+        is_single = (arg_style == ArgStyleEnum.single)
+
+        # Generate parsing logic
+        parsing_code = ""
+        conversion_path = []
+        if is_single:
+            if params:
+                pname, ptype = params[0]
+                if ptype == "tree":
+                    parsing_code = "data = parse_TreeNode(data);"
+                    conversion_path.append(f"{pname}: tree -> TreeNode")
+                elif ptype == "node":
+                    parsing_code = "data = parse_Node(data);"
+                    conversion_path.append(f"{pname}: node -> Node")
+                elif ptype == "list":
+                    parsing_code = "data = parse_ListNode(data);"
+                    conversion_path.append(f"{pname}: list -> ListNode")
+                else:
+                    conversion_path.append(f"{pname}: passthrough")
+        elif is_pos:
+            parsing_lines = []
+            for i, (pname, ptype) in enumerate(params):
+                if ptype == "tree":
+                    parsing_lines.append(f"if (args.length > {i}) args[{i}] = parse_TreeNode(args[{i}]);")
+                    conversion_path.append(f"param {i} ({pname}): tree -> TreeNode")
+                elif ptype == "node":
+                    parsing_lines.append(f"if (args.length > {i}) args[{i}] = parse_Node(args[{i}]);")
+                    conversion_path.append(f"param {i} ({pname}): node -> Node")
+                elif ptype == "list":
+                    parsing_lines.append(f"if (args.length > {i}) args[{i}] = parse_ListNode(args[{i}]);")
+                    conversion_path.append(f"param {i} ({pname}): list -> ListNode")
+                else:
+                    conversion_path.append(f"param {i} ({pname}): passthrough")
+            if parsing_lines:
+                parsing_code = "\n    ".join(parsing_lines)
+
+        # Return value serialization
+        serialize_code = "result"
+        if return_type:
+            if return_type == "void":
+                serialize_code = "null"
+                conversion_path.append("return: void -> null")
+            elif return_type == "tree":
+                serialize_code = "serialize_TreeNode(result)"
+                conversion_path.append("return: TreeNode -> tree")
+            elif return_type == "node":
+                serialize_code = "serialize_Node(result)"
+                conversion_path.append("return: Node -> node")
+            elif return_type == "list":
+                serialize_code = "serialize_ListNode(result)"
+                conversion_path.append("return: ListNode -> list")
+            else:
+                conversion_path.append("return: passthrough")
+
+        schema_json = json.dumps([(pname, ptype) for pname, ptype in params])
+        conversion_path_str = " | ".join(conversion_path)
+
+        helpers = """const fs = require('fs');
+
+class ListNode {
+    constructor(val, next) {
+        this.val = (val===undefined ? 0 : val);
+        this.next = (next===undefined ? null : next);
+    }
+}
+
+class TreeNode {
+    constructor(val, left, right) {
+        this.val = (val===undefined ? 0 : val);
+        this.left = (left===undefined ? null : left);
+        this.right = (right===undefined ? null : right);
+    }
+}
+
+class Node {
+    constructor(val, left, right, next) {
+        this.val = (val===undefined ? 0 : val);
+        this.left = (left===undefined ? null : left);
+        this.right = (right===undefined ? null : right);
+        this.next = (next===undefined ? null : next);
+    }
+}
+
+
+function parse_ListNode(data) {
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
+    let head = new ListNode(data[0]);
+    let curr = head;
+    for (let i = 1; i < data.length; i++) {
+        curr.next = new ListNode(data[i]);
+        curr = curr.next;
+    }
+    return head;
+}
+
+function serialize_ListNode(node) {
+    let res = [];
+    let curr = node;
+    while (curr) {
+        res.push(curr.val);
+        curr = curr.next;
+    }
+    return res;
+}
+
+function parse_TreeNode(data) {
+    if (!data || !Array.isArray(data) || data.length === 0 || data[0] === null) return null;
+    let root = new TreeNode(data[0]);
+    let queue = [root];
+    let i = 1;
+    while (queue.length > 0 && i < data.length) {
+        let curr = queue.shift();
+        if (i < data.length) {
+            if (data[i] !== null) {
+                curr.left = new TreeNode(data[i]);
+                queue.push(curr.left);
+            }
+            i++;
+        }
+        if (i < data.length) {
+            if (data[i] !== null) {
+                curr.right = new TreeNode(data[i]);
+                queue.push(curr.right);
+            }
+            i++;
+        }
+    }
+    return root;
+}
+
+function parse_Node(data) {
+    if (!data || !Array.isArray(data) || data.length === 0 || data[0] === null) return null;
+    let root = new Node(data[0]);
+    let queue = [root];
+    let i = 1;
+    while (queue.length > 0 && i < data.length) {
+        let curr = queue.shift();
+        if (i < data.length) {
+            if (data[i] !== null) {
+                curr.left = new Node(data[i]);
+                queue.push(curr.left);
+            }
+            i++;
+        }
+        if (i < data.length) {
+            if (data[i] !== null) {
+                curr.right = new Node(data[i]);
+                queue.push(curr.right);
+            }
+            i++;
+        }
+    }
+    return root;
+}
+
+function serialize_Node(root) {
+    if (!root) return [];
+    let res = [];
+    let level_start = root;
+    while (level_start) {
+        let curr = level_start;
+        let next_level_start = null;
+        while (curr) {
+            res.push(curr.val);
+            if (!next_level_start) {
+                if (curr.left) next_level_start = curr.left;
+                else if (curr.right) next_level_start = curr.right;
+            }
+            curr = curr.next;
+        }
+        res.push("#");
+        level_start = next_level_start;
+    }
+    return res;
+}
+
+function serialize_TreeNode(root) {
+    if (!root) return [];
+    let res = [];
+    let queue = [root];
+    while (queue.length > 0) {
+        let curr = queue.shift();
+        if (curr) {
+            res.push(curr.val);
+            queue.push(curr.left);
+            queue.push(curr.right);
+        } else {
+            res.push(null);
+        }
+    }
+    while (res.length > 0 && res[res.length - 1] === null) {
+        res.pop();
+    }
+    return res;
+}
+"""
+
+        diagnostics_pre = ""
+        diagnostics_post = ""
+        if debug_mode:
+            # Use json.dumps() to produce properly escaped JS string literals,
+            # avoiding SyntaxError from quotes in schema_json.
+            safe_schema_js = json.dumps(schema_json)
+            safe_conv_js = json.dumps(conversion_path_str)
+            diagnostics_pre = f"""
+        console.error("[DIAGNOSTICS] Language: javascript");
+        console.error("[DIAGNOSTICS] Parameter Schema: " + {safe_schema_js});
+        console.error("[DIAGNOSTICS] Conversion Path: " + {safe_conv_js});
+        console.error("[DIAGNOSTICS] Serialized Input: " + JSON.stringify(args || data));
+"""
+            diagnostics_post = """
+        console.error("[DIAGNOSTICS] Serialized Output: " + JSON.stringify(serialized_result));
+"""
 
         if arg_style == ArgStyleEnum.kwargs:
-            raise ValueError("JavaScript does not support kwargs arg_style")
-        elif arg_style == ArgStyleEnum.single:
-            return f"""
-{source_code}
-const fs = require('fs');
-const data = JSON.parse(fs.readFileSync(0, 'utf8'));
-const result = {call_prefix}(data);
-console.log(JSON.stringify(result));
+            # JavaScript has no native kwargs. Gracefully fall back to treating the
+            # input as a single JSON object passed directly to the function.
+            # This matches how most JS solutions handle object-argument problems.
+            main_block = f"""
+try {{
+    let data = JSON.parse(fs.readFileSync(0, 'utf8'));
+    let args = null;
+    {diagnostics_pre}
+    {parsing_code}
+    const result = {call_prefix}(data);
+    const serialized_result = {serialize_code};
+    {diagnostics_post}
+    console.log(JSON.stringify(serialized_result));
+}} catch (e) {{
+    console.error("[WRAPPER_EXCEPTION] " + e.name + ": " + e.message);
+    console.error(e.stack);
+    process.exit(1);
+}}
 """
-        elif arg_style == ArgStyleEnum.positional:
-            return f"""
-{source_code}
-const fs = require('fs');
-const args = JSON.parse(fs.readFileSync(0, 'utf8'));
-const result = {call_prefix}(...args);
-console.log(JSON.stringify(result));
+        elif is_single:
+            main_block = f"""
+try {{
+    let data = JSON.parse(fs.readFileSync(0, 'utf8'));
+    let args = null;
+    {diagnostics_pre}
+    {parsing_code}
+    const result = {call_prefix}(data);
+    const serialized_result = {serialize_code};
+    {diagnostics_post}
+    console.log(JSON.stringify(serialized_result));
+}} catch (e) {{
+    console.error("[WRAPPER_EXCEPTION] " + e.name + ": " + e.message);
+    console.error(e.stack);
+    process.exit(1);
+}}
+"""
+        elif is_pos:
+            main_block = f"""
+try {{
+    let args = JSON.parse(fs.readFileSync(0, 'utf8'));
+    let data = null;
+    {diagnostics_pre}
+    {parsing_code}
+    const result = {call_prefix}(...args);
+    const serialized_result = {serialize_code};
+    {diagnostics_post}
+    console.log(JSON.stringify(serialized_result));
+}} catch (e) {{
+    console.error("[WRAPPER_EXCEPTION] " + e.name + ": " + e.message);
+    console.error(e.stack);
+    process.exit(1);
+}}
 """
         else:
             raise ValueError(f"Unknown arg_style {arg_style} for javascript")
+
+        return f"""{helpers}
+{source_code}
+{main_block}
+"""
 
     # ══════════════════════════════════════════════════════════════════
     #  PRIVATE: C++ wrapper
     # ══════════════════════════════════════════════════════════════════
 
     @classmethod
-    def _wrap_cpp(cls, source_code, function_name, arg_style, python_template=None):
+    def _wrap_cpp(cls, source_code, function_name, arg_style, python_template=None, debug_mode=False):
         # Strip LeetCode-style definition comment blocks for TreeNode/ListNode/Node
-        # e.g. /** * Definition for a binary tree node. * struct TreeNode { ... }; */
         source_code = re.sub(
             r'/\*\*?\s*\*?\s*Definition for .*?\*/\s*',
             '', source_code, flags=re.DOTALL
         )
-        # Strip actual struct definitions that the wrapper already provides
+        # Strip actual struct/class definitions for data structures that the wrapper already provides.
+        # Use a pattern that handles nested braces by matching until the final "};"
         source_code = re.sub(
-            r'struct\s+(?:TreeNode|ListNode|Node)\s*\{[^}]*\};\s*',
+            r'struct\s+(?:TreeNode|ListNode|Node)\s*\{.*?\};\s*',
             '', source_code, flags=re.DOTALL
         )
-        # Strip #include directives (wrapper already includes all standard headers)
+        # Also strip class-based definitions for these types
+        source_code = re.sub(
+            r'class\s+(?:Node|TreeNode|ListNode)\s*\{.*?\};\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip #include directives
         source_code = re.sub(r'^\s*#include\s*<[^>]+>\s*$', '', source_code, flags=re.MULTILINE)
         source_code = re.sub(r'^\s*using\s+namespace\s+std\s*;\s*$', '', source_code, flags=re.MULTILINE)
-        # Clean up multiple blank lines
         source_code = re.sub(r'\n{3,}', '\n\n', source_code).strip()
 
-        invoker = cls._build_cpp_invoker(function_name, arg_style, source_code, python_template)
-        # The IO helpers are stored as a plain string — single braces are
-        # fine because they are substituted into the f-string via {}, not
-        # interpreted as f-string delimiters.
+        invoker = cls._build_cpp_invoker(function_name, arg_style, source_code, python_template, debug_mode)
         return f"""#include <iostream>
 #include <string>
 #include <vector>
@@ -376,6 +1058,7 @@ console.log(JSON.stringify(result));
 #include <cmath>
 #include <numeric>
 #include <functional>
+#include <stdexcept>
 using namespace std;
 
 {_CPP_IO_HELPERS}
@@ -383,7 +1066,15 @@ using namespace std;
 {source_code}
 
 int main() {{
+    try {{
 {invoker}
+    }} catch (const std::exception& e) {{
+        std::cerr << "[WRAPPER_EXCEPTION] std::exception: " << e.what() << "\\n";
+        return 1;
+    }} catch (...) {{
+        std::cerr << "[WRAPPER_EXCEPTION] Unknown exception\\n";
+        return 1;
+    }}
     return 0;
 }}
 """
@@ -393,10 +1084,20 @@ int main() {{
     # ══════════════════════════════════════════════════════════════════
 
     @classmethod
-    def _wrap_java(cls, source_code, function_name, arg_style, python_template=None):
-        invoker = cls._build_java_invoker(function_name, arg_style, source_code, python_template)
-        # Solution class is placed OUTSIDE public class Main to avoid
-        # inner-class instantiation issues in a static context.
+    def _wrap_java(cls, source_code, function_name, arg_style, python_template=None, debug_mode=False):
+        # Strip LeetCode-style definition comment blocks for TreeNode/ListNode/Node
+        source_code = re.sub(
+            r'/\*\*?\s*\*?\s*Definition for .*?\*/\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip user-defined Node/TreeNode/ListNode class definitions (wrapper provides canonical ones)
+        source_code = re.sub(
+            r'class\s+(?:Node|TreeNode|ListNode)\s*\{.*?\}\s*',
+            '', source_code, flags=re.DOTALL
+        )
+        # Strip 'public' modifier from all class declarations so they can compile in Main.java
+        source_code = re.sub(r'\bpublic\s+class\b', 'class', source_code)
+        invoker = cls._build_java_invoker(function_name, arg_style, source_code, python_template, debug_mode)
         return f"""import java.util.*;
 import java.io.*;
 
@@ -406,15 +1107,21 @@ public class Main {{
 {_JAVA_IO_HELPERS}
 
     public static void main(String[] args) throws Exception {{
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {{
-            sb.append(line).append("\\n");
-        }}
-        SimpleParser parser = new SimpleParser(sb.toString());
-        Solution sol = new Solution();
+        try {{
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {{
+                sb.append(line).append("\\n");
+            }}
+            SimpleParser parser = new SimpleParser(sb.toString());
+            Solution sol = new Solution();
 {invoker}
+        }} catch (Throwable t) {{
+            System.err.println("[WRAPPER_EXCEPTION] " + t.getClass().getName() + ": " + t.getMessage());
+            t.printStackTrace(System.err);
+            System.exit(1);
+        }}
     }}
 }}
 
@@ -618,7 +1325,7 @@ class Node {{
     # ══════════════════════════════════════════════════════════════════
 
     @classmethod
-    def _build_cpp_invoker(cls, function_name, arg_style, source_code, python_template=None):
+    def _build_cpp_invoker(cls, function_name, arg_style, source_code, python_template=None, debug_mode=False):
         """Generate the C++ main() body dynamically from the parsed signature."""
         ret_type, params = cls._parse_cpp_signature(source_code, function_name)
 
@@ -632,17 +1339,38 @@ class Node {{
                     cpp_type = cls._PY_TO_CPP.get(ptype, "int")
                     params.append((cpp_type, pname))
 
-        has_class = bool(re.search(r'\bclass\s+\w+', source_code))
+        # Strip C++ comments to avoid matching commented-out classes
+        clean_code = cls._strip_comments(source_code)
+        has_class = bool(re.search(r'\bclass\s+\w+', clean_code))
         class_name = 'Solution'
         if has_class:
-            cm = re.search(r'\bclass\s+(\w+)', source_code)
-            if cm:
-                class_name = cm.group(1)
+            # Find the class that isn't a data structure
+            for cm in re.finditer(r'\bclass\s+(\w+)', clean_code):
+                cname = cm.group(1)
+                if cname not in ('Node', 'TreeNode', 'ListNode'):
+                    class_name = cname
+                    break
 
         if ret_type is None or params is None:
             return cls._cpp_fallback_invoker(function_name, arg_style, has_class, class_name)
 
         lines = []
+
+        # Diagnostics Logging
+        if debug_mode:
+            schema_json = json.dumps([(pname, cls._normalize_type(ptype)) for ptype, pname in params])
+            conversion_path = []
+            for i, (ptype, pname) in enumerate(params):
+                ptype_norm = cls._normalize_type(ptype)
+                conversion_path.append(f"param {i} ({pname}): {ptype_norm}")
+            ret_type_norm = cls._normalize_type(ret_type)
+            conversion_path.append(f"return: {ret_type_norm}")
+            conversion_path_str = " | ".join(conversion_path)
+
+            lines.append(f'    std::cerr << "[DIAGNOSTICS] Language: cpp\\n";')
+            lines.append(f'    std::cerr << "[DIAGNOSTICS] Parameter Schema: " << R"({schema_json})" << "\\n";')
+            lines.append(f'    std::cerr << "[DIAGNOSTICS] Conversion Path: " << R"({conversion_path_str})" << "\\n";')
+
         if has_class:
             lines.append(f"    {class_name} sol;")
 
@@ -651,10 +1379,13 @@ class Node {{
             lines.append("    consume_char(cin, '[');")
 
         for i, (ptype, pname) in enumerate(params):
-            is_ptr = ptype.endswith('*')
-            if is_ptr:
-                # Pointer types (TreeNode*, ListNode*, Node*) use special parse
-                lines.append(f"    {ptype} {pname} = parse_{ptype[:-1].strip()}_from_json(cin);")
+            ptype_norm = cls._normalize_type(ptype)
+            if ptype_norm in ("tree", "node"):
+                base_type = ptype.replace('*', '').strip()
+                lines.append(f"    {ptype} {pname} = parse_{base_type}_from_json(cin);")
+            elif ptype_norm == "list":
+                base_type = ptype.replace('*', '').strip()
+                lines.append(f"    {ptype} {pname} = parse_{base_type}_from_json(cin);")
             else:
                 lines.append(f"    {ptype} {pname};")
                 lines.append(f"    parse_val(cin, {pname});")
@@ -669,6 +1400,7 @@ class Node {{
 
         if ret_type == "void":
             lines.append(f"    {call};")
+            lines.append('    cout << "null" << endl;')  # match Python json.dumps(None)
         elif ret_type.endswith('*'):
             base_type = ret_type[:-1].strip()
             lines.append(f"    auto res = {call};")
@@ -682,7 +1414,7 @@ class Node {{
         return "\n".join(lines)
 
     @classmethod
-    def _build_java_invoker(cls, function_name, arg_style, source_code, python_template=None):
+    def _build_java_invoker(cls, function_name, arg_style, source_code, python_template=None, debug_mode=False):
         """Generate the Java main() body dynamically from the parsed signature."""
         ret_type, params = cls._parse_java_signature(source_code, function_name)
 
@@ -700,7 +1432,27 @@ class Node {{
             return cls._java_fallback_invoker(function_name, arg_style)
 
         lines = []
-        need_outer_brackets = (arg_style == ArgStyleEnum.positional and len(params) > 1)
+
+        # Diagnostics Logging
+        if debug_mode:
+            schema_json = json.dumps([(pname, cls._normalize_type(ptype)) for ptype, pname in params])
+            conversion_path = []
+            for i, (ptype, pname) in enumerate(params):
+                ptype_norm = cls._normalize_type(ptype)
+                conversion_path.append(f"param {i} ({pname}): {ptype_norm}")
+            ret_type_norm = cls._normalize_type(ret_type)
+            conversion_path.append(f"return: {ret_type_norm}")
+            conversion_path_str = " | ".join(conversion_path)
+
+            # Use json.dumps() to produce properly escaped Java string literals.
+            # JSON string escaping is compatible with Java string literal escaping.
+            lines.append(f'        System.err.println("[DIAGNOSTICS] Language: java");')
+            lines.append(f'        System.err.println("[DIAGNOSTICS] Parameter Schema: " + {json.dumps(schema_json)});')
+            lines.append(f'        System.err.println("[DIAGNOSTICS] Conversion Path: " + {json.dumps(conversion_path_str)});')
+
+        # Always consume outer brackets for positional style, even with a single param.
+        # Input is always a JSON array [arg1, arg2, ...] — even when there is only one argument.
+        need_outer_brackets = (arg_style == ArgStyleEnum.positional)
         if need_outer_brackets:
             lines.append("        parser.get(); // consume '['")
 
@@ -716,8 +1468,27 @@ class Node {{
         call_args = ", ".join(p[1] for p in params)
         call = f"sol.{function_name}({call_args})"
 
+        ret_type_norm = cls._normalize_type(ret_type)
         if ret_type == "void":
+            # void functions output "null" to stay consistent with Python (json.dumps(None) == "null")
             lines.append(f"        {call};")
+            lines.append('        System.out.print("null");')
+            lines.append("        System.out.println();")
+        elif ret_type_norm == "node":
+            # Node (has next pointer) — serialize to LeetCode-style level-order JSON array
+            lines.append(f"        {ret_type} res = {call};")
+            lines.append("        System.out.print(serializeNode(res));")
+            lines.append("        System.out.println();")
+        elif ret_type_norm == "tree":
+            # TreeNode — serialize to LeetCode-style level-order JSON array
+            lines.append(f"        {ret_type} res = {call};")
+            lines.append("        System.out.print(serializeTreeNode(res));")
+            lines.append("        System.out.println();")
+        elif ret_type_norm == "list" and ret_type.strip() == "ListNode":
+            # ListNode — serialize to a plain JSON integer array
+            lines.append(f"        {ret_type} res = {call};")
+            lines.append("        System.out.print(serializeListNode(res));")
+            lines.append("        System.out.println();")
         else:
             lines.append(f"        {ret_type} res = {call};")
             lines.append("        printVal(res);")
@@ -804,8 +1575,16 @@ struct ListNode {
     ListNode(int x, ListNode *next) : val(x), next(next) {}
 };
 
-// Node is an alias used by some LeetCode problems
-typedef TreeNode Node;
+// Node is used by problems like "Populating Next Right Pointers" — has an extra 'next' pointer
+struct Node {
+    int val;
+    Node *left;
+    Node *right;
+    Node *next;
+    Node() : val(0), left(nullptr), right(nullptr), next(nullptr) {}
+    Node(int x) : val(x), left(nullptr), right(nullptr), next(nullptr) {}
+    Node(int x, Node *left, Node *right, Node *next) : val(x), left(left), right(right), next(next) {}
+};
 
 // --- Lightweight JSON / Tokenizer Parser ---
 void skip_ws(istream& in) {
@@ -1061,13 +1840,85 @@ void print_ListNode_as_json(ListNode* head) {
     cout << "]";
 }
 
-// Node is typedef'd to TreeNode, so use the same parsers
+// Node has its own struct with val/left/right/next — parse like a binary tree (level-order), ignore next during input
 Node* parse_Node_from_json(istream& in) {
-    return parse_TreeNode_from_json(in);
+    skip_ws(in);
+    if (peek_char(in) == 'n') {
+        string s; in >> s;
+        return nullptr;
+    }
+    vector<string> tokens;
+    consume_char(in, '[');
+    skip_ws(in);
+    if (peek_char(in) == ']') { in.get(); return nullptr; }
+    while (true) {
+        skip_ws(in);
+        string tok = "";
+        if (peek_char(in) == 'n') {
+            for (int k = 0; k < 4 && in.peek() != EOF; ++k) tok += (char)in.get();
+        } else if (peek_char(in) == '"') {
+            in.get();
+            char c;
+            while (in.get(c) && c != '"') tok += c;
+        } else {
+            char c;
+            while (in && !isspace(in.peek()) && in.peek() != ',' && in.peek() != ']') {
+                in.get(c); tok += c;
+            }
+        }
+        tokens.push_back(tok);
+        skip_ws(in);
+        if (peek_char(in) == ',') in.get();
+        else if (peek_char(in) == ']') { in.get(); break; }
+        else break;
+    }
+    if (tokens.empty() || tokens[0] == "null") return nullptr;
+    Node* root = new Node(stoi(tokens[0]));
+    queue<Node*> q;
+    q.push(root);
+    int i = 1;
+    while (!q.empty() && i < (int)tokens.size()) {
+        Node* cur = q.front(); q.pop();
+        if (i < (int)tokens.size()) {
+            if (tokens[i] != "null") {
+                cur->left = new Node(stoi(tokens[i]));
+                q.push(cur->left);
+            }
+            i++;
+        }
+        if (i < (int)tokens.size()) {
+            if (tokens[i] != "null") {
+                cur->right = new Node(stoi(tokens[i]));
+                q.push(cur->right);
+            }
+            i++;
+        }
+    }
+    return root;
 }
 
-void print_Node_as_json(Node* node) {
-    print_TreeNode_as_json(node);
+void print_Node_as_json(Node* root) {
+    if (!root) { cout << "[]"; return; }
+    cout << "[";
+    Node* level_start = root;
+    bool first = true;
+    while (level_start) {
+        Node* curr = level_start;
+        Node* next_level_start = nullptr;
+        while (curr) {
+            if (!first) cout << ",";
+            cout << curr->val;
+            first = false;
+            if (!next_level_start) {
+                if (curr->left) next_level_start = curr->left;
+                else if (curr->right) next_level_start = curr->right;
+            }
+            curr = curr->next;
+        }
+        cout << ",\"#\"";
+        level_start = next_level_start;
+    }
+    cout << "]";
 }
 """
 
@@ -1680,5 +2531,59 @@ _JAVA_IO_HELPERS = r"""    // --- Helper Tokenizer for Java ---
         } else {
             System.out.print(val);
         }
+    }
+
+    // --- TreeNode / ListNode / Node JSON serializers (level-order) ---
+    static String serializeTreeNode(TreeNode root) {
+        if (root == null) return "null";
+        List<String> out = new ArrayList<>();
+        Queue<TreeNode> q = new LinkedList<>();
+        q.add(root);
+        while (!q.isEmpty()) {
+            TreeNode cur = q.poll();
+            if (cur != null) {
+                out.add(String.valueOf(cur.val));
+                q.add(cur.left);
+                q.add(cur.right);
+            } else {
+                out.add("null");
+            }
+        }
+        while (!out.isEmpty() && out.get(out.size() - 1).equals("null")) out.remove(out.size() - 1);
+        return "[" + String.join(",", out) + "]";
+    }
+
+    static String serializeListNode(ListNode head) {
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        while (head != null) {
+            if (!first) sb.append(",");
+            sb.append(head.val);
+            first = false;
+            head = head.next;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    static String serializeNode(Node root) {
+        if (root == null) return "[]";
+        List<String> out = new ArrayList<>();
+        Node levelStart = root;
+        while (levelStart != null) {
+            Node curr = levelStart;
+            Node nextLevelStart = null;
+            while (curr != null) {
+                out.add(String.valueOf(curr.val));
+                if (nextLevelStart == null) {
+                    if (curr.left != null) nextLevelStart = curr.left;
+                    else if (curr.right != null) nextLevelStart = curr.right;
+                }
+                curr = curr.next;
+            }
+            out.add("\"#\"");
+            levelStart = nextLevelStart;
+        }
+        return "[" + String.join(",", out) + "]";
     }
 """

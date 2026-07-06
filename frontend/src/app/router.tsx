@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { PageShell } from '../shared/ui/layout/PageShell';
 import { ProblemListPage } from '../features/problems/ProblemListPage';
 import { ProblemDetailPage } from '../features/problems/ProblemDetailPage';
+import { XProvider } from '../features/x/XContext';
 import { SubmissionResultPage } from '../features/problems/SubmissionResultPage';
 import { LeaderboardPage } from '../features/leaderboard/LeaderboardPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
@@ -17,9 +18,17 @@ import { CookiePage } from '../pages/CookiePage';
 import { TermsPage } from '../pages/TermsPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
-import { BattleLobbyPage } from '../features/battle/BattleLobbyPage';
-import { BattleArenaPage } from '../features/battle/BattleArenaPage';
+import { lazy, Suspense } from 'react';
 import { AppearancePage } from '../features/appearance/AppearancePage';
+
+const BattleLobbyPage = lazy(() => import('../features/battle/BattleLobbyPage').then(module => ({ default: module.BattleLobbyPage })));
+const BattleArenaPage = lazy(() => import('../features/battle/pages/BattleArenaPage').then(module => ({ default: module.BattleArenaPage })));
+const BattleRoomPage = lazy(() => import('../features/battle/pages/BattleRoomPage').then(module => ({ default: module.BattleRoomPage })));
+
+// Phase 1 — Frontend-only features (lazy loaded, isolated)
+const ResumePreviewPage = lazy(() => import('../features/resume/ResumePreviewPage').then(module => ({ default: module.ResumePreviewPage })));
+const AnalyticsPage = lazy(() => import('../features/analytics/AnalyticsPage').then(module => ({ default: module.AnalyticsPage })));
+const PublicProfilePage = lazy(() => import('../features/profile/PublicProfilePage').then(module => ({ default: module.PublicProfilePage })));
 
 export const router = createBrowserRouter([
   {
@@ -50,7 +59,9 @@ export const router = createBrowserRouter([
     path: '/problems/:slug/submissions/:id',
     element: (
       <PageShell>
-        <SubmissionResultPage />
+        <XProvider>
+          <SubmissionResultPage />
+        </XProvider>
       </PageShell>
     ),
   },
@@ -164,7 +175,13 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <PageShell fullWidth>
-          <BattleLobbyPage />
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Battle Lobby...
+            </div>
+          }>
+            <BattleLobbyPage />
+          </Suspense>
         </PageShell>
       </ProtectedRoute>
     ),
@@ -173,7 +190,15 @@ export const router = createBrowserRouter([
     path: '/battle/arena',
     element: (
       <ProtectedRoute>
-        <BattleArenaPage />
+        <XProvider>
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Battle Arena...
+            </div>
+          }>
+            <BattleArenaPage />
+          </Suspense>
+        </XProvider>
       </ProtectedRoute>
     ),
   },
@@ -181,8 +206,65 @@ export const router = createBrowserRouter([
     path: '/battle/:battleId',
     element: (
       <ProtectedRoute>
-        <BattleArenaPage />
+        <XProvider>
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Arena Match...
+            </div>
+          }>
+            <BattleRoomPage />
+          </Suspense>
+        </XProvider>
       </ProtectedRoute>
+    ),
+  },
+  // Phase 1 — Resume Preview (frontend-only, uses existing APIs)
+  {
+    path: '/resume',
+    element: (
+      <ProtectedRoute>
+        <PageShell>
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Resume...
+            </div>
+          }>
+            <ResumePreviewPage />
+          </Suspense>
+        </PageShell>
+      </ProtectedRoute>
+    ),
+  },
+  // Phase 4 — Analytics Dashboard (frontend-only, uses existing APIs)
+  {
+    path: '/analytics',
+    element: (
+      <ProtectedRoute>
+        <PageShell fullWidth>
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Analytics...
+            </div>
+          }>
+            <AnalyticsPage />
+          </Suspense>
+        </PageShell>
+      </ProtectedRoute>
+    ),
+  },
+  // Phase 1.5 — Public Profiles (accessible to everyone)
+  {
+    path: '/u/:username',
+    element: (
+      <PageShell fullWidth>
+        <Suspense fallback={
+          <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+            Loading Profile...
+          </div>
+        }>
+          <PublicProfilePage />
+        </Suspense>
+      </PageShell>
     ),
   },
   {

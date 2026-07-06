@@ -32,7 +32,7 @@ services:
       - docker-entrypoint.sh --appendonly no --requirepass "judge0_redis_password"
 
   judge0-server:
-    image: judge0/judge0:1.13.1
+    image: mrkushalsm/judge0:cgv2
     environment:
       POSTGRES_USER: judge0
       POSTGRES_PASSWORD: judge0_password
@@ -43,7 +43,10 @@ services:
       JUDGE0_ALLOW_ENABLE_NETWORK: "true"
       JUDGE0_ENABLE_WAIT_RESULT: "true"
       ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
-      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx128m"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     depends_on:
       - judge0-db
       - judge0-redis
@@ -53,7 +56,7 @@ services:
     restart: always
 
   judge0-workers:
-    image: judge0/judge0:1.13.1
+    image: mrkushalsm/judge0:cgv2
     command: ["./scripts/workers"]
     environment:
       POSTGRES_USER: judge0
@@ -63,7 +66,10 @@ services:
       REDIS_PASSWORD: judge0_redis_password
       REDIS_HOST: judge0-redis
       ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
-      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx128m"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     depends_on:
       - judge0-db
       - judge0-redis
@@ -72,7 +78,7 @@ services:
 
   api:
     build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
     ports:
       - "8000:8000"
     volumes:
@@ -85,7 +91,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
       JUDGE0_URL: http://judge0-server:2358
-      USE_LOCAL_JUDGE: "false"
+      USE_LOCAL_JUDGE: "true"
+      PYTHONUTF8: "1"
+
 
   worker:
     build: .
@@ -101,7 +109,26 @@ services:
       DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
       REDIS_URL: redis://redis:6379/0
       JUDGE0_URL: http://judge0-server:2358
-      USE_LOCAL_JUDGE: "false"
+      USE_LOCAL_JUDGE: "true"
+      PYTHONUTF8: "1"
+
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+
+  import-worker:
+    build: .
+    command: python -m app.workers.import_worker
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xyz_platform:xyz_platform@postgres:5432/xyz_platform
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUTF8: "1"
+
     restart: unless-stopped
     deploy:
       replicas: 1

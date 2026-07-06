@@ -20,3 +20,5 @@ class BattlePlayer(Base):
     attempts = Column(Integer, nullable=False, default=0)
     code = Column(Text, nullable=True)
     lang = Column(String(20), nullable=False, default="cpp")
+    progress = Column(Text, nullable=True)
+    active_problem_index = Column(Integer, nullable=False, default=0)

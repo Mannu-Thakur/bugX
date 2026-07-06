@@ -118,6 +118,79 @@ export interface ProblemDetail {
   is_published: boolean;
   created_at: string;
   user_status: { solved: boolean; best_score: number | null } | null;
+  hints?: string[];
+}
+
+export interface CompanyListItem {
+  id: string;
+  name: string;
+  slug: string;
+  logo_light: string | null;
+  logo_dark: string | null;
+  brand_color: string | null;
+  totalProblems: number;
+  easyCount: number;
+  mediumCount: number;
+  hardCount: number;
+}
+
+export interface CompanyDetail {
+  name: string;
+  slug: string;
+  logo_light: string | null;
+  logo_dark: string | null;
+  brand_color: string | null;
+}
+
+export interface CompanyResponse {
+  company: CompanyDetail;
+  problems: Paginated<ProblemListItem>;
+  stats: {
+    totalProblems: number;
+    easyCount: number;
+    mediumCount: number;
+    hardCount: number;
+    topics: { name: string; slug: string; count: number }[];
+  };
+}
+
+export interface TopicListItem {
+  id: string;
+  name: string;
+  slug: string;
+  totalProblems: number;
+  easyCount: number;
+  mediumCount: number;
+  hardCount: number;
+}
+
+export interface TopicDetail {
+  name: string;
+  slug: string;
+}
+
+export interface TopicResponse {
+  topic: TopicDetail;
+  problems: Paginated<ProblemListItem>;
+  stats: {
+    totalProblems: number;
+    easyCount: number;
+    mediumCount: number;
+    hardCount: number;
+  };
+}
+
+export interface StatsOverview {
+  totalProblems: number;
+  totalCompanies: number;
+  totalTopics: number;
+  solvedCount: number;
+  bookmarkedCount: number;
+  difficultyDistribution: { easy: number; medium: number; hard: number };
+  sourceDistribution: Record<string, number>;
+  companyDistribution: { name: string; slug: string; count: number }[];
+  topic_distribution: { name: string; slug: string; count: number }[];
+  recentProblems: ProblemListItem[];
 }
 
 export interface ProblemListParams {
@@ -127,6 +200,11 @@ export interface ProblemListParams {
   tag?: string;
   search?: string;
   sort?: string;
+  company?: string;
+  topic?: string;
+  source?: string;
+  solved?: string;
+  bookmarked?: string;
 }
 
 export interface TemplateCreatePayload {
@@ -713,7 +791,9 @@ export const api = {
       time_limit: number;
       problem_source: string;
       selected_slug?: string | null;
+      selected_slugs?: string[] | null;
       custom_problem?: any;
+      custom_problems?: any[] | null;
     }) =>
       request<{ id: string }>('/battle/create', {
         method: 'POST',
@@ -739,6 +819,8 @@ export const api = {
       attempts?: number;
       code?: string;
       lang?: string;
+      active_problem_index?: number;
+      problem_index?: number;
     }) =>
       request<any>(`/battle/${id}/update`, {
         method: 'POST',
@@ -748,6 +830,53 @@ export const api = {
     start: (id: string) =>
       request<any>(`/battle/${id}/start`, {
         method: 'POST',
+      }),
+
+    getHistory: () =>
+      request<any[]>('/battle/history', {
+        method: 'GET',
+      }),
+  },
+
+  companies: {
+    list: () =>
+      request<CompanyListItem[]>('/companies', {
+        method: 'GET',
+      }),
+    get: (slug: string, params?: { page?: number; limit?: number; difficulty?: string; search?: string; sort?: string }) =>
+      request<CompanyResponse>(`/companies/${slug}`, {
+        method: 'GET',
+        params: params as Record<string, string | number | boolean | undefined>,
+      }),
+  },
+
+  topics: {
+    list: () =>
+      request<TopicListItem[]>('/topics', {
+        method: 'GET',
+      }),
+    get: (slug: string, params?: { page?: number; limit?: number; difficulty?: string; search?: string; sort?: string }) =>
+      request<TopicResponse>(`/topics/${slug}`, {
+        method: 'GET',
+        params: params as Record<string, string | number | boolean | undefined>,
+      }),
+  },
+
+  stats: {
+    overview: () =>
+      request<StatsOverview>('/stats/overview', {
+        method: 'GET',
+      }),
+  },
+
+  bookmarks: {
+    add: (slug: string) =>
+      request<{ status: string; bookmarked: boolean }>('/problems/' + slug + '/bookmark', {
+        method: 'POST',
+      }),
+    remove: (slug: string) =>
+      request<void>('/problems/' + slug + '/bookmark', {
+        method: 'DELETE',
       }),
   },
 };

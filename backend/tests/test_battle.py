@@ -17,7 +17,7 @@ async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
         difficulty=DifficultyEnum.EASY,
         time_limit_ms=2000,
         memory_limit_kb=262144,
-        score_base=100,
+        score_base=1,
         runtime_bonus_max=20,
         is_published=False
     )
@@ -114,7 +114,15 @@ async def test_battle_lifecycle(client: AsyncClient, db: AsyncSession):
     # We can also test the start endpoint:
     start_resp = await client.post(f"/api/v1/battle/{battle_id}/start", headers=alice_headers)
     assert start_resp.status_code == 200
-    assert start_resp.json()["status"] == "active"
+    assert start_resp.json()["status"] == "countdown"
+
+    # Move start_time 6 seconds back to trigger auto transition to active
+    from datetime import timedelta
+    stmt_b = select(Battle).where(Battle.id == uuid.UUID(battle_id))
+    battle_obj = (await db.execute(stmt_b)).scalars().first()
+    battle_obj.start_time = battle_obj.start_time - timedelta(seconds=6)
+    db.add(battle_obj)
+    await db.commit()
 
     # Get state to verify active status
     get3_resp = await client.get(f"/api/v1/battle/{battle_id}", headers=alice_headers)
@@ -223,3 +231,68 @@ async def test_battle_not_found(client: AsyncClient):
     random_id = str(uuid.uuid4())
     resp = await client.get(f"/api/v1/battle/{random_id}", headers=alice_headers)
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_battle_history_endpoint(client: AsyncClient, db: AsyncSession):
+    # Register and login Dave
+    resp_dave = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "dave@example.com", "username": "Dave", "password": "Password123"}
+    )
+    assert resp_dave.status_code == 200
+    dave_token = resp_dave.json()["access_token"]
+    dave_headers = {"Authorization": f"Bearer {dave_token}"}
+
+    # Register and login Eve
+    resp_eve = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "eve@example.com", "username": "Eve", "password": "Password123"}
+    )
+    assert resp_eve.status_code == 200
+    eve_token = resp_eve.json()["access_token"]
+    eve_headers = {"Authorization": f"Bearer {eve_token}"}
+
+    # Create a battle
+    create_resp = await client.post(
+        "/api/v1/battle/create",
+        json={
+            "max_players": 2,
+            "player_usernames": ["Dave", "Eve"],
+            "time_limit": 10,
+            "problem_source": "catalog",
+            "selected_slug": "two-sum"
+        },
+        headers=dave_headers
+    )
+    assert create_resp.status_code == 201
+    battle_id = create_resp.json()["id"]
+
+    # Start the battle (transitions to countdown)
+    start_resp = await client.post(f"/api/v1/battle/{battle_id}/start", headers=dave_headers)
+    assert start_resp.status_code == 200
+
+    # Wait, countdown transitions to active in get_battle when 5s elapse
+    # Let's force update status to active and set start_time
+    from datetime import datetime, timezone
+    from app.models.battle import Battle
+    stmt_b = select(Battle).where(Battle.id == uuid.UUID(battle_id))
+    b_obj = (await db.execute(stmt_b)).scalars().first()
+    b_obj.status = "active"
+    b_obj.start_time = datetime.now(timezone.utc)
+    db.add(b_obj)
+    await db.commit()
+
+    # Finish battle using ScoringService.finish_battle
+    from app.services.scoring_service import ScoringService
+    await ScoringService.finish_battle(db, uuid.UUID(battle_id))
+
+    # Retrieve history
+    history_resp = await client.get("/api/v1/battle/history", headers=dave_headers)
+    assert history_resp.status_code == 200
+    hdata = history_resp.json()
+    assert len(hdata) >= 1
+    assert hdata[0]["id"] == battle_id
+    assert any(p["username"] == "Dave" for p in hdata[0]["players"])
+    assert any(p["username"] == "Eve" for p in hdata[0]["players"])
+    assert hdata[0]["winner"] == "Tie Match"

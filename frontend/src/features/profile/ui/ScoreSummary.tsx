@@ -69,7 +69,7 @@ export const ScoreSummary: React.FC<ScoreSummaryProps> = ({ stats, isLoading }) 
             </div>
 
             <p className="text-[10px] text-gray-600 leading-snug">
-              Score = base + runtime bonus for each accepted solution
+              Score = 1 pt (Easy), 3 pts (Medium), 6 pts (Hard) for each accepted solution
             </p>
           </div>
         </div>

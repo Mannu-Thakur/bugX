@@ -169,6 +169,7 @@ async def test_get_my_stats_streak_stale(client: AsyncClient, db: AsyncSession):
 
     # 5. Now check a scenario where last_active_date is yesterday (diff == 1)
     # The current_streak should NOT be reset to 0 in the response
+    stats.current_streak = 5
     stats.last_active_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
     await db.commit()
 

@@ -221,6 +221,7 @@ class GFGParser:
         # Parse tags
         topic_tags = prob_data.get("tags", {}).get("topic_tags", [])
         tags = [cls.TAG_MAP.get(t.lower(), t) for t in topic_tags]
+        company_tags = prob_data.get("tags", {}).get("company_tags", [])
 
         # Parse templates
         extra = prob_data.get("extra", {})
@@ -369,6 +370,7 @@ class GFGParser:
             "description": description,
             "difficulty": difficulty,
             "tags": tags,
+            "company_tags": company_tags,
             "templates": templates_list,
             "test_cases": test_cases_list,
             "hints": []

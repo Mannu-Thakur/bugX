@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Shield, Database, Award, CheckCircle, Tag as TagIcon, Layout, Terminal, ChevronDown, Lightbulb, Clock, ChevronRight, ChevronLeft, Play, Pause, RotateCcw, StickyNote, CloudUpload, Lock, BookOpen } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Terminal, Lightbulb, Clock, ChevronRight, ChevronLeft, Lock, BookOpen, Layout } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import { BugXLogo } from '../../shared/ui/logo/BugXLogo';
 import { userStorage } from '../../shared/lib/userState';
@@ -14,9 +14,14 @@ import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { SplitPane } from './components/SplitPane';
 import { CodeEditor } from './components/CodeEditor';
 import { TestCasePanel } from './components/TestCasePanel';
+import { ProblemDescription } from './components/ProblemDescription';
 import { cn } from '../../shared/lib/cn';
+import { XProvider, useX } from '../x/XContext';
+import { XPanel } from '../x/XPanel';
 
-export const ProblemDetailPage: React.FC = () => {
+// Inner component that consumes XContext
+const ProblemDetailInner: React.FC = () => {
+  const { isOpen: isXOpen, togglePanel: toggleX } = useX();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -46,12 +51,38 @@ const [isRunning, setIsRunning] = useState(false);
   const [activeSubmission, setActiveSubmission] = useState<SubmissionResponse | null>(null);
   const [results, setResults] = useState<SubmissionResultResponse[] | null>(null);
   const [testPanelHeight, setTestPanelHeight] = useState(340);
+  const [prevHeight, setPrevHeight] = useState(340);
+
+  const handleCollapse = () => {
+    if (testPanelHeight > 40) {
+      setPrevHeight(testPanelHeight);
+      setTestPanelHeight(40);
+    } else {
+      setTestPanelHeight(prevHeight > 40 ? prevHeight : 340);
+    }
+  };
+
+  const handleMaximize = () => {
+    const containerHeight = workspaceRef.current ? workspaceRef.current.offsetHeight : 600;
+    const editorMinHeight = 120;
+    const handleHeight = 12;
+    const maxTestHeight = Math.max(200, containerHeight - editorMinHeight - handleHeight);
+
+    if (testPanelHeight >= maxTestHeight - 10) {
+      setTestPanelHeight(prevHeight < maxTestHeight - 10 && prevHeight > 40 ? prevHeight : 340);
+    } else {
+      setPrevHeight(testPanelHeight);
+      setTestPanelHeight(maxTestHeight);
+    }
+  };
+
   const [isResizing, setIsResizing] = useState(false);
   const startYRef = useRef<number>(0);
   const startHeightRef = useRef<number>(0);
   const hasDraggedRef = useRef<boolean>(false);
 
   // Lifted Editor States & Tab States
+  const [isDescOpen, setIsDescOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'description' | 'submissions'>('description');
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState('');
@@ -62,7 +93,7 @@ const [isRunning, setIsRunning] = useState(false);
   // Notes state
   const [notes, setNotes] = useState('');
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
-  const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
   e.preventDefault();
@@ -179,6 +210,33 @@ const [isRunning, setIsRunning] = useState(false);
       setNotes(savedNotes || '');
     }
   }, [problem?.slug, user?.id]);
+
+  useEffect(() => {
+    const handleApply = (e: Event) => {
+      const ce = e as CustomEvent<{ code: string; mode: 'replace' | 'insert' }>;
+      const editor = (window as any).bugxActiveEditor;
+      if (!editor) {
+        return;
+      }
+      if (ce.detail.mode === 'replace') {
+        setCode(ce.detail.code);
+        if (problem && user) {
+          userStorage.setDraft(user.id, problem.slug, language, ce.detail.code);
+        }
+      } else {
+        setCode(prev => {
+          const next = prev + '\n' + ce.detail.code;
+          if (problem && user) {
+            userStorage.setDraft(user.id, problem.slug, language, next);
+          }
+          return next;
+        });
+      }
+      showToastSuccess("Applied code to editor.");
+    };
+    window.addEventListener('x-apply-code-to-editor', handleApply);
+    return () => window.removeEventListener('x-apply-code-to-editor', handleApply);
+  }, [language, problem, user]);
 
   // When lastSubmission prop changes (loaded from API), apply it
   useEffect(() => {
@@ -325,6 +383,24 @@ const [isRunning, setIsRunning] = useState(false);
         }
       }, 100);
     }
+  };
+
+  const handleShowHints = () => {
+    setActiveTab('description');
+    setMobileTab('description');
+    setTimeout(() => {
+      const element = document.getElementById('problem-hints-section');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Flash background to get user's attention
+        element.style.transition = 'background-color 0.3s ease';
+        const originalBg = element.style.backgroundColor;
+        element.style.backgroundColor = 'rgba(234, 179, 8, 0.15)'; // soft amber highlight
+        setTimeout(() => {
+          element.style.backgroundColor = originalBg;
+        }, 1000);
+      }
+    }, 100);
   };
 
   const pollingCleanupRef = useRef<(() => void) | null>(null);
@@ -543,6 +619,8 @@ const [isRunning, setIsRunning] = useState(false);
             queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
             queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
             queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug, 'user-submissions'] });
+            queryClient.invalidateQueries({ queryKey: ['daily-challenge-status'] });
+            queryClient.invalidateQueries({ queryKey: ['daily-challenge'] });
 
             if (finalSub.status === 'ACCEPTED' && finalSub.score > 0) {
               setIsPolling(false);
@@ -578,6 +656,8 @@ const [isRunning, setIsRunning] = useState(false);
           queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
           queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug, 'user-submissions'] });
           queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug] });
+          queryClient.invalidateQueries({ queryKey: ['daily-challenge-status'] });
+          queryClient.invalidateQueries({ queryKey: ['daily-challenge'] });
 
           try {
             const resDetails = await api.submissions.getResults(response.id);
@@ -831,176 +911,85 @@ const [isRunning, setIsRunning] = useState(false);
 
   // Description view layout
   const renderDescription = () => {
-    const isHtmlDescription = problem.description.includes('<') && problem.description.includes('>');
-
     const handleNotesChange = (value: string) => {
       setNotes(value);
-      // Debounce save to localStorage
-      if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
-      notesTimerRef.current = setTimeout(() => {
-        if (user) {
-          userStorage.setNote(user.id, problem.slug, value);
-        }
-      }, 400);
     };
 
+    // Filter problemsList to get similar questions
+    const similarQuestionsList = problemsList
+      .filter((p: any) => p.slug !== problem.slug)
+      .slice(0, 5);
+
     return (
-      <div className="space-y-4 p-5 select-text h-auto overflow-visible">
-        {/* Title only — difficulty badge is already in the header breadcrumb */}
-        {!focusMode && (
-          <div className="pb-4 border-b border-[#3e3e3e] select-none">
-            <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight break-words">
-              {problem.title}
-            </h1>
-          </div>
-        )}
+      <ProblemDescription
+        problem={problem}
+        user={user}
+        focusMode={focusMode}
+        notes={notes}
+        onNotesChange={handleNotesChange}
+        activeLanguage={language}
+        isNotesExpanded={isNotesExpanded}
+        onNotesExpandedChange={setIsNotesExpanded}
+        similarQuestions={similarQuestionsList}
+      />
+    );
+  };
 
-        {/* Description Body */}
-        <div className="space-y-4">
-          <div
-            className={`text-gray-300 text-sm leading-relaxed font-sans problem-description-content break-words overflow-x-auto ${
-              isHtmlDescription ? 'whitespace-normal' : 'whitespace-pre-wrap'
-            }`}
-            dangerouslySetInnerHTML={{ __html: problem.description }}
-          />
-
-        {/* Dynamic Examples from Sample Test Cases if not already embedded in description */}
-        {!problem.description.toLowerCase().includes('example 1') &&
-         !problem.description.toLowerCase().includes('example:') &&
-         problem.sample_test_cases &&
-         problem.sample_test_cases.length > 0 && (
-          <div className="space-y-4 pt-4 border-t border-dark-border">
-            <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-wider select-none">Examples</h3>
-            <div className="space-y-3.5">
-              {problem.sample_test_cases.map((tc, index) => (
-                <div key={tc.id} className="bg-dark-bg/60 p-4 rounded-xl border border-dark-border/80 space-y-2.5 overflow-hidden">
-                  <div className="text-xs font-bold text-gray-400 select-none">Example {index + 1}</div>
-                  <div className="font-mono text-xs space-y-1.5 pl-3 border-l-2 border-blue-500 min-w-0">
-                    <div className="break-all whitespace-pre-wrap">
-                      <span className="text-gray-500 font-bold">Input: </span>
-                      <span className="text-gray-300">{tc.input}</span>
-                    </div>
-                    <div className="break-all whitespace-pre-wrap">
-                      <span className="text-gray-500 font-bold">Output: </span>
-                      <span className="text-gray-300">{tc.expected_output}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {problem.constraints && (
-          <div className="pt-4 border-t border-dark-border/20">
-            <h3 className="text-xs font-bold text-gray-300 mb-2 select-none flex items-center gap-1.5">
-              <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
-              Constraints
-            </h3>
-            <div className={cn("text-gray-400 text-xs font-mono bg-dark-bg p-3 rounded-lg leading-normal whitespace-pre-wrap break-words overflow-x-auto", focusMode ? "border border-dark-border/10" : "border border-dark-border")}>
-              {problem.constraints}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Execution specs & Tags grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Specs */}
-        <div className="bg-dark-bg/40 rounded-xl p-4 shadow-sm space-y-3 select-none" style={{ border: '1px solid rgba(255,255,255,0.04)' }}>
-          <h2 className="text-xs font-extrabold uppercase text-gray-500 border-b pb-1.5" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>Execution Specs</h2>
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Time Limit
-              </span>
-              <span className="text-gray-300 font-mono font-medium">{problem.time_limit_ms} ms</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5" /> Memory Limit
-              </span>
-              <span className="text-gray-300 font-mono font-medium">{(problem.memory_limit_kb / 1024).toFixed(0)} MB</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5" /> Visibility
-              </span>
-              <span className="text-gray-400 font-medium font-sans">Published</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5" /> Base Score
-              </span>
-              <span className="text-gray-300 font-mono font-semibold">{problem.score_base} pts</span>
-            </div>
-          </div>
-        </div>
-
-        
-
-        {/* Tags */}
-        {problem.tags && problem.tags.length > 0 && (
-          <div className="bg-dark-bg/40 rounded-xl p-4 shadow-sm space-y-3 select-none" style={{ border: '1px solid rgba(255,255,255,0.04)' }}>
-            <h2 className="text-xs font-extrabold uppercase text-gray-500 border-b pb-1.5 flex items-center gap-1.5" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-              <TagIcon className="w-3.5 h-3.5" /> Tags
-            </h2>
-            <div className="flex flex-wrap gap-1.5">
-              {problem.tags.map((t) => {
-                const badgeClass = "text-[10px] px-2.5 py-1 rounded-md text-gray-500 hover:text-gray-300 transition-colors font-semibold select-none";
-                const badgeStyle = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' };
-                return focusMode ? (
-                  <div key={t.id} className={badgeClass} style={badgeStyle}>
-                    {t.name}
-                  </div>
-                ) : (
-                  <Link
-                    key={t.id}
-                    to={`/problems?tag=${encodeURIComponent(t.name)}`}
-                    className={badgeClass}
-                    style={badgeStyle}
-                  >
-                    {t.name}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-
-      {/* Notes Section */}
-      <div className="bg-dark-bg/40 rounded-xl p-4 shadow-sm space-y-3" style={{ border: '1px solid rgba(255,255,255,0.04)' }}>
+  const renderDescriptionPane = () => (
+    <div className="flex flex-col h-full overflow-hidden bg-[#1e1e1e]">
+      {/* Tab navigation pills at the top of description pane */}
+      <div className="flex items-center bg-[#252526] select-none h-[38px] px-1" style={{ borderBottom: 'none' }}>
         <button
-          onClick={() => setIsNotesExpanded(!isNotesExpanded)}
-          className="w-full text-xs font-extrabold uppercase text-gray-500 pb-1.5 flex items-center justify-between select-none cursor-pointer hover:text-gray-300 transition-colors"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+          onClick={() => setActiveTab('description')}
+          className={cn(
+            "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
+            activeTab === 'description'
+              ? "text-white"
+              : "text-[#eff1f6bf] hover:text-white"
+          )}
         >
-          <span className="flex items-center gap-1.5">
-            <StickyNote className="w-3.5 h-3.5 text-gray-600" /> My Notes
-          </span>
-          <ChevronDown className={cn("w-3 h-3 transition-transform", isNotesExpanded && "rotate-180")} />
+          <Layout className="w-3.5 h-3.5" />
+          Description
+          {activeTab === 'description' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
         </button>
-        {isNotesExpanded && (
-          <div className="space-y-2 animate-fade-in">
-            <textarea
-              id="notes-textarea"
-              value={notes}
-              onChange={(e) => handleNotesChange(e.target.value)}
-              placeholder="Write your personal notes, approach ideas, or key observations..."
-              className="w-full min-h-[120px] max-h-[300px] p-3 rounded-lg text-xs text-gray-300 font-sans leading-relaxed resize-y placeholder:text-gray-700 focus:outline-none transition-all"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-            />
-            <p className="text-[10px] text-gray-700 select-none">
-              Notes are saved automatically to your browser.
-            </p>
-          </div>
-        )}
+        <button
+          onClick={() => { setComingSoonFeature('Editorial'); setShowComingSoon(true); }}
+          className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          Editorial
+        </button>
+        <button
+          onClick={() => { setComingSoonFeature('Solutions'); setShowComingSoon(true); }}
+          className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+        >
+          <Lightbulb className="w-3.5 h-3.5" />
+          Solutions
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('submissions');
+            if (user) refetchSubmissions();
+          }}
+          className={cn(
+            "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
+            activeTab === 'submissions'
+              ? "text-white"
+              : "text-[#eff1f6bf] hover:text-white"
+          )}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          Submissions
+          {activeTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
+        </button>
+      </div>
+
+      {/* Content Panel */}
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === 'description' ? renderDescription() : renderSubmissionsTab()}
       </div>
     </div>
   );
-  };
 
   // Editor and TestCase layout
   const renderEditorWorkspace = () => (
@@ -1026,7 +1015,14 @@ const [isRunning, setIsRunning] = useState(false);
             setComingSoonFeature(feat);
             setShowComingSoon(true);
           }}
+          onShowHints={handleShowHints}
           submissionCooldown={submissionCooldown}
+          onToggleNotes={handleToggleNotes}
+          hasNotes={notes.trim().length > 0}
+          onToggleX={toggleX}
+          isXOpen={isXOpen}
+          onToggleDescription={() => setIsDescOpen(prev => !prev)}
+          isDescriptionOpen={isDescOpen}
         />
       </div>
 
@@ -1045,7 +1041,7 @@ const [isRunning, setIsRunning] = useState(false);
       {/* Resize handle for Test Case Panel - smooth grip strip */}
               <div
             onPointerDown={handleDragStart}
-            className="w-full h-3 bg-dark-bg/80 flex items-center justify-center cursor-ns-resize select-none touch-none group relative shrink-0 hover:bg-dark-hover/50 transition-colors"
+            className="w-full h-3 bg-[#0a0a0c] flex items-center justify-center cursor-ns-resize select-none touch-none group relative shrink-0 hover:bg-dark-hover/50 transition-colors"
             style={{ touchAction: 'none' }}
             title="Drag to resize test panel"
           >
@@ -1053,33 +1049,73 @@ const [isRunning, setIsRunning] = useState(false);
       </div>
 
       {/* Test Case & Result Panel */}
-      <div
+      {(() => {
+        const pythonTemplate = problem?.templates?.find((t: any) => t.language === 'python')?.source_code || '';
+        const getParamNames = (code: string): string[] => {
+          if (!code) return [];
+          const match = code.match(/def\s+[a-zA-Z0-9_]+\s*\(\s*self\s*,\s*([^)]+)\)/);
+          if (!match) return [];
+          const paramsStr = match[1];
+          const names: string[] = [];
+          let current = '';
+          let bracketDepth = 0;
+          for (let i = 0; i < paramsStr.length; i++) {
+            const char = paramsStr[i];
+            if (char === '[' || char === '(' || char === '{') {
+              bracketDepth++;
+            } else if (char === ']' || char === ')' || char === '}') {
+              bracketDepth--;
+            } else if (char === ',' && bracketDepth === 0) {
+              names.push(current.trim());
+              current = '';
+              continue;
+            }
+            current += char;
+          }
+          if (current.trim()) {
+            names.push(current.trim());
+          }
+          return names.map(p => {
+            const parts = p.split(':');
+            return parts[0].trim();
+          }).filter(name => name !== '');
+        };
+        const paramNames = getParamNames(pythonTemplate);
+
+        return (
+          <div
             ref={testPanelRef}
-            className="overflow-hidden"
+            className="overflow-hidden flex-shrink-0"
             style={{
               height: `${testPanelHeight}px`,
               transition: isResizing ? 'none' : 'height 80ms linear',
               willChange: 'height',
             }}
           >
-          <TestCasePanel
-            testCases={problem.sample_test_cases.map(tc => ({
-              id: tc.id,
-              input: tc.input,
-              expected_output: tc.expected_output,
-              is_sample: tc.is_sample,
-            }))}
-            submission={activeSubmission}
-            results={results}
-            isPolling={isPolling}
-          />
-        </div>
+            <TestCasePanel
+              testCases={problem.sample_test_cases.map(tc => ({
+                id: tc.id,
+                input: tc.input,
+                expected_output: tc.expected_output,
+                is_sample: tc.is_sample,
+              }))}
+              submission={activeSubmission}
+              results={results}
+              isPolling={isPolling}
+              paramNames={paramNames}
+              onMaximize={handleMaximize}
+              onCollapse={handleCollapse}
+              isCollapsed={testPanelHeight <= 40}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 
 
   return (
-    <div className={cn("w-full flex flex-col overflow-hidden", focusMode ? "h-screen p-0 bg-dark-bg" : "h-[calc(100vh-50px)] p-1.5", isResizing && "select-none")}>
+    <div className={cn("w-full flex flex-col overflow-hidden", focusMode ? "h-screen p-0 bg-dark-bg" : "h-full p-1.5 pt-0", isResizing && "select-none")}>
       {/* Focus Mode Top Bar */}
       {focusMode && (
         <div
@@ -1146,166 +1182,39 @@ const [isRunning, setIsRunning] = useState(false);
         </div>
       )}
 
-      {/* Back button & Control Header */}
-      {!focusMode && (
-        <div className="flex items-center justify-between select-none px-3 py-1.5 rounded-lg gap-2 flex-wrap sm:flex-nowrap" style={{ background: '#151515', border: '1px solid rgba(255,255,255,0.04)' }}>
-        {/* Left Section: Navigation Breadcrumb with difficulty badge */}
-        <div className="flex-1 min-w-0 flex justify-start">
-          <div className="flex items-center gap-2 text-xs font-medium text-gray-400 min-w-0">
-            <Link to="/problems" className="inline-flex items-center text-gray-400 hover:text-gray-200 transition-colors shrink-0 font-bold">
-              <ArrowLeft className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
-              Problems
-            </Link>
-            {problem && (
-              <span className={cn(
-                "ml-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider scale-90 select-none shrink-0",
-                problem.difficulty.toLowerCase() === 'easy' && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-                problem.difficulty.toLowerCase() === 'medium' && "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-                problem.difficulty.toLowerCase() === 'hard' && "bg-red-500/10 text-red-400 border border-red-500/20"
-              )}>
-                {problem.difficulty}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Center Section: Execution Pill & Note & Timer */}
-        {(isLargeScreen || mobileTab === 'editor') && (
-          <div className="flex items-center gap-2 shrink-0 justify-center">
-            {isRunning ? (
-              <button
-                disabled
-                className="w-[115px] h-8 rounded-lg bg-[#282828] border border-[#3e3e3e] text-gray-400 flex items-center justify-center gap-1.5 text-xs font-semibold select-none cursor-not-allowed"
-              >
-                <div className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-gray-500 animate-pulse" />
-                  <span className="w-1 h-1 rounded-full bg-gray-600 animate-pulse [animation-delay:0.2s]" />
-                </div>
-                <span>{activeSubmission?.status === 'RUNNING' ? 'Judging...' : 'Pending...'}</span>
-              </button>
-            ) : isSubmitting ? (
-              <button
-                disabled
-                className="w-[115px] h-8 rounded-lg bg-[#282828] border border-emerald-500/20 text-emerald-500 flex items-center justify-center gap-1.5 text-xs font-bold select-none cursor-not-allowed"
-              >
-                <div className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="w-1 h-1 rounded-full bg-emerald-600 animate-pulse [animation-delay:0.2s]" />
-                </div>
-                <span>{activeSubmission?.status === 'RUNNING' ? 'Judging...' : 'Pending...'}</span>
-              </button>
-            ) : (
-              <div className="flex items-center bg-[#282828] rounded-lg p-0.5 select-none h-8 shadow-sm" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-                {/* Hint Button */}
-                <button
-                  onClick={() => {
-                    setComingSoonFeature('Hints');
-                    setShowComingSoon(true);
-                  }}
-                  className="h-full px-2.5 rounded-[6px] bg-transparent text-gray-400 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95"
-                  title="Hints (Coming Soon)"
-                >
-                  <Lightbulb className="w-3.5 h-3.5 text-gray-400 hover:text-yellow-400 transition-colors" />
-                </button>
-
-                {/* Vertical Separator Line */}
-                <div className="w-px h-4 bg-white/[0.06]" />
-
-                {/* Run Code Button (Play Icon Only) */}
-                <button
-                  onClick={() => handleRun(code, language)}
-                  disabled={isRunning || isSubmitting}
-                  className="h-full px-2.5 rounded-[6px] bg-transparent text-gray-400 hover:text-gray-250 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95"
-                  title="Run Code"
-                >
-                  <Play className="w-3 h-3 fill-current text-gray-400" />
-                </button>
-
-                {/* Vertical Separator Line */}
-                <div className="w-px h-4 bg-white/[0.06]" />
-
-                {/* Submit Solution Button */}
-                <button
-                  onClick={() => handleSubmit(code, language)}
-                  disabled={isRunning || isSubmitting}
-                  className="h-full px-3 rounded-[6px] bg-transparent text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold active:scale-95"
-                  title="Submit Solution"
-                >
-                  <CloudUpload className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Submit</span>
-                </button>
-              </div>
-            )}
-
-            {/* Note Button */}
-            <button
-              onClick={handleToggleNotes}
-              className={cn(
-                "w-8 h-8 rounded-lg transition-all cursor-pointer flex items-center justify-center relative select-none",
-                notes.trim().length > 0
-                  ? "bg-blue-600/10 text-blue-400 hover:bg-blue-600/20"
-                  : "bg-[#282828] text-gray-400 hover:text-gray-200 hover:bg-dark-hover"
-              )}
-              title="Write Notes"
-            >
-              <StickyNote className="w-3.5 h-3.5" />
-              {notes.trim().length > 0 && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-              )}
-            </button>
- 
-          </div>
-        )}
-
-        {/* Right Section: Settings + Mobile Tabs */}
-        <div className="flex-1 flex justify-end items-center gap-2">
-          {!isLargeScreen && (
-            <div className="flex bg-[#1a1a1a] p-0.5 rounded-lg border border-[#3e3e3e]">
-              <button
-                onClick={() => setMobileTab('description')}
-                className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${
-                  mobileTab === 'description' ? 'bg-[#ffffff14] text-white border border-[#ffffff14]' : 'text-[#eff1f6bf]'
-                }`}
-              >
-                <Layout className="w-3 h-3" /> Info
-              </button>
-              <button
-                onClick={() => {
-                  setMobileTab('submissions');
-                  if (user) refetchSubmissions();
-                }}
-                className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${
-                  mobileTab === 'submissions' ? 'bg-[#ffffff14] text-white border border-[#ffffff14]' : 'text-[#eff1f6bf]'
-                }`}
-              >
-                <Terminal className="w-3 h-3" /> Submissions
-              </button>
-              <button
-                onClick={() => setMobileTab('editor')}
-                className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${
-                  mobileTab === 'editor' ? 'bg-[#ffffff14] text-white border border-[#ffffff14]' : 'text-[#eff1f6bf]'
-                }`}
-              >
-                <Terminal className="w-3 h-3" /> Code
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
 
       {/* Main Workspace */}
-      <div className={cn("flex-1 min-h-0", !focusMode && "mt-1.5")}>
+      <div className="flex-1 min-h-0">
         {focusMode ? (
           <div className="h-full overflow-y-auto bg-dark-bg">
             <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-6">
               {/* Question Header & Content */}
-              <div className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-lg" style={{ border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="rounded-xl overflow-hidden shadow-lg bg-[#1e1e1e]" style={{ border: 'none', borderRadius: '18px', boxShadow: '0 1px 2px rgba(0,0,0,.2), 0 12px 40px rgba(0,0,0,.25)' }}>
                 {/* Tabs & Title container inside description card */}
-                <div className="p-5 pb-4 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight mb-4">
-                    {problem.title}
-                  </h1>
+                <div className="p-5 pb-4 select-none bg-[#252526]" style={{ borderBottom: 'none' }}>
+                  <div className="flex items-center gap-3 flex-wrap mb-4">
+                    <h1 className="text-2xl font-extrabold text-gray-100 tracking-tight">
+                      {problem.title}
+                    </h1>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        style={
+                          problem.difficulty.toLowerCase() === 'easy' ? { background: '#063b2e', color: '#34d399' } :
+                          problem.difficulty.toLowerCase() === 'medium' ? { background: '#3f2b00', color: '#fbbf24' } :
+                          { background: '#3b1010', color: '#f87171' }
+                        }
+                        className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider select-none shrink-0 border-none"
+                      >
+                        {problem.difficulty}
+                      </span>
+                      <span
+                        style={{ background: 'rgba(79,70,229,.18)', color: '#a5b4fc' }}
+                        className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider select-none shrink-0 border-none"
+                      >
+                        {problem.score_base} {problem.score_base === 1 ? 'PT' : 'PTS'}
+                      </span>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 select-none">
                     <button
                       onClick={() => setActiveTab('description')}
@@ -1342,80 +1251,157 @@ const [isRunning, setIsRunning] = useState(false);
               </div>
 
               {/* Code Editor & Test Cases */}
-              <div className="rounded-xl overflow-hidden shadow-lg h-[650px]" style={{ background: '#1e1e1e', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="rounded-xl overflow-hidden shadow-lg h-[650px] bg-[#1e1e1e]" style={{ border: 'none', borderRadius: '18px', boxShadow: '0 1px 2px rgba(0,0,0,.2), 0 12px 40px rgba(0,0,0,.25)' }}>
                 {renderEditorWorkspace()}
               </div>
             </div>
           </div>
         ) : isLargeScreen ? (
-          <SplitPane
-            left={
-              <div className="flex flex-col h-full overflow-hidden bg-[#1a1a1a]">
-                {/* Tab navigation pills at the top of description pane */}
-                <div className="flex items-center bg-[#1a1a1a] select-none h-[38px] px-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <button
-                    onClick={() => setActiveTab('description')}
-                    className={cn(
-                      "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
-                      activeTab === 'description'
-                        ? "text-white"
-                        : "text-[#eff1f6bf] hover:text-white"
-                    )}
-                  >
-                    <Layout className="w-3.5 h-3.5" />
-                    Description
-                    {activeTab === 'description' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
-                  </button>
-                  <button
-                    onClick={() => { setComingSoonFeature('Editorial'); setShowComingSoon(true); }}
-                    className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Editorial
-                  </button>
-                  <button
-                    onClick={() => { setComingSoonFeature('Solutions'); setShowComingSoon(true); }}
-                    className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Lightbulb className="w-3.5 h-3.5" />
-                    Solutions
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('submissions');
-                      if (user) refetchSubmissions();
-                    }}
-                    className={cn(
-                      "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
-                      activeTab === 'submissions'
-                        ? "text-white"
-                        : "text-[#eff1f6bf] hover:text-white"
-                    )}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    Submissions
-                    {activeTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
-                  </button>
-                </div>
-
-                {/* Content Panel */}
-                <div className="flex-1 overflow-y-auto">
-                  {activeTab === 'description' ? renderDescription() : renderSubmissionsTab()}
-                </div>
-              </div>
-            }
-            right={renderEditorWorkspace()}
-            initialLeftWidthPercent={42}
-          />
-        ) : (
-          <div className={cn("border border-dark-border rounded-lg bg-dark-panel h-full", mobileTab !== 'editor' ? "overflow-y-auto" : "overflow-hidden")}>
-            {mobileTab === 'description' ? (
-              renderDescription()
-            ) : mobileTab === 'submissions' ? (
-              renderSubmissionsTab()
+          isDescOpen ? (
+            !isXOpen ? (
+              <SplitPane
+                left={renderDescriptionPane()}
+                right={renderEditorWorkspace()}
+                initialLeftWidthPercent={42}
+              />
             ) : (
-              renderEditorWorkspace()
-            )}
+              <SplitPane
+                id="x-panel-split"
+                left={
+                  <SplitPane
+                    left={renderDescriptionPane()}
+                    right={renderEditorWorkspace()}
+                    initialLeftWidthPercent={42}
+                  />
+                }
+                right={
+                  <div
+                    className="h-full overflow-hidden rounded-xl bg-[#1e1e1e]"
+                    style={{ border: 'none' }}
+                  >
+                    <XPanel
+                      code={code}
+                      language={language}
+                      problemTitle={problem.title}
+                      problemStatement={problem.description || ''}
+                      constraints={problem.constraints || ''}
+                      compilerError={activeSubmission?.status === 'COMPILE_ERROR' ? activeSubmission.error_message || '' : ''}
+                      runtimeError={activeSubmission?.status === 'RUNTIME_ERROR' ? activeSubmission.error_message || '' : ''}
+                      sampleInput={problem.sample_test_cases?.[0]?.input || ''}
+                      problemSlug={problem.slug}
+                      onClose={toggleX}
+                    />
+                  </div>
+                }
+                initialLeftWidthPercent={75}
+                minLeftWidthPercent={50}
+                maxLeftWidthPercent={98}
+              />
+            )
+          ) : (
+            !isXOpen ? (
+              <div className="flex-1 h-full min-w-0">
+                {renderEditorWorkspace()}
+              </div>
+            ) : (
+              <SplitPane
+                id="x-panel-split"
+                left={renderEditorWorkspace()}
+                right={
+                  <div
+                    className="h-full overflow-hidden rounded-xl bg-[#1e1e1e]"
+                    style={{ border: 'none' }}
+                  >
+                    <XPanel
+                      code={code}
+                      language={language}
+                      problemTitle={problem.title}
+                      problemStatement={problem.description || ''}
+                      constraints={problem.constraints || ''}
+                      compilerError={activeSubmission?.status === 'COMPILE_ERROR' ? activeSubmission.error_message || '' : ''}
+                      runtimeError={activeSubmission?.status === 'RUNTIME_ERROR' ? activeSubmission.error_message || '' : ''}
+                      sampleInput={problem.sample_test_cases?.[0]?.input || ''}
+                      problemSlug={problem.slug}
+                      onClose={toggleX}
+                    />
+                  </div>
+                }
+                initialLeftWidthPercent={70}
+                minLeftWidthPercent={40}
+                maxLeftWidthPercent={98}
+              />
+            )
+          )
+        ) : (
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Mobile Tab Switcher */}
+            <div className="flex items-center bg-[#252526] select-none h-[38px] px-1 border-b border-dark-border/40 shrink-0">
+              <button
+                onClick={() => setMobileTab('description')}
+                className={cn(
+                  "flex-1 py-2 text-[13px] font-medium transition-all relative cursor-pointer text-center",
+                  mobileTab === 'description' ? "text-white font-bold" : "text-[#eff1f6bf]"
+                )}
+              >
+                Description
+                {mobileTab === 'description' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-violet-500 rounded-full" />}
+              </button>
+              <button
+                onClick={() => setMobileTab('editor')}
+                className={cn(
+                  "flex-1 py-2 text-[13px] font-medium transition-all relative cursor-pointer text-center",
+                  mobileTab === 'editor' ? "text-white font-bold" : "text-[#eff1f6bf]"
+                )}
+              >
+                Editor
+                {mobileTab === 'editor' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-violet-500 rounded-full" />}
+              </button>
+              <button
+                onClick={() => setMobileTab('submissions')}
+                className={cn(
+                  "flex-1 py-2 text-[13px] font-medium transition-all relative cursor-pointer text-center",
+                  mobileTab === 'submissions' ? "text-white font-bold" : "text-[#eff1f6bf]"
+                )}
+              >
+                Submissions
+                {mobileTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-violet-500 rounded-full" />}
+              </button>
+              <button
+                onClick={() => setMobileTab('x' as any)}
+                className={cn(
+                  "flex-1 py-2 text-[13px] font-medium transition-all relative cursor-pointer text-center flex items-center justify-center gap-1",
+                  mobileTab === ('x' as any) ? "text-white font-bold" : "text-[#eff1f6bf]"
+                )}
+              >
+                X AI
+                {mobileTab === ('x' as any) && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-violet-500 rounded-full" />}
+              </button>
+            </div>
+
+            <div className={cn("flex-1 bg-[#1e1e1e] min-h-0", (mobileTab as string) !== 'editor' ? "overflow-y-auto" : "overflow-hidden")} style={{ border: 'none', borderRadius: '0 0 18px 18px' }}>
+              {mobileTab === 'description' ? (
+                renderDescription()
+              ) : mobileTab === 'submissions' ? (
+                renderSubmissionsTab()
+              ) : (mobileTab as string) === 'x' ? (
+                <div className="h-full bg-[#111113]">
+                  <XPanel
+                    code={code}
+                    language={language}
+                    problemTitle={problem.title}
+                    problemStatement={problem.description || ''}
+                    constraints={problem.constraints || ''}
+                    compilerError={activeSubmission?.status === 'COMPILE_ERROR' ? activeSubmission.error_message || '' : ''}
+                    runtimeError={activeSubmission?.status === 'RUNTIME_ERROR' ? activeSubmission.error_message || '' : ''}
+                    sampleInput={problem.sample_test_cases?.[0]?.input || ''}
+                    problemSlug={problem.slug}
+                    onClose={() => setMobileTab('editor')}
+                  />
+                </div>
+              ) : (
+                renderEditorWorkspace()
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1475,6 +1461,14 @@ const [isRunning, setIsRunning] = useState(false);
       )}
 
     </div>
+  );
+};
+
+export const ProblemDetailPage: React.FC = () => {
+  return (
+    <XProvider>
+      <ProblemDetailInner />
+    </XProvider>
   );
 };
 

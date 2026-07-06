@@ -6,6 +6,7 @@ interface SplitPaneProps {
   initialLeftWidthPercent?: number;
   minLeftWidthPercent?: number;
   maxLeftWidthPercent?: number;
+  id?: string;
 }
 
 export const SplitPane: React.FC<SplitPaneProps> = ({
@@ -14,10 +15,23 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
   initialLeftWidthPercent = 50,
   minLeftWidthPercent = 20,
   maxLeftWidthPercent = 80,
+  id,
 }) => {
   const [leftWidth, setLeftWidth] = useState(initialLeftWidthPercent);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+
+  useEffect(() => {
+    if (id !== 'x-panel-split') return;
+
+    const handleExpand = () => {
+      setLeftWidth(initialLeftWidthPercent);
+    };
+    window.addEventListener('bugx-expand-x-panel', handleExpand);
+    return () => {
+      window.removeEventListener('bugx-expand-x-panel', handleExpand);
+    };
+  }, [id, initialLeftWidthPercent]);
 
   const startResize = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -64,12 +78,12 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex w-full h-[calc(100vh-125px)] bg-transparent gap-1.5"
+      className="flex w-full h-full bg-[#0a0a0c] gap-[3px]"
     >
       {/* Left Pane */}
       <div
         className="h-full overflow-hidden rounded-xl bg-dark-panel flex flex-col"
-        style={{ width: `${leftWidth}%`, border: '1px solid rgba(255,255,255,0.04)' }}
+        style={{ width: `${leftWidth}%`, border: 'none' }}
       >
         {left}
       </div>
@@ -78,16 +92,16 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       <div
         onMouseDown={startResize}
         onTouchStart={startResize}
-        className="w-1 h-full rounded-full cursor-col-resize flex flex-col justify-center items-center select-none z-10 group shrink-0"
-        style={{ background: 'transparent' }}
+        className="w-[3px] h-full cursor-col-resize flex flex-col justify-center items-center select-none z-10 group shrink-0"
+        style={{ background: '#0a0a0c' }}
       >
-        <div className="w-px h-10 bg-white/[0.07] group-hover:bg-white/20 rounded-full transition-colors duration-200" />
+        <div className="w-px h-10 bg-white/[0.05] group-hover:bg-white/25 rounded-full transition-colors duration-200" />
       </div>
 
       {/* Right Pane */}
       <div
-        className="h-full overflow-hidden flex-1 rounded-xl flex flex-col"
-        style={{ width: `${100 - leftWidth}%`, background: '#1e1e1e', border: '1px solid rgba(255,255,255,0.06)' }}
+        className="h-full overflow-hidden flex-1 flex flex-col"
+        style={{ width: `${100 - leftWidth}%` }}
       >
         {right}
       </div>

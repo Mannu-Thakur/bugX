@@ -81,16 +81,22 @@ class JudgeService:
         has_comparison_failure = False
 
         # Wrap code once
+        from app.core.config import get_settings
+        debug_mode = get_settings().is_development
         try:
             wrapped_code = CodeWrapperService.wrap_code(
                 submission.language,
                 submission.source_code,
                 template.function_name,
                 template.arg_style,
-                python_template
+                python_template,
+                debug_mode
             )
         except Exception as e:
-            await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Wrapper error: {str(e)}")
+            import traceback
+            tb = traceback.format_exc()
+            err_msg = f"Wrapper Generation Failed:\nLanguage: {submission.language}\nException: {str(e)}\nTraceback:\n{tb}"
+            await self._set_terminal_error(session, submission, SubmissionStatus.COMPILE_ERROR, err_msg)
             return
 
         import asyncio
@@ -118,7 +124,15 @@ class JudgeService:
         # Process results
         for tc, judge_res, exc in executed_results:
             if exc:
-                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Judge unavailable: {str(exc)}")
+                import traceback
+                import sys
+                tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+                try:
+                    sys.stdout.buffer.write(f"DEBUG EXCEPTION IN JUDGE SERVICE:\n{tb}\n".encode('utf-8'))
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Judge unavailable: {repr(exc)}\n{tb}")
                 return
 
             status_id = judge_res.get("status", {}).get("id", 13)
@@ -139,8 +153,13 @@ class JudgeService:
             stderr = judge_res.get("stderr") or judge_res.get("compile_output") or ""
             stdout = judge_res.get("stdout") or ""
 
+            if "[WRAPPER_EXCEPTION]" in stderr:
+                err_msg = f"Wrapper Runtime Failed:\nLanguage: {submission.language}\nTraceback:\n{stderr.strip()}"
+                await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, err_msg)
+                return
+
             if status_id == 3: # Accepted by Judge0 (ran successfully)
-                is_passed = OutputCompareService.compare(tc.expected_output, stdout, problem.slug)
+                is_passed = OutputCompareService.compare(tc.expected_output, stdout, problem.slug, getattr(problem, 'comparison_mode', None))
                 if not is_passed:
                     has_comparison_failure = True
             elif status_id == 5:
@@ -149,9 +168,20 @@ class JudgeService:
                 tc_status = SubmissionStatus.COMPILE_ERROR
             elif status_id in (7, 8, 9, 10, 11, 12, 13, 14):
                 tc_status = SubmissionStatus.RUNTIME_ERROR
-                # If memory is high, we might map to MEMORY_LIMIT, but Judge0 CE often returns SIGKILL for MLE
-                if "memory" in (judge_res.get("status", {}).get("description", "").lower()):
-                    tc_status = SubmissionStatus.MEMORY_LIMIT
+                # Map interpreted language syntax/indentation errors to COMPILE_ERROR
+                if submission.language == "python":
+                    for marker in ("SyntaxError:", "IndentationError:", "TabError:"):
+                        if marker in (stderr or ""):
+                            tc_status = SubmissionStatus.COMPILE_ERROR
+                            break
+                elif submission.language in ("javascript", "js"):
+                    if "SyntaxError:" in (stderr or ""):
+                        tc_status = SubmissionStatus.COMPILE_ERROR
+
+                if tc_status == SubmissionStatus.RUNTIME_ERROR:
+                    # If memory is high, we might map to MEMORY_LIMIT, but Judge0 CE often returns SIGKILL for MLE
+                    if "memory" in (judge_res.get("status", {}).get("description", "").lower()):
+                        tc_status = SubmissionStatus.MEMORY_LIMIT
             else:
                 tc_status = SubmissionStatus.RUNTIME_ERROR
 

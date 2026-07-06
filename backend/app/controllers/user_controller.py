@@ -33,7 +33,7 @@ class UserController:
 
     async def get_my_stats(self, current_user: User) -> dict:
         from app.repositories.user_stats_repo import UserStatsRepo
-        from app.models.submission import Submission
+        from app.models.submission import Submission, SubmissionStatus
         from app.models.battle import Battle
         from app.models.battle_player import BattlePlayer
         from sqlalchemy import select, or_
@@ -41,6 +41,7 @@ class UserController:
         from datetime import datetime, timedelta, timezone
 
         repo = UserStatsRepo(self.db)
+        await repo.recompute_total_score(current_user.id)
         stats = await repo.get_by_user_id(current_user.id)
 
         # Query submission timestamps for the last year
@@ -87,11 +88,37 @@ class UserController:
                         if solvers[0].username == current_user.username:
                             battles_won += 1
 
+        # Resolve missing last_active_date if user has solved problems
+        if stats and stats.last_active_date is None and stats.total_solved > 0:
+            latest_sub_stmt = (
+                select(Submission.created_at)
+                .where(
+                    Submission.user_id == current_user.id,
+                    Submission.status == SubmissionStatus.ACCEPTED,
+                    Submission.run_samples_only == False,
+                )
+                .order_by(Submission.created_at.desc())
+                .limit(1)
+            )
+            latest_sub_res = await self.db.execute(latest_sub_stmt)
+            latest_sub_date = latest_sub_res.scalar_one_or_none()
+            if latest_sub_date:
+                stats.last_active_date = latest_sub_date.date()
+                await self.db.commit()
+
         current_streak = stats.current_streak if stats else 0
-        if stats and stats.last_active_date:
-            today = datetime.now(timezone.utc).date()
-            if (today - stats.last_active_date).days > 1:
-                current_streak = 0
+        if stats:
+            if stats.last_active_date:
+                today = datetime.now(timezone.utc).date()
+                if (today - stats.last_active_date).days > 1:
+                    stats.current_streak = 0
+                    current_streak = 0
+                    await self.db.commit()
+            else:
+                if stats.current_streak != 0:
+                    stats.current_streak = 0
+                    current_streak = 0
+                    await self.db.commit()
 
         if not stats:
             return {

@@ -32,6 +32,10 @@ class LeaderboardService:
             FROM user_stats s
             JOIN users u ON u.id = s.user_id
             WHERE u.is_active = true
+              AND u.username NOT LIKE 'cert_user_%'
+              AND u.username NOT LIKE 'oauth_link_%'
+              AND u.username NOT LIKE 'host_%'
+              AND u.username NOT LIKE 'guest_%'
             ORDER BY rank
             LIMIT :limit
         """)
@@ -73,6 +77,10 @@ class LeaderboardService:
             FROM bests b
             JOIN users u ON u.id = b.user_id
             WHERE u.is_active = true
+              AND u.username NOT LIKE 'cert_user_%'
+              AND u.username NOT LIKE 'oauth_link_%'
+              AND u.username NOT LIKE 'host_%'
+              AND u.username NOT LIKE 'guest_%'
             GROUP BY u.id, u.username
             ORDER BY rank
             LIMIT :limit

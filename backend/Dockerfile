@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev \
+    && apt-get install -y --no-install-recommends gcc g++ default-jdk nodejs libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

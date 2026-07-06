@@ -57,31 +57,66 @@ class UserStatsRepo:
         return (result.scalar() or 0) > 0
 
     async def recompute_total_score(self, user_id: uuid.UUID) -> int:
-        """Recompute user_stats.total_score as SUM of best qualifying score per problem.
-        This is idempotent — safe to call multiple times.
+        """Recompute user_stats metrics (easy_solved, medium_solved, hard_solved, total_solved, total_score)
+        idempotently from all qualifying bests.
         """
-        subquery = (
-            select(
-                Submission.problem_id,
-                func.max(Submission.score).label("best_score"),
-            )
+        from app.models.problem import Problem
+
+        # Query unique solved problems for this user
+        stmt = (
+            select(Problem.id, Problem.difficulty)
+            .join(Submission, Submission.problem_id == Problem.id)
             .where(
                 Submission.user_id == user_id,
                 Submission.status == SubmissionStatus.ACCEPTED,
                 Submission.run_samples_only == False,  # noqa: E712
             )
-            .group_by(Submission.problem_id)
-            .subquery()
+            .distinct()
         )
-
-        stmt = select(func.coalesce(func.sum(subquery.c.best_score), 0))
         result = await self.session.execute(stmt)
-        total = int(result.scalar() or 0)
+        solved_problems = result.all()
 
-        update_stmt = (
-            update(UserStats)
-            .where(UserStats.user_id == user_id)
-            .values(total_score=total)
-        )
-        await self.session.execute(update_stmt)
-        return total
+        easy_count = 0
+        medium_count = 0
+        hard_count = 0
+
+        for _, diff in solved_problems:
+            diff_str = diff.value if hasattr(diff, "value") else str(diff)
+            diff_str = diff_str.upper()
+            if diff_str == "EASY":
+                easy_count += 1
+            elif diff_str == "MEDIUM":
+                medium_count += 1
+            elif diff_str == "HARD":
+                hard_count += 1
+
+        total_solved = easy_count + medium_count + hard_count
+        total_score = (easy_count * 3) + (medium_count * 6) + (hard_count * 10)
+
+        # Update user_stats in DB/session
+        user_stats_stmt = select(UserStats).where(UserStats.user_id == user_id)
+        user_stats_res = await self.session.execute(user_stats_stmt)
+        user_stats = user_stats_res.scalar_one_or_none()
+
+        if user_stats:
+            user_stats.easy_solved = easy_count
+            user_stats.medium_solved = medium_count
+            user_stats.hard_solved = hard_count
+            user_stats.total_solved = total_solved
+            user_stats.total_score = total_score
+        else:
+            # Fallback if no user_stats row exists (should not happen normally)
+            update_stmt = (
+                update(UserStats)
+                .where(UserStats.user_id == user_id)
+                .values(
+                    easy_solved=easy_count,
+                    medium_solved=medium_count,
+                    hard_solved=hard_count,
+                    total_solved=total_solved,
+                    total_score=total_score,
+                )
+            )
+            await self.session.execute(update_stmt)
+
+        return total_score

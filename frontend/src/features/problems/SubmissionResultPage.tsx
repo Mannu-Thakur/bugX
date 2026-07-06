@@ -14,98 +14,23 @@ import {
   TrendingUp,
   Cpu,
   AlertTriangle,
-  Zap,
   Timer,
   Sparkles,
   Brain,
-  Lock
+  Lock,
+  Zap
 } from 'lucide-react';
 import { api } from '../../shared/lib/api';
-
 import { Button } from '../../shared/ui/button/Button';
 import { useAuth } from '../auth/useAuth';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
+import { useX } from '../x/XContext';
+import { getModelById, type ProviderId } from '../x/xModels';
+import { cn } from '../../shared/lib/cn';
 
 /* ─────────────────────────────────────────────────
-   Inline micro-components for the redesign
-───────────────────────────────────────────────── */
-
-/** A thin horizontal rule that matches the card border tone */
-const Divider: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`border-t border-white/[0.06] ${className}`} />
-);
-
-/** Stat card used in the four-card row */
-interface StatCardProps {
-  label: string;
-  icon: React.ReactNode;
-  value: React.ReactNode;
-  sub?: React.ReactNode;
-  accent?: 'amber' | 'emerald' | 'blue' | 'neutral';
-  children?: React.ReactNode;
-  emphasis?: boolean;
-}
-const StatCard: React.FC<StatCardProps> = ({
-  label, icon, value, sub, accent = 'neutral', children, emphasis = false,
-}) => {
-  const accentRing: Record<string, string> = {
-    amber:   'hover:border-amber-500/25',
-    emerald: 'hover:border-emerald-500/20',
-    blue:    'hover:border-blue-500/20',
-    neutral: 'hover:border-white/[0.10]',
-  };
-  const accentBg: Record<string, string> = {
-    amber:   emphasis ? 'bg-amber-500/[0.06]' : '',
-    emerald: emphasis ? 'bg-emerald-500/[0.04]' : '',
-    blue:    emphasis ? 'bg-blue-500/[0.04]' : '',
-    neutral: '',
-  };
-  return (
-    <div
-      className={`
-        relative flex flex-col justify-between gap-3
-        rounded-2xl border border-zinc-800/80 p-5 shadow-sm
-        bg-[#131316] ${accentBg[accent]}
-        transition-all duration-200
-        hover:shadow-md hover:translate-y-[-1px]
-        ${accentRing[accent]}
-        select-none
-      `}
-    >
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          {label}
-        </span>
-        <span className="text-zinc-650">{icon}</span>
-      </div>
-      {/* Main value */}
-      <div className="flex flex-col gap-1">
-        <div className="font-mono leading-none">{value}</div>
-        {sub && <div className="text-[11px] text-zinc-400 font-medium mt-0.5">{sub}</div>}
-        {children}
-      </div>
-    </div>
-  );
-};
-
-/** Spec row used in Performance Specs card */
-const SpecRow: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode }> = ({
-  icon, label, value,
-}) => (
-  <div className="flex items-center justify-between py-2.5">
-    <span className="flex items-center gap-2 text-xs text-gray-500">
-      <span className="text-gray-600">{icon}</span>
-      {label}
-    </span>
-    <span className="text-xs font-mono font-semibold text-gray-300">{value}</span>
-  </div>
-);
-
-
-/* ─────────────────────────────────────────────────
-   Main Page Component
-───────────────────────────────────────────────── */
+   Main Page
+   ───────────────────────────────────────────────── */
 export const SubmissionResultPage: React.FC = () => {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const queryClient = useQueryClient();
@@ -115,22 +40,176 @@ export const SubmissionResultPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [errorCopied, setErrorCopied] = useState(false);
 
-  // Poll submission details in case we were redirected while it's still running
+  // AI Insights State
+  const { selectedModelId, getEffectiveKey } = useX();
+  const [aiInsights, setAiInsights] = useState<{
+    timeComplexity: string;
+    timeComplexityExplanation: string;
+    spaceComplexity: string;
+    spaceComplexityExplanation: string;
+    summary: string;
+    tleOptimizer: string;
+  } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Load from local storage on mount/id change
+  useEffect(() => {
+    if (id) {
+      const cached = localStorage.getItem(`ai_insight_${id}`);
+      if (cached) {
+        try {
+          setAiInsights(JSON.parse(cached));
+        } catch {
+          localStorage.removeItem(`ai_insight_${id}`);
+        }
+      } else {
+        setAiInsights(null);
+      }
+      setAiError(null);
+      setAiLoading(false);
+    }
+  }, [id]);
+
+  const generateAiInsights = async () => {
+    if (!id || !submission || !problem) return;
+    setAiLoading(true);
+    setAiError(null);
+
+    const modelInfo = getModelById(selectedModelId);
+    if (!modelInfo) {
+      setAiError('Selected AI model is not configured.');
+      setAiLoading(false);
+      return;
+    }
+
+    const { model, provider } = modelInfo;
+    const apiKey = getEffectiveKey(provider.id as ProviderId);
+
+    if (!apiKey) {
+      setAiError(`No API key available for ${provider.name}. Please configure one in X Settings.`);
+      setAiLoading(false);
+      return;
+    }
+
+    const systemPrompt = `You are an expert algorithm analyzer. Analyze the provided solution code and problem constraints.
+Return ONLY a JSON object (no markdown formatting, no other text, just raw JSON) matching this exact TypeScript schema:
+{
+  "timeComplexity": "O(...)",
+  "timeComplexityExplanation": "1 sentence explanation of why.",
+  "spaceComplexity": "O(...)",
+  "spaceComplexityExplanation": "1 sentence explanation of why.",
+  "summary": "2-3 sentences summarizing the solution's performance, correctness, and style.",
+  "tleOptimizer": "2 sentences of optimization advice if the code is slow, TLE, or incorrect. If it is already optimal, say 'The solution is already optimal.'"
+}`;
+
+    const promptText = `
+Problem Title: ${problem.title}
+Problem Description:
+${problem.description}
+Constraints:
+${problem.constraints || 'None'}
+
+User's Code (Language: ${submission.language}):
+\`\`\`${submission.language}
+${submission.source_code}
+\`\`\`
+
+Submission Status: ${submission.status}
+Runtime: ${submission.runtime_ms !== null ? `${submission.runtime_ms} ms` : 'N/A'}
+Error Message: ${submission.error_message || 'None'}
+`;
+
+    try {
+      let resultText = '';
+      if (provider.id === 'anthropic') {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: model.id,
+            max_tokens: 1000,
+            messages: [
+              { role: 'user', content: `${systemPrompt}\n\nInput context to analyze:\n${promptText}` }
+            ],
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Anthropic error: ${response.status} - ${errText}`);
+        }
+        const data = await response.json();
+        resultText = data.content?.[0]?.text || '';
+      } else {
+        const response = await fetch(provider.apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model.id,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: promptText }
+            ],
+            max_tokens: 1000,
+            temperature: 0.2,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`API error: ${response.status} - ${errText}`);
+        }
+        const data = await response.json();
+        resultText = data.choices?.[0]?.message?.content || '';
+      }
+
+      // Parse JSON (strip codeblock format if the model returns it anyway)
+      let cleaned = resultText.trim();
+      const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch) {
+        cleaned = codeBlockMatch[1];
+      }
+
+      const parsed = JSON.parse(cleaned);
+      if (
+        parsed.timeComplexity &&
+        parsed.spaceComplexity &&
+        parsed.summary
+      ) {
+        setAiInsights(parsed);
+        localStorage.setItem(`ai_insight_${id}`, JSON.stringify(parsed));
+      } else {
+        throw new Error('AI response did not match the expected schema.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setAiError(err?.message || 'Failed to generate AI insights.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Poll submission details
   const { data: submission, isLoading: isLoadingSub, isError: isErrorSub } = useQuery({
     queryKey: ['submissions', id],
     queryFn: async () => {
-      if (!id) throw new Error('No submission ID provided');
+      if (!id) throw new Error('No submission ID');
       return await api.submissions.get(id);
     },
     enabled: !!id,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (data && (data.status === 'PENDING' || data.status === 'RUNNING')) {
-        return 1000;
-      }
-      if (data && data.status === 'ACCEPTED' && !data.run_samples_only && data.score === 0) {
-        return 1000;
-      }
+      if (data && (data.status === 'PENDING' || data.status === 'RUNNING')) return 1000;
+      if (data && data.status === 'ACCEPTED' && !data.run_samples_only && data.score === 0) return 1000;
       return false;
     },
   });
@@ -138,14 +217,12 @@ export const SubmissionResultPage: React.FC = () => {
   const isPending = submission?.status === 'PENDING' || submission?.status === 'RUNNING';
   const isScoreSyncing = submission?.status === 'ACCEPTED' && !submission.run_samples_only && submission.score === 0;
 
-  // Query user stats to show their total score
   const { data: userStats, refetch: refetchStats } = useQuery({
     queryKey: ['users', 'stats'],
     queryFn: () => api.users.getStats(),
     enabled: !!user,
   });
 
-  // Fetch problem details to show the problem title, score_base, etc.
   const { data: problem } = useQuery({
     queryKey: ['problems', 'detail', slug],
     queryFn: () => api.problems.get(slug || ''),
@@ -155,14 +232,13 @@ export const SubmissionResultPage: React.FC = () => {
   const { data: results = [], isLoading: isLoadingResults, isError: isErrorResults } = useQuery({
     queryKey: ['submissions', id, 'results'],
     queryFn: async () => {
-      if (!id) throw new Error('No submission ID provided');
+      if (!id) throw new Error('No submission ID');
       return await api.submissions.getResults(id);
     },
     enabled: !!id && !!submission && !isPending,
     retry: 1,
   });
 
-  // Refresh user stats when submission resolves to ACCEPTED
   useEffect(() => {
     if (submission && submission.status === 'ACCEPTED' && !isScoreSyncing) {
       refetchStats();
@@ -170,6 +246,8 @@ export const SubmissionResultPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['users', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['user-submissions'] });
       queryClient.invalidateQueries({ queryKey: ['problems', 'detail', slug] });
+      queryClient.invalidateQueries({ queryKey: ['daily-challenge-status'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-challenge'] });
     }
   }, [submission, isScoreSyncing, refetchStats, queryClient, slug]);
 
@@ -189,7 +267,6 @@ export const SubmissionResultPage: React.FC = () => {
     setTimeout(() => setErrorCopied(false), 2000);
   };
 
-  /** Extract a short error name and description from the raw error message. */
   const parseErrorSummary = (raw: string): { name: string; detail: string } => {
     const lines = raw.trim().split('\n').filter(Boolean);
     const lastLine = lines[lines.length - 1]?.trim() || raw.trim();
@@ -203,34 +280,29 @@ export const SubmissionResultPage: React.FC = () => {
     return { name: 'Error', detail: lastLine.substring(0, 200) };
   };
 
-  /* ── Loading state ── */
+  /* ── Loading ── */
   if (isLoadingSub) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-5 select-none">
-        <div className="relative inline-flex">
-          <div className="w-14 h-14 border-[3px] border-blue-500/15 border-t-blue-500/70 rounded-full animate-spin" />
-          <Cpu className="absolute inset-0 m-auto w-5 h-5 text-blue-400/70" />
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 select-none">
+        <div className="relative">
+          <div className="w-12 h-12 border-2 border-blue-500/15 border-t-blue-500/60 rounded-full animate-spin" />
+          <Cpu className="absolute inset-0 m-auto w-4 h-4 text-blue-400/60" />
         </div>
-        <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-gray-300">Loading Submission Details</p>
-          <p className="text-xs text-gray-600">Analyzing evaluation metrics and test results…</p>
-        </div>
+        <p className="text-xs text-zinc-500">Loading submission…</p>
       </div>
     );
   }
 
-  /* ── Error / not found state ── */
+  /* ── Error ── */
   if (isErrorSub || !submission) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-5 select-none">
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-          <XCircle className="w-8 h-8 text-rose-400" />
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 select-none">
+        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+          <XCircle className="w-6 h-6 text-rose-400" />
         </div>
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-gray-200">Submission Not Found</p>
-          <p className="text-xs text-gray-500 max-w-xs">
-            We could not load details for this submission. Please verify the URL or try again.
-          </p>
+          <p className="text-xs text-gray-500">We couldn't load this submission. Please verify the URL.</p>
         </div>
         <Link to="/problems">
           <Button variant="outline" size="sm">
@@ -244,188 +316,148 @@ export const SubmissionResultPage: React.FC = () => {
 
   /* ── Derived values ── */
   const resultRows = results || [];
-  const passedResults = resultRows.filter(r => r.passed).length;
   const failedResults = resultRows.filter(r => !r.passed).length;
   const showResultBreakdown = !isPending && (isLoadingResults || isErrorResults || resultRows.length > 0);
 
-  const isAccepted = submission.status === 'ACCEPTED';
+  const isAccepted   = submission.status === 'ACCEPTED';
   const isSamplePassed = submission.status === 'SAMPLE_PASSED';
-  const isTLE = submission.status === 'TIME_LIMIT_EXCEEDED' || submission.status === 'TLE';
-  const isFailing = !isPending && !isAccepted && !isSamplePassed;
-  const allTestsPassed = submission.total_count > 0 && submission.passed_count === submission.total_count;
+  const isTLE = (submission.status as string) === 'TIME_LIMIT_EXCEEDED'
+    || (submission.status as string) === 'TLE'
+    || submission.status === 'TIME_LIMIT';
 
-  // Status theme tokens
-  type StatusTheme = {
-    color: string;
-    bgCard: string;
-    glowFrom: string;
-    glowColor: string;
-    icon: React.ReactNode;
-    title: string;
-    pill: string;
-  };
-
-  const theme: StatusTheme = (() => {
+  /* ── Status theme ── */
+  type Theme = { color: string; bg: string; border: string; glow: string; icon: React.ReactNode; label: string; pill: string };
+  const theme: Theme = (() => {
     if (isPending) return {
-      color: 'text-blue-400',
-      bgCard: 'border-blue-500/15 bg-[#161c26]',
-      glowFrom: 'from-blue-500/[0.07]',
-      glowColor: 'shadow-blue-500/5',
-      icon: <div className="w-7 h-7 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />,
-      title: 'Evaluating Solution…',
+      color: 'text-blue-400', bg: 'bg-[#0e1520]', border: 'border-blue-500/15',
+      glow: 'from-blue-500/[0.06]',
+      icon: <div className="w-5 h-5 border-[1.5px] border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />,
+      label: 'Evaluating…',
       pill: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     };
     if (isAccepted) return {
-      color: 'text-emerald-400',
-      bgCard: 'border-emerald-500/20 bg-[#141f1a]',
-      glowFrom: 'from-emerald-500/[0.09]',
-      glowColor: 'shadow-emerald-500/5',
-      icon: <CheckCircle className="w-7 h-7 text-emerald-400" />,
-      title: isScoreSyncing ? 'Accepted — Scoring…' : 'Accepted',
+      color: 'text-emerald-400', bg: 'bg-[#0d1a13]', border: 'border-emerald-500/20',
+      glow: 'from-emerald-500/[0.07]',
+      icon: <CheckCircle className="w-5 h-5 text-emerald-400" />,
+      label: isScoreSyncing ? 'Accepted — Scoring…' : 'Accepted',
       pill: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     };
     if (isSamplePassed) return {
-      color: 'text-cyan-400',
-      bgCard: 'border-cyan-500/20 bg-[#131e20]',
-      glowFrom: 'from-cyan-500/[0.07]',
-      glowColor: 'shadow-cyan-500/5',
-      icon: <CheckCircle className="w-7 h-7 text-cyan-400" />,
-      title: 'Sample Cases Passed',
+      color: 'text-cyan-400', bg: 'bg-[#0c1a1d]', border: 'border-cyan-500/20',
+      glow: 'from-cyan-500/[0.06]',
+      icon: <CheckCircle className="w-5 h-5 text-cyan-400" />,
+      label: 'Sample Cases Passed',
       pill: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
     };
+    if (submission.status === 'WRONG_ANSWER' && submission.passed_count > 0) return {
+      color: 'text-amber-500', bg: 'bg-[#1a1609]', border: 'border-amber-500/15',
+      glow: 'from-amber-500/[0.06]',
+      icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+      label: 'Partial Accepted',
+      pill: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+    };
     if (isTLE) return {
-      color: 'text-amber-400',
-      bgCard: 'border-amber-500/20 bg-[#1f1b14]',
-      glowFrom: 'from-amber-500/[0.08]',
-      glowColor: 'shadow-amber-500/5',
-      icon: <Timer className="w-7 h-7 text-amber-400" />,
-      title: 'Time Limit Exceeded',
+      color: 'text-amber-400', bg: 'bg-[#1a1609]', border: 'border-amber-500/20',
+      glow: 'from-amber-500/[0.06]',
+      icon: <Timer className="w-5 h-5 text-amber-400" />,
+      label: 'Time Limit Exceeded',
       pill: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return {
-      color: 'text-rose-400',
-      bgCard: 'border-rose-500/20 bg-[#1f1418]',
-      glowFrom: 'from-rose-500/[0.09]',
-      glowColor: 'shadow-rose-500/5',
-      icon: <XCircle className="w-7 h-7 text-rose-400" />,
-      title: submission.status.replace(/_/g, ' '),
+      color: 'text-rose-400', bg: 'bg-[#1a0d10]', border: 'border-rose-500/20',
+      glow: 'from-rose-500/[0.07]',
+      icon: <XCircle className="w-5 h-5 text-rose-400" />,
+      label: submission.status.replace(/_/g, ' '),
       pill: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
     };
   })();
 
-  const scoreBase = problem?.score_base || submission.score || 0;
   const displayScore = isAccepted ? submission.score : 0;
-  const testPassPct = submission.total_count > 0
-    ? Math.round((submission.passed_count / submission.total_count) * 100)
-    : 0;
 
   /* ─────────────────────────────────────────────────
      Render
   ───────────────────────────────────────────────── */
   return (
     <div
-      className="max-w-5xl mx-auto px-4 sm:px-6 py-7 space-y-5"
+      className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-4"
       style={{ fontFamily: "'Inter', 'Outfit', system-ui, sans-serif" }}
     >
 
-      {/* ── 1. Top header row ── */}
+      {/* ── Nav row ── */}
       <div className="flex items-center justify-between select-none">
         <Link
           to={`/problems/${slug}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-300 transition-colors duration-150"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Problem
         </Link>
-        <span className="font-mono text-[11px] text-gray-600 tracking-wide">
+        <span className="font-mono text-[10px] text-zinc-700 tracking-wider">
           #{id?.substring(0, 8).toUpperCase()}
         </span>
       </div>
 
-      {/* ── 2. Hero / Acceptance Banner ── */}
-      <div
-        className={`
-          relative overflow-hidden rounded-2xl border shadow-lg
-          ${theme.bgCard} ${theme.glowColor}
-          transition-all duration-300
-        `}
-      >
-        {/* Subtle top gradient tint */}
-        <div
-          className={`absolute inset-0 bg-gradient-to-b ${theme.glowFrom} to-transparent pointer-events-none`}
-        />
+      {/* ── Status banner ── */}
+      <div className={`relative overflow-hidden rounded-2xl border ${theme.border} ${theme.bg} shadow-sm`}>
+        <div className={`absolute inset-0 bg-gradient-to-b ${theme.glow} to-transparent pointer-events-none`} />
 
-        <div className="relative px-6 py-5 sm:px-8 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="relative px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
 
-            {/* Left: icon + status text */}
-            <div className="flex items-center gap-4">
-              <div className="p-2.5 rounded-xl bg-black/20 border border-white/[0.07] shadow-inner shrink-0">
+            {/* Status */}
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-black/20 border border-white/[0.05] shrink-0">
                 {theme.icon}
               </div>
-              <div className="space-y-0.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600 mb-0.5">
                   Submission Status
                 </p>
-                <h1 className={`text-2xl sm:text-[1.65rem] font-extrabold tracking-tight leading-none ${theme.color}`}>
-                  {theme.title}
+                <h1 className={`text-xl font-extrabold tracking-tight leading-none ${theme.color}`}>
+                  {theme.label}
                 </h1>
                 {problem?.title && (
-                  <p className="text-xs text-gray-600 font-medium mt-1 truncate max-w-xs">
-                    {problem.title}
-                  </p>
+                  <p className="text-[11px] text-zinc-600 mt-1 truncate max-w-[240px]">{problem.title}</p>
                 )}
               </div>
             </div>
 
-            {/* Right: action buttons */}
+            {/* Actions */}
             {!isPending && (
-              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              <div className="flex items-center gap-2 shrink-0">
                 <Link to={`/problems/${slug}`}>
-                  <Button
-                    size="md"
-                    variant={isAccepted ? 'secondary' : 'primary'}
-                    className="font-semibold text-sm px-4 py-2 rounded-xl"
-                  >
-                    {isAccepted ? 'Modify Solution' : 'Try Again'}
+                  <Button size="sm" variant={isAccepted ? 'secondary' : 'primary'} className="text-xs font-semibold px-3 py-1.5 rounded-lg">
+                    {isAccepted ? 'Modify' : 'Try Again'}
                   </Button>
                 </Link>
                 <Link to="/problems">
-                  <Button
-                    size="md"
-                    variant="outline"
-                    className="font-semibold text-sm px-4 py-2 rounded-xl"
-                  >
-                    Explore Catalog
+                  <Button size="sm" variant="outline" className="text-xs font-semibold px-3 py-1.5 rounded-lg">
+                    Catalog
                   </Button>
                 </Link>
               </div>
             )}
           </div>
 
-          {/* Error message panel — only when error exists */}
+          {/* Error detail */}
           {submission.error_message && (() => {
             const { name, detail } = parseErrorSummary(submission.error_message);
             const errorText = `${name}: ${detail}`;
             return (
-              <div className="mt-5 rounded-xl border border-rose-500/15 bg-rose-500/[0.06] p-4">
+              <div className="mt-4 rounded-xl border border-rose-500/15 bg-rose-500/[0.05] px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <span className="text-xs font-black text-rose-400 block">{name}</span>
-                    <p className="text-[11px] text-rose-400/70 leading-relaxed break-words select-text">
-                      {detail}
-                    </p>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black text-rose-400 block mb-0.5">{name}</span>
+                    <p className="text-[11px] text-rose-400/65 leading-relaxed break-words select-text">{detail}</p>
                   </div>
                   <button
                     onClick={() => copyErrorToClipboard(errorText)}
-                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors font-semibold cursor-pointer mt-0.5"
-                    title="Copy error"
+                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors font-semibold cursor-pointer mt-0.5"
                   >
-                    {errorCopied ? (
-                      <><Check className="w-3 h-3 text-emerald-400" /><span className="text-emerald-400">Copied</span></>
-                    ) : (
-                      <><Copy className="w-3 h-3" /><span>Copy</span></>
-                    )}
+                    {errorCopied
+                      ? <><Check className="w-3 h-3 text-emerald-400" /><span className="text-emerald-400">Copied</span></>
+                      : <><Copy className="w-3 h-3" /><span>Copy</span></>
+                    }
                   </button>
                 </div>
               </div>
@@ -434,396 +466,367 @@ export const SubmissionResultPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 3. Stats cards row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* ── Stats row (2-col on mobile, 4-col on sm+) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-        {/* Score Awarded — most prominent */}
-        <StatCard
-          label="Score Awarded"
-          icon={<Award className="w-4 h-4" />}
-          accent="amber"
-          emphasis
-          value={
-            <span className="text-3xl font-black text-amber-400">
-              +{displayScore}
-              <span className="text-sm font-bold text-gray-500 ml-1">pts</span>
-            </span>
-          }
-          sub={isScoreSyncing ? 'Final score syncing…' : `Base: ${scoreBase} pts`}
-        />
+        {/* Score */}
+        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Score</span>
+            <Award className="w-3.5 h-3.5 text-zinc-700" />
+          </div>
+          <div className="font-mono">
+            <span className="text-2xl font-black text-amber-400">+{displayScore}</span>
+            <span className="text-xs font-bold text-zinc-600 ml-1">pts</span>
+          </div>
+          <p className="text-[10px] text-zinc-600">
+            {isScoreSyncing ? 'Syncing…' : problem?.difficulty
+              ? problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1).toLowerCase()
+              : 'Reward'}
+          </p>
+        </div>
 
-        {/* Total Points — secondary */}
-        <StatCard
-          label="Total Points"
-          icon={<TrendingUp className="w-4 h-4" />}
-          accent="emerald"
-          value={
+        {/* Total Points */}
+        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Total</span>
+            <TrendingUp className="w-3.5 h-3.5 text-zinc-700" />
+          </div>
+          <div className="font-mono">
             <span className="text-2xl font-black text-gray-200">
               {userStats?.total_score ?? submission.score ?? 0}
-              <span className="text-sm font-bold text-gray-600 ml-1">pts</span>
             </span>
-          }
-          sub={isScoreSyncing ? 'Ranking update pending' : 'Platform ranking updated'}
-        />
-
-        {/* Test Cases — shows status without revealing test case counts */}
-        <StatCard
-          label="Test Cases"
-          icon={
-            allTestsPassed
-              ? <CheckCircle className="w-4 h-4 text-emerald-500/70" />
-              : isTLE
-              ? <Timer className="w-4 h-4 text-amber-500/70" />
-              : <XCircle className="w-4 h-4 text-rose-500/65" />
-          }
-          accent={allTestsPassed ? 'emerald' : isTLE ? 'amber' : 'neutral'}
-          value={
-            allTestsPassed ? (
-              <span className="text-xl font-bold text-emerald-400 tracking-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-                All Passed
-              </span>
-            ) : isTLE ? (
-              <span className="text-xl font-bold text-amber-400 tracking-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-                Failed (TLE)
-              </span>
-            ) : isSamplePassed ? (
-              <span className="text-xl font-bold text-cyan-400 tracking-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-                Sample Passed
-              </span>
-            ) : (
-              <span className="text-xl font-bold text-rose-400 tracking-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-                Failed
-              </span>
-            )
-          }
-          sub={
-            allTestsPassed
-              ? 'Every test case succeeded'
-              : isTLE
-              ? 'Exceeded time limit'
-              : isSamplePassed
-              ? 'Failed on evaluation cases'
-              : 'One or more cases failed'
-          }
-        >
-          {/* Sleek status bar */}
-          <div className="w-full h-1 rounded-full bg-white/[0.04] overflow-hidden mt-1">
-            <div
-              className={`h-full rounded-full transition-all duration-550 ${
-                allTestsPassed 
-                  ? 'bg-emerald-500/80 w-full' 
-                  : isTLE 
-                  ? 'bg-amber-500/70 w-full' 
-                  : isSamplePassed 
-                  ? 'bg-cyan-500/70 w-full' 
-                  : 'bg-rose-500/70 w-full'
-              }`}
-            />
+            <span className="text-xs font-bold text-zinc-600 ml-1">pts</span>
           </div>
-        </StatCard>
+          <p className="text-[10px] text-zinc-600">
+            {isScoreSyncing ? 'Updating…' : 'All-time score'}
+          </p>
+        </div>
 
-        {/* Execution Speed — with TLE indicator */}
-        <StatCard
-          label="Speed (Runtime)"
-          icon={isTLE ? <Timer className="w-4 h-4 text-amber-500/70" /> : <Clock className="w-4 h-4" />}
-          accent={isTLE ? 'amber' : 'blue'}
-          emphasis={isTLE}
-          value={
-            isTLE ? (
-              <span className="text-xl font-black text-amber-400 tracking-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-                TLE
-              </span>
-            ) : (
-              <span className="text-2xl font-black text-blue-400">
-                {submission.runtime_ms !== null ? submission.runtime_ms : 'N/A'}
-                {submission.runtime_ms !== null && (
-                  <span className="text-sm font-bold text-gray-600 ml-1">ms</span>
-                )}
-              </span>
-            )
-          }
-          sub={
-            isTLE
-              ? `Exceeded ${problem?.time_limit_ms ?? 2000} ms limit`
-              : `Limit: ${problem?.time_limit_ms ?? 2000} ms`
-          }
-        />
+        {/* Tests */}
+        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Tests</span>
+            {isAccepted
+              ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60" />
+              : isTLE
+              ? <Timer className="w-3.5 h-3.5 text-amber-500/60" />
+              : <XCircle className="w-3.5 h-3.5 text-rose-500/60" />
+            }
+          </div>
+          <div>
+            <span className={`text-sm font-extrabold ${isAccepted ? 'text-emerald-400' : isTLE ? 'text-amber-400' : isSamplePassed ? 'text-cyan-400' : 'text-rose-400'}`}>
+              {isAccepted ? 'All Passed' : isTLE ? 'TLE' : isSamplePassed ? 'Sample OK' : 'Failed'}
+            </span>
+          </div>
+          {/* Mini bar */}
+          <div className="w-full h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+            <div className={`h-full rounded-full ${isAccepted ? 'bg-emerald-500/70 w-full' : isTLE ? 'bg-amber-500/60 w-full' : isSamplePassed ? 'bg-cyan-500/60 w-full' : 'bg-rose-500/60 w-1/2'}`} />
+          </div>
+        </div>
+
+        {/* Runtime */}
+        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Runtime</span>
+            <Clock className="w-3.5 h-3.5 text-zinc-700" />
+          </div>
+          <div className="font-mono">
+            {isTLE
+              ? <span className="text-sm font-extrabold text-amber-400">TLE</span>
+              : <><span className="text-2xl font-black text-blue-400">{submission.runtime_ms !== null ? submission.runtime_ms : '—'}</span>
+                {submission.runtime_ms !== null && <span className="text-xs font-bold text-zinc-600 ml-1">ms</span>}</>
+            }
+          </div>
+          <p className="text-[10px] text-zinc-600">Limit: {problem?.time_limit_ms ?? 2000} ms</p>
+        </div>
       </div>
 
-      {/* ── 4 + 5. Evaluation Breakdown + Performance Specs ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── Result note + perf specs ── */}
+      {(showResultBreakdown || true) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
-        {showResultBreakdown ? (
-          <>
-            {/* ── 4. Evaluation Breakdown (wide left card) ── */}
-            <div className="lg:col-span-8 rounded-2xl border border-zinc-800 bg-[#131316] overflow-hidden shadow-sm">
-              {/* Card header */}
-              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-zinc-800/60 bg-black/15 select-none">
-                <Cpu className="w-3.5 h-3.5 text-blue-400/70" />
-                <h2 className="text-xs font-bold text-zinc-300 tracking-wide">Evaluation Breakdown</h2>
+          {/* Result note (spans 2 cols) */}
+          <div className="sm:col-span-2 rounded-xl border border-zinc-800 bg-[#131316] px-5 py-4">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Evaluation</p>
+            {isPending ? (
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <div className="w-3 h-3 border-[1.5px] border-blue-500/60 border-t-transparent rounded-full animate-spin" />
+                Running test cases…
               </div>
-
-              <div className="p-5">
-                {isLoadingResults ? (
-                  <div className="flex items-center justify-center gap-2.5 py-10 text-xs text-zinc-500 select-none">
-                    <div className="w-3.5 h-3.5 border-2 border-blue-500/60 border-t-transparent rounded-full animate-spin" />
-                    Loading test results…
-                  </div>
-                ) : isErrorResults ? (
-                  <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/[0.05] px-4 py-3">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
-                    <p className="text-xs text-amber-300/80">
-                      Test result details are unavailable for this submission.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* All passed — clean success state */}
-                    {failedResults === 0 ? (
-                      <div className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 shrink-0">
-                          <CheckCircle className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div>
-                          <div className="text-base font-bold text-emerald-400 leading-none tracking-tight">
-                            All Test Cases Passed
-                          </div>
-                          <div className="text-xs text-zinc-400 font-medium mt-1.5 leading-relaxed">
-                            Your solution successfully executed all evaluation test cases within the specified limits.
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Failed state — clean failure state */
-                      <div className={`flex items-start gap-4 rounded-xl border p-5 ${
-                        isTLE 
-                          ? 'border-amber-500/25 bg-amber-500/[0.04]' 
-                          : isSamplePassed 
-                          ? 'border-cyan-500/20 bg-cyan-500/[0.04]' 
-                          : 'border-rose-500/25 bg-rose-500/[0.04]'
-                      }`}>
-                        <div className={`p-2.5 rounded-xl shrink-0 ${
-                          isTLE 
-                            ? 'bg-amber-500/10' 
-                            : isSamplePassed 
-                            ? 'bg-cyan-500/10' 
-                            : 'bg-rose-500/10'
-                        }`}>
-                          {isTLE ? (
-                            <Timer className="w-5 h-5 text-amber-400" />
-                          ) : isSamplePassed ? (
-                            <CheckCircle className="w-5 h-5 text-cyan-400" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-rose-400" />
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <div className={`text-base font-bold leading-none tracking-tight ${
-                            isTLE 
-                              ? 'text-amber-400' 
-                              : isSamplePassed 
-                              ? 'text-cyan-400' 
-                              : 'text-rose-400'
-                          }`}>
-                            {isTLE 
-                              ? 'Time Limit Exceeded' 
-                              : isSamplePassed 
-                              ? 'Hidden Test Cases Failed' 
-                              : 'Solution Failed'}
-                          </div>
-                          <div className="text-xs text-zinc-400 font-medium leading-relaxed pt-0.5">
-                            {isTLE 
-                              ? 'Your solution was terminated because it exceeded the allowed time limit on one or more test cases. Optimize your algorithm to resolve this.'
-                              : isSamplePassed
-                              ? 'Your solution successfully passed the public sample test cases but failed to execute correctly on the hidden evaluation test cases.'
-                              : 'Your solution produced an incorrect answer, failed during runtime, or caused a system error on one or more test cases.'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+            ) : isLoadingResults ? (
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <div className="w-3 h-3 border-[1.5px] border-zinc-600 border-t-transparent rounded-full animate-spin" />
+                Loading results…
               </div>
-            </div>
-
-            {/* ── 5. Performance Specs (compact right card) ── */}
-            <div className="lg:col-span-4 rounded-2xl border border-zinc-800 bg-[#131316] p-5 shadow-sm select-none self-start">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500 mb-1">
-                Performance Specs
-              </h3>
-              <Divider className="mb-0.5" />
-              <div className="divide-y divide-white/[0.04]">
-                <SpecRow
-                  icon={<Database className="w-3.5 h-3.5 text-zinc-500" />}
-                  label="Memory Limit"
-                  value={problem?.memory_limit_kb ? `${(problem.memory_limit_kb / 1024).toFixed(0)} MB` : '256 MB'}
-                />
-                <SpecRow
-                  icon={<Clock className="w-3.5 h-3.5 text-zinc-500" />}
-                  label="Time Limit"
-                  value={problem?.time_limit_ms ? `${problem.time_limit_ms} ms` : '2000 ms'}
-                />
-                <SpecRow
-                  icon={<Code className="w-3.5 h-3.5 text-zinc-500" />}
-                  label="Language"
-                  value={
-                    <span className="text-blue-400 uppercase font-bold font-mono text-xs">
-                      {submission.language}
-                    </span>
+            ) : isErrorResults ? (
+              <div className="flex items-center gap-2 text-xs text-amber-400/80">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                Result details unavailable for this submission.
+              </div>
+            ) : isAccepted && failedResults === 0 ? (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-400 leading-none">All Tests Passed</p>
+                  <p className="text-[11px] text-zinc-500 mt-1">Your solution executed correctly on all evaluation cases.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg shrink-0 ${isTLE ? 'bg-amber-500/10' : isSamplePassed ? 'bg-cyan-500/10' : 'bg-rose-500/10'}`}>
+                  {isTLE
+                    ? <Timer className="w-4 h-4 text-amber-400" />
+                    : isSamplePassed
+                    ? <CheckCircle className="w-4 h-4 text-cyan-400" />
+                    : <XCircle className="w-4 h-4 text-rose-400" />
                   }
-                />
-              </div>
-            </div>
-          </>
-        ) : (
-          /* When evaluation breakdown is hidden (e.g. pending), show Performance Specs standalone */
-          <div className="lg:col-span-4 rounded-2xl border border-zinc-800 bg-[#131316] p-5 shadow-sm select-none self-start">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500 mb-1">
-              Performance Specs
-            </h3>
-            <Divider className="mb-0.5" />
-            <div className="divide-y divide-white/[0.04]">
-              <SpecRow
-                icon={<Database className="w-3.5 h-3.5 text-zinc-500" />}
-                label="Memory Limit"
-                value={problem?.memory_limit_kb ? `${(problem.memory_limit_kb / 1024).toFixed(0)} MB` : '256 MB'}
-              />
-              <SpecRow
-                icon={<Clock className="w-3.5 h-3.5 text-zinc-500" />}
-                label="Time Limit"
-                value={problem?.time_limit_ms ? `${problem.time_limit_ms} ms` : '2000 ms'}
-              />
-              <SpecRow
-                icon={<Code className="w-3.5 h-3.5 text-zinc-500" />}
-                label="Language"
-                value={
-                  <span className="text-blue-400 uppercase font-bold font-mono text-xs">
-                    {submission.language}
-                  </span>
-                }
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── AI Insights & Performance Analysis — Coming Soon ── */}
-      <div className="rounded-2xl border border-zinc-800 bg-[#131316] overflow-hidden shadow-sm">
-        {/* Section header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-black/15 select-none">
-          <div className="flex items-center gap-2">
-            <Brain className="w-3.5 h-3.5 text-purple-400/70" />
-            <h2 className="text-xs font-bold text-zinc-300 tracking-wide font-semibold">AI Insights & Performance</h2>
-          </div>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-purple-500/20 bg-purple-500/[0.08] text-[9px] font-bold uppercase tracking-widest text-purple-400">
-            <Sparkles className="w-2.5 h-2.5 text-purple-400 animate-pulse" />
-            Coming Soon
-          </span>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Time Complexity placeholder */}
-            <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] p-4 flex items-center gap-3.5 select-none hover:bg-white/[0.02] transition-colors duration-150">
-              <div className="p-2 rounded-lg bg-purple-500/[0.06] shrink-0">
-                <Clock className="w-4 h-4 text-purple-400/60" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Time Complexity</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-2 w-16 rounded-full bg-white/[0.04] animate-pulse" />
-                  <Lock className="w-2.5 h-2.5 text-zinc-650" />
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-1">AI-driven analysis of asymptotic runtime behavior.</p>
-              </div>
-            </div>
-
-            {/* Space Complexity placeholder */}
-            <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] p-4 flex items-center gap-3.5 select-none hover:bg-white/[0.02] transition-colors duration-150">
-              <div className="p-2 rounded-lg bg-purple-500/[0.06] shrink-0">
-                <Database className="w-4 h-4 text-purple-400/60" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Space Complexity</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-2 w-20 rounded-full bg-white/[0.04] animate-pulse" />
-                  <Lock className="w-2.5 h-2.5 text-zinc-650" />
+                <div>
+                  <p className={`text-sm font-bold leading-none ${isTLE ? 'text-amber-400' : isSamplePassed ? 'text-cyan-400' : 'text-rose-400'}`}>
+                    {isTLE ? 'Time Limit Exceeded' : isSamplePassed ? 'Hidden Cases Failed' : 'Solution Failed'}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    {isTLE
+                      ? 'Exceeded the allowed time limit. Optimize your algorithm.'
+                      : isSamplePassed
+                      ? 'Passed public samples but failed on hidden evaluation cases.'
+                      : 'Incorrect output or runtime error on one or more test cases.'}
+                  </p>
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-1">Evaluation of peak dynamic memory utilization.</p>
               </div>
-            </div>
-
-            {/* Battle & Optimization Summary placeholder */}
-            <div className="rounded-xl border border-white/[0.04] bg-white/[0.01] p-4 flex items-center gap-3.5 select-none hover:bg-white/[0.02] transition-colors duration-150">
-              <div className="p-2 rounded-lg bg-purple-500/[0.06] shrink-0">
-                <Cpu className="w-4 h-4 text-purple-400/60" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Battle & TLE Optimizer</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-2 w-24 rounded-full bg-white/[0.04] animate-pulse" />
-                  <Lock className="w-2.5 h-2.5 text-zinc-650" />
-                </div>
-                <p className="text-[10px] text-zinc-500 mt-1">Overall battle performance summary and TLE bottleneck suggestions.</p>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Subtle info note */}
-          <div className="flex items-center gap-2 text-[10px] text-zinc-500 select-none">
-            <Sparkles className="w-3 h-3 text-purple-500/40 shrink-0" />
-            <span>AI integration will provide deep code explanations, optimal solution comparisons, and direct battle insights.</span>
+          {/* Perf specs */}
+          <div className="rounded-xl border border-zinc-800 bg-[#131316] px-5 py-4 select-none">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Specs</p>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-zinc-600"><Database className="w-3 h-3" />Memory</span>
+                <span className="font-mono font-semibold text-zinc-300">
+                  {problem?.memory_limit_kb ? `${(problem.memory_limit_kb / 1024).toFixed(0)} MB` : '256 MB'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-zinc-600"><Clock className="w-3 h-3" />Time Limit</span>
+                <span className="font-mono font-semibold text-zinc-300">
+                  {problem?.time_limit_ms ? `${problem.time_limit_ms} ms` : '2000 ms'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-zinc-600"><Code className="w-3 h-3" />Language</span>
+                <span className="font-mono font-bold text-blue-400 uppercase text-[10px]">
+                  {submission.language}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ── 6. Submitted Code section ── */}
-      <div className="rounded-2xl border border-zinc-800 bg-[#131316] overflow-hidden shadow-sm flex flex-col min-h-[420px]">
-
-        {/* Code viewer header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60 bg-black/15 select-none">
-          <div className="flex items-center gap-2.5">
-            <Zap className="w-3.5 h-3.5 text-blue-400/70" />
-            <span className="text-xs font-bold text-zinc-300">Submitted Code</span>
-            {/* Language pill */}
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded-md border border-blue-500/20 bg-blue-500/[0.08] text-[10px] font-mono font-bold uppercase tracking-wider text-blue-400"
+      {/* ── AI Insights ── */}
+      {aiInsights ? (
+        <div className="rounded-xl border border-purple-500/20 bg-[#171221] px-5 py-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4 select-none">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-lg bg-purple-500/10">
+                <Brain className="w-4 h-4 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-purple-300">AI Insights &amp; Performance Analysis</p>
+                <p className="text-[10px] text-purple-400/60 mt-0.5">
+                  Generated using {getModelById(selectedModelId)?.model.displayName || 'X AI'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={generateAiInsights}
+              disabled={aiLoading}
+              className="text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider cursor-pointer"
             >
+              Regenerate
+            </button>
+          </div>
+          <div className="text-xs text-zinc-300 leading-relaxed font-sans border-t border-purple-500/10 pt-3 select-text">
+            {aiInsights.summary}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-zinc-800/60 bg-[#131316] px-5 py-4 flex items-center justify-between gap-4 select-none">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-1.5 rounded-lg bg-purple-500/[0.07] shrink-0">
+              <Brain className="w-4 h-4 text-purple-400/60" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-zinc-400">AI Insights &amp; Performance Analysis</p>
+              <p className="text-[10px] text-zinc-650 mt-0.5 truncate max-w-lg">
+                {aiError ? (
+                  <span className="text-rose-400/80">{aiError}</span>
+                ) : (
+                  `Analyze complexity, bottlenecks, and optimizations using ${getModelById(selectedModelId)?.model.displayName || 'X AI'}.`
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={generateAiInsights}
+            disabled={aiLoading}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer whitespace-nowrap active:scale-[0.97] shrink-0",
+              aiLoading
+                ? "bg-purple-500/10 text-purple-400 border-purple-500/20 cursor-not-allowed"
+                : "bg-purple-600 hover:bg-purple-500 text-white border-purple-600 hover:border-purple-500 shadow-md shadow-purple-500/10"
+            )}
+          >
+            {aiLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5" />
+                Analyze
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* AI sub-items */}
+      {aiInsights ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {/* Time Complexity */}
+          <div className="rounded-xl border border-purple-500/10 bg-purple-500/[0.02] px-4 py-3 flex flex-col gap-2 hover:bg-purple-500/[0.04] transition-colors duration-150">
+            <div className="flex items-center gap-1.5 justify-between select-none">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Time Complexity</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-[10px] font-extrabold text-purple-400 font-mono">
+                {aiInsights.timeComplexity}
+              </span>
+            </div>
+            <p className="text-[10px] text-zinc-400 leading-relaxed mt-1 select-text">
+              {aiInsights.timeComplexityExplanation}
+            </p>
+          </div>
+
+          {/* Space Complexity */}
+          <div className="rounded-xl border border-purple-500/10 bg-purple-500/[0.02] px-4 py-3 flex flex-col gap-2 hover:bg-purple-500/[0.04] transition-colors duration-150">
+            <div className="flex items-center gap-1.5 justify-between select-none">
+              <div className="flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Space Complexity</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-[10px] font-extrabold text-purple-400 font-mono">
+                {aiInsights.spaceComplexity}
+              </span>
+            </div>
+            <p className="text-[10px] text-zinc-400 leading-relaxed mt-1 select-text">
+              {aiInsights.spaceComplexityExplanation}
+            </p>
+          </div>
+
+          {/* TLE Optimizer */}
+          <div className="rounded-xl border border-purple-500/10 bg-purple-500/[0.02] px-4 py-3 flex flex-col gap-2 hover:bg-purple-500/[0.04] transition-colors duration-150">
+            <div className="flex items-center gap-1.5 select-none">
+              <Cpu className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">TLE Optimizer</span>
+            </div>
+            <p className="text-[10px] text-zinc-400 leading-relaxed mt-1 select-text">
+              {aiInsights.tleOptimizer}
+            </p>
+          </div>
+        </div>
+      ) : aiLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            { icon: <Clock className="w-3.5 h-3.5 text-purple-400/50" />, label: 'Time Complexity' },
+            { icon: <Database className="w-3.5 h-3.5 text-purple-400/50" />, label: 'Space Complexity' },
+            { icon: <Cpu className="w-3.5 h-3.5 text-purple-400/50" />, label: 'TLE Optimizer' },
+          ].map(({ icon, label }) => (
+            <div
+              key={label}
+              className="rounded-xl border border-purple-500/10 bg-purple-500/[0.02] px-4 py-3 flex flex-col gap-2 select-none"
+            >
+              <div className="flex items-center gap-1.5">
+                {icon}
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">{label}</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="h-1.5 flex-1 rounded-full bg-purple-500/10 overflow-hidden relative">
+                  <div className="absolute inset-0 bg-purple-500/20 -translate-x-full animate-pulse" />
+                </div>
+              </div>
+              <p className="text-[9px] text-purple-500/40 leading-relaxed">Analyzing solution...</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            { icon: <Clock className="w-3.5 h-3.5 text-purple-400/50" />, label: 'Time Complexity', desc: 'Asymptotic runtime analysis' },
+            { icon: <Database className="w-3.5 h-3.5 text-purple-400/50" />, label: 'Space Complexity', desc: 'Peak memory utilization' },
+            { icon: <Cpu className="w-3.5 h-3.5 text-purple-400/50" />, label: 'TLE Optimizer', desc: 'Bottleneck suggestions' },
+          ].map(({ icon, label, desc }) => (
+            <div
+              key={label}
+              onClick={generateAiInsights}
+              className="rounded-xl border border-white/[0.04] bg-white/[0.01] px-4 py-3 flex flex-col gap-2 select-none hover:bg-white/[0.02] hover:border-purple-500/20 hover:shadow-lg hover:shadow-purple-500/[0.02] transition-all duration-150 cursor-pointer group"
+            >
+              <div className="flex items-center gap-1.5">
+                {icon}
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide group-hover:text-purple-400/80 transition-colors">{label}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 flex-1 rounded-full bg-white/[0.04] group-hover:bg-purple-500/10 transition-colors" />
+                <Lock className="w-2.5 h-2.5 text-zinc-700 group-hover:text-purple-500/40 transition-colors shrink-0" />
+              </div>
+              <p className="text-[9px] text-zinc-700 leading-relaxed group-hover:text-zinc-500 transition-colors">{desc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Code viewer ── */}
+      <div className="rounded-xl border border-zinc-800 bg-[#131316] overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-2.5 border-b border-zinc-800/60 bg-black/15">
+          <div className="flex items-center gap-2 select-none">
+            <Zap className="w-3.5 h-3.5 text-blue-400/60" />
+            <span className="text-xs font-semibold text-zinc-400">Submitted Code</span>
+            <span className="font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-blue-500/20 bg-blue-500/[0.07] text-blue-400">
               {submission.language}
             </span>
           </div>
-
           {submission?.source_code && (
             <button
               onClick={copyToClipboard}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer rounded-lg px-2.5 py-1 hover:bg-white/[0.05]"
-              title="Copy code to clipboard"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-600 hover:text-zinc-200 transition-colors rounded px-2 py-1 hover:bg-white/[0.05] cursor-pointer"
             >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy</span>
-                </>
-              )}
+              {copied
+                ? <><Check className="w-3 h-3 text-emerald-400" /><span className="text-emerald-400">Copied!</span></>
+                : <><Copy className="w-3 h-3" /><span>Copy</span></>
+              }
             </button>
           )}
         </div>
 
-        {/* Code content */}
-        <div className="flex-1 overflow-auto p-5 select-text bg-[#0d0d0f]">
+        {/* Code */}
+        <div className="overflow-auto p-5 bg-[#0d0d0f] max-h-[480px]">
           {submission?.source_code ? (
-            <pre className="font-mono text-[12.5px] leading-[1.7] text-zinc-300 whitespace-pre overflow-x-auto select-text">
+            <pre className="font-mono text-[12px] leading-[1.75] text-zinc-300 whitespace-pre overflow-x-auto select-text">
               <code>{submission.source_code}</code>
             </pre>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-650 text-xs py-16 gap-2">
-              <Code className="w-6 h-6 text-zinc-700" />
-              <span>No code content available.</span>
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-zinc-700 text-xs">
+              <Code className="w-5 h-5" />
+              <span>No code available.</span>
             </div>
           )}
         </div>

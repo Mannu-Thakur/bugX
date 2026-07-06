@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     RECLAIM_ALL_RUNNING_ON_START: bool = False
     USE_LOCAL_JUDGE: bool = True
 
+    IMPORT_CACHE_TTL: int = 3600
+    IMPORT_FAILURE_THRESHOLD: int = 3
+    IMPORT_COOLDOWN_PERIOD: int = 30
+
     @property
     def is_development(self) -> bool:
         return self.ENV.lower() == "development"
@@ -60,4 +64,6 @@ def get_settings() -> Settings:
         raise ValueError("SECRET_KEY must be set outside development")
     if not settings.is_development and settings.ENABLE_MOCK_OAUTH:
         raise ValueError("ENABLE_MOCK_OAUTH must be disabled outside development")
+    if not settings.is_development and settings.USE_LOCAL_JUDGE:
+        raise ValueError("USE_LOCAL_JUDGE must be disabled outside development — use Judge0 in production")
     return settings

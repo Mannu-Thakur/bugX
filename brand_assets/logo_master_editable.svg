@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 620" width="512" height="620">
+  <title>bugX - Full Logo</title>
+  <desc>bugX brand logo - master editable file</desc>
+
+  <defs>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- X Shape (behind bug) -->
+  <polygon
+    points="391,79 436,124 335,225 436,326 391,371 290,270 189,371 144,326 245,225 144,124 189,79 290,180"
+    fill="url(#orangeGrad)"
+  />
+
+  <!-- Bug Legs -->
+  <g fill="none" stroke="#0F172A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="158,220 128,205 108,220"/>
+    <polyline points="153,265 118,263 98,288"/>
+    <polyline points="158,310 133,325 118,350"/>
+    <polyline points="272,220 302,205 322,220"/>
+    <polyline points="277,265 312,263 332,288"/>
+    <polyline points="272,310 297,325 312,350"/>
+  </g>
+
+  <!-- Bug Head -->
+  <ellipse cx="215" cy="158" rx="65" ry="48" fill="#0F172A"/>
+
+  <!-- Antennae -->
+  <g fill="none" stroke="#0F172A" stroke-width="8" stroke-linecap="round">
+    <path d="M 183,118 C 173,88 158,65 145,48"/>
+    <path d="M 247,118 C 257,88 272,65 285,48"/>
+  </g>
+  <circle cx="143" cy="45" r="13" fill="#0F172A"/>
+  <circle cx="287" cy="45" r="13" fill="#0F172A"/>
+
+  <!-- Bug Body -->
+  <path
+    d="M 155,195 L 275,195 L 285,230 L 278,320 C 273,350 250,370 215,370 C 180,370 157,350 152,320 L 145,230 Z"
+    fill="#1E293B"
+  />
+
+  <!-- Eyes -->
+  <polygon points="184,149 208,143 211,154 190,158" fill="#FFFFFF"/>
+  <polygon points="246,149 222,143 219,154 240,158" fill="#FFFFFF"/>
+
+  <!-- Code Symbol -->
+  <polyline points="198,252 172,278 198,304" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="232,252 258,278 232,304" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="222" y1="248" x2="208" y2="308" fill="none" stroke="#F97316" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Wordmark -->
+  <text x="256" y="490" text-anchor="middle" font-family="'Inter','SF Pro Display','Segoe UI',sans-serif" font-weight="800" font-size="80">
+    <tspan fill="#0F172A">bug</tspan><tspan fill="#F97316">X</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="256" y="530" text-anchor="middle" font-family="'Inter','SF Pro Display','Segoe UI',sans-serif" font-weight="700" font-size="18" letter-spacing="4">
+    <tspan fill="#0F172A">FIND BUGS. FIX. </tspan><tspan fill="#F97316">WIN.</tspan>
+  </text>
+</svg>

@@ -95,8 +95,9 @@ export const SocialLoginButtons: React.FC<SocialLoginButtonsProps> = ({ mode = '
         <button
           id="oauth-linkedin-btn"
           type="button"
-          onClick={() => handleOAuth('linkedin')}
-          className={`${btnBase} bg-[#0A66C2] hover:bg-[#004182] border-[#0A66C2]/60 text-white hover:shadow-md hover:shadow-blue-600/15`}
+          onClick={() => toast.info('LinkedIn login is coming soon!')}
+          title="LinkedIn login (coming soon)"
+          className={`${btnBase} bg-white/[0.02] border border-dark-border text-blue-400 hover:text-blue-300 hover:bg-white/[0.08] transition-all`}
         >
           <LinkedInIcon />
           <span>LinkedIn</span>

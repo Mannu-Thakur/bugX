@@ -2,6 +2,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.controllers.auth_controller import AuthController
 from app.core.database import get_db
@@ -61,6 +64,6 @@ async def logout(
                 await redis.aclose()
     except (RedisError, Exception) as e:
         # Log but don't fail the logout — the token will expire naturally
-        print(f"[Logout] Failed to blocklist token in Redis: {e}")
+        logger.warning(f"[Logout] Failed to blocklist token in Redis: {e}")
 
     return {"message": "Logged out successfully."}

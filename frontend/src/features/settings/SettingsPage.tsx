@@ -43,7 +43,7 @@ const SUBJECTS: { key: SubjectKey; label: string; hint: string }[] = [
   { key: 'os', label: 'OS', hint: 'Processes, memory, scheduling' },
   { key: 'cn', label: 'CN', hint: 'TCP/IP, routing, protocols' },
   { key: 'oop', label: 'OOP', hint: 'Design principles and patterns' },
-  { key: 'dsa', label: 'DSA', hint: 'Patterns, formulas, edge cases' },
+  { key: 'dsa', label: 'General', hint: 'Patterns, formulas, edge cases' },
 ];
 
 
@@ -120,7 +120,12 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      setBattleHistory(userStorage.getBattleHistory(user.id));
+      api.battle.getHistory()
+        .then(setBattleHistory)
+        .catch(err => {
+          console.error("Failed to load battle history:", err);
+          setBattleHistory([]);
+        });
     } else {
       try {
         const parsed = JSON.parse(localStorage.getItem('battle_history') || '[]');
@@ -325,7 +330,7 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* ── TAB CONTENT: VAULT ──────────────────────────── */}
-        {activeTab === 'vault' ? (
+        {activeTab === 'vault' && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
             
             {/* Left Subject Switcher */}
@@ -513,8 +518,10 @@ export const SettingsPage: React.FC = () => {
             </div>
 
           </div>
-        ) : (
-          /* ── TAB CONTENT: BATTLE HISTORY ────────────────── */
+        )}
+
+        {/* ── TAB CONTENT: BATTLE HISTORY ────────────────── */}
+        {activeTab === 'battles' && (
           <div className="space-y-8 animate-fade-in">
             
             {/* Stats Bar */}

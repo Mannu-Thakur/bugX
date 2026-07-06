@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
-import { RotateCcw, History, ChevronDown, Lightbulb, AlignJustify, Braces, Maximize2 } from 'lucide-react';
+import { RotateCcw, ChevronDown, Lightbulb, Maximize2, Play, CloudUpload, StickyNote, BookOpen } from 'lucide-react';
 import { cn } from '../../../shared/lib/cn';
+import { useX } from '../../x/XContext';
 import { useAuth } from '../../../features/auth/useAuth';
 import { userStorage } from '../../../shared/lib/userState';
 
@@ -27,7 +28,16 @@ interface CodeEditorProps {
   onSubmit?: () => void;
   focusMode?: boolean;
   onShowComingSoon?: (feature: string) => void;
+  onShowHints?: () => void;
   submissionCooldown?: number;
+  isFinished?: boolean;
+  onToggleNotes?: () => void;
+  hasNotes?: boolean;
+  onToggleX?: () => void;
+  isXOpen?: boolean;
+  onToggleDescription?: () => void;
+  isDescriptionOpen?: boolean;
+  hideHints?: boolean;
 }
 
 const LANGUAGE_OPTIONS = [
@@ -45,16 +55,27 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   language,
   onChangeLanguage,
   onReset,
-  onLoadLastSubmission,
-  isLoadingLastSubmission,
+  // onLoadLastSubmission is passed but unused in editor
+  // isLoadingLastSubmission is passed but unused in editor
   isRunning = false,
   isSubmitting = false,
   onRun,
   onSubmit,
-  focusMode = false,
+  focusMode: _focusMode = false,
   onShowComingSoon,
+  onShowHints,
   submissionCooldown = 0,
+  isFinished = false,
+  onToggleNotes,
+  hasNotes = false,
+  onToggleX,
+  isXOpen = false,
+  onToggleDescription,
+  isDescriptionOpen = true,
+  hideHints = false,
 }) => {
+  const xCtx = (() => { try { return useX(); } catch { return null; } })();
+  const hasUnread = xCtx ? xCtx.messages.length > 0 && !xCtx.isOpen : false;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(() => !document.documentElement.classList.contains('light'));
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -79,13 +100,68 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Reference to the Monaco editor instance for wheel propagation
   const editorRef = useRef<any>(null);
+  // Reference to the Monaco namespace (needed for Range in executeEdits)
+  const monacoRef = useRef<any>(null);
 
   useEffect(() => {
     return () => {
+      if ((window as any).bugxActiveEditor === editorRef.current) {
+        (window as any).bugxActiveEditor = null;
+      }
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
+  }, []);
+
+  // Apply code from X AI panel imperatively (controlled `value` prop alone won't
+  // update Monaco once the user has typed and Monaco owns its own model).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ code: string; mode: 'replace' | 'insert' }>;
+      const editor = editorRef.current;
+      if (!editor) {
+        console.warn("CodeEditor: editorRef.current is null! Cannot apply code.");
+        return;
+      }
+
+      if (ce.detail.mode === 'replace') {
+        const model = editor.getModel();
+        if (model) {
+          editor.executeEdits('x-apply-replace', [{
+            range: model.getFullModelRange(),
+            text: ce.detail.code,
+            forceMoveMarkers: true,
+          }]);
+        } else {
+          editor.setValue(ce.detail.code);
+        }
+        // Scroll to top after replacement
+        editor.setScrollPosition({ scrollTop: 0 });
+      } else {
+        // Insert below cursor (or at end of file)
+        const monacoInst = monacoRef.current;
+        const model = editor.getModel();
+        if (model && monacoInst) {
+          const position = editor.getPosition() || { lineNumber: model.getLineCount(), column: 1 };
+          const lastCol = model.getLineMaxColumn(position.lineNumber);
+          editor.executeEdits('x-apply-insert', [{
+            range: new monacoInst.Range(
+              position.lineNumber, lastCol,
+              position.lineNumber, lastCol
+            ),
+            text: '\n' + ce.detail.code,
+            forceMoveMarkers: true,
+          }]);
+        } else if (editor) {
+          // Fallback: just append via setValue
+          const current = editor.getValue();
+          editor.setValue(current + '\n' + ce.detail.code);
+        }
+      }
+    };
+    window.addEventListener('x-apply-code-to-editor', handler);
+    return () => window.removeEventListener('x-apply-code-to-editor', handler);
   }, []);
 
   // Callback refs to avoid stale closures in Monaco actions
@@ -107,16 +183,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, [user?.id]);
 
-  const changeFontSize = (delta: number) => {
-    setFontSize(prev => {
-      const next = Math.min(Math.max(prev + delta, 10), 28);
-      localStorage.setItem('editor_font_size', String(next));
-      if (user) {
-        userStorage.setFontSize(user.id, next);
-      }
-      return next;
-    });
-  };
+  // const changeFontSize = (delta: number) => {
+  //   setFontSize(prev => {
+  //     const next = Math.min(Math.max(prev + delta, 10), 28);
+  //     localStorage.setItem('editor_font_size', String(next));
+  //     if (user) {
+  //       userStorage.setFontSize(user.id, next);
+  //     }
+  //     return next;
+  //   });
+  // };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -230,6 +306,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
+    (window as any).bugxActiveEditor = editor;
 
     // Add Run shortcut (Ctrl + Enter)
     editor.addAction({
@@ -293,9 +371,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   // Format code action
-  const handleFormat = () => {
-    editorRef.current?.getAction('editor.action.formatDocument')?.run();
-  };
+  // const handleFormat = () => {
+  //   editorRef.current?.getAction('editor.action.formatDocument')?.run();
+  // };
 
   // Expand editor to full screen
   const handleExpand = () => {
@@ -310,12 +388,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <div id="bugx-editor-container" className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden">
+    <div id="bugx-editor-container" className="flex flex-col h-full bg-[#1e1e1e] overflow-hidden rounded-xl shadow-lg">
 
       {/* ── Header bar: "</>  Code" title */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#252526] select-none shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        className="flex items-center gap-2 px-4 bg-[#252526] select-none shrink-0 h-[38px] border-b border-white/[0.04]"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-emerald-400 shrink-0">
           <path d="M8 6L2 12L8 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -326,7 +403,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
       {/* ── Toolbar: Language (left) | Icons (right) */}
       <div
-        className="flex items-center justify-between px-3 py-1.5 bg-[#252526] select-none shrink-0"
+        className="flex items-center justify-between px-3 py-1.5 bg-[#1e1e1e] select-none shrink-0"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
       >
         {/* LEFT: Language Selector */}
@@ -363,7 +440,40 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
         {/* RIGHT: Icon Toolbar */}
         <div className="flex items-center gap-0.5">
-          
+          {/* X AI Toggle */}
+          {onToggleX && (
+            <button
+              onClick={onToggleX}
+              className={cn(
+                'relative flex items-center justify-center w-7 h-7 transition-all cursor-pointer select-none',
+                isXOpen
+                  ? 'opacity-100'
+                  : 'opacity-65 hover:opacity-100'
+              )}
+              title="Toggle X AI"
+            >
+              {hasUnread && (
+                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
+              )}
+              <span className="font-black text-[12px] text-orange-500 animate-pulse">X</span>
+            </button>
+          )}
+
+          {/* Description Toggle */}
+          {onToggleDescription && (
+            <button
+              onClick={onToggleDescription}
+              className={cn(
+                'relative flex items-center justify-center w-7 h-7 transition-all cursor-pointer select-none',
+                isDescriptionOpen
+                  ? 'text-white opacity-100'
+                  : 'text-gray-400 opacity-65 hover:opacity-100'
+              )}
+              title="Toggle Description Panel"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Reset */}
           <button
@@ -386,7 +496,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* ── Monaco Editor */}
-      <div className="flex-1 min-h-0 relative" style={{ background: '#1e1e1e' }}>
+      <div className="flex-1 min-h-0 relative overflow-hidden" style={{ background: '#1e1e1e' }}>
         <Editor
           height="100%"
           language={getMonacoLanguage(language)}
@@ -432,7 +542,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             overviewRulerLanes: 0,
             renderLineHighlight: 'gutter',
             automaticLayout: true,
-          }}
+            readOnly: isFinished,
+          } as any}
         />
       </div>
 
@@ -441,48 +552,107 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         className="flex items-center justify-between px-4 h-[34px] bg-[#1e1e1e] select-none shrink-0"
         style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
       >
-        {/* Left: Save status */}
-        <div className="flex items-center gap-1.5 text-[11px] font-mono">
-          {saveStatus === 'saving' ? (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 animate-pulse" />
-              <span className="text-gray-500">Saving...</span>
-            </>
-          ) : (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/70" />
-              <span className="text-gray-500">Saved</span>
-            </>
-          )}
+        {/* Left: Save status & Actions */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono mr-1">
+            {saveStatus === 'saving' ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 animate-pulse" />
+                <span className="text-gray-500">Saving...</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/70" />
+                <span className="text-gray-500">Saved</span>
+              </>
+            )}
+          </div>
+
+          {/* Action Buttons (Hint, Run, Submit, Notes) */}
+          <div className="flex items-center gap-2">
+            {isRunning ? (
+              <button
+                disabled
+                className="h-6 px-2 rounded bg-[#282828] border border-[#3e3e3e] text-gray-500 flex items-center justify-center gap-1 text-[10px] font-semibold cursor-not-allowed"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-pulse" />
+                <span>Running...</span>
+              </button>
+            ) : isSubmitting ? (
+              <button
+                disabled
+                className="h-6 px-2 rounded bg-[#282828] border border-emerald-500/20 text-emerald-500 flex items-center justify-center gap-1 text-[10px] font-semibold cursor-not-allowed"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Submitting...</span>
+              </button>
+            ) : (
+              <div className="flex items-center bg-[#282828] rounded border border-white/[0.06] p-0.5 h-6">
+                {/* Hint Button */}
+                {!hideHints && (
+                  <>
+                    <button
+                      onClick={() => onShowHints ? onShowHints() : onShowComingSoon?.('Hints')}
+                      className="h-full px-2 rounded-[3px] bg-transparent text-gray-400 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                      title="View Hints"
+                    >
+                      <Lightbulb className="w-3.5 h-3.5 text-gray-450 hover:text-yellow-400 transition-colors" />
+                    </button>
+
+                    {/* Vertical Separator Line */}
+                    <div className="w-px h-3 bg-white/[0.06]" />
+                  </>
+                )}
+
+                {/* Run Code Button */}
+                <button
+                  onClick={onRun}
+                  disabled={isRunning || isSubmitting || isFinished}
+                  className="h-full px-2 rounded-[3px] bg-transparent text-gray-400 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Run Code"
+                >
+                  <Play className="w-3 h-3 fill-current text-gray-450 hover:text-white" />
+                </button>
+
+                {/* Vertical Separator Line */}
+                <div className="w-px h-3 bg-white/[0.06]" />
+
+                {/* Submit Solution Button */}
+                <button
+                  onClick={onSubmit}
+                  disabled={isRunning || isSubmitting || submissionCooldown > 0 || isFinished}
+                  className="h-full px-2.5 rounded-[3px] bg-transparent text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all cursor-pointer flex items-center justify-center gap-1 text-[11px] font-bold active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Submit Solution"
+                >
+                  <CloudUpload className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{submissionCooldown > 0 ? `Retry ${submissionCooldown}s` : 'Submit'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Note Button */}
+            {onToggleNotes && (
+              <button
+                onClick={onToggleNotes}
+                className={cn(
+                  "w-6 h-6 rounded transition-all cursor-pointer flex items-center justify-center relative select-none",
+                  hasNotes
+                    ? "bg-blue-600/10 text-blue-400 hover:bg-blue-600/20"
+                    : "bg-[#282828] text-gray-450 hover:text-gray-200 hover:bg-dark-hover"
+                )}
+                title="Write Notes"
+              >
+                <StickyNote className="w-3.5 h-3.5" />
+                {hasNotes && (
+                  <span className="absolute top-0.5 right-0.5 w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Right: Cursor position + focus mode actions */}
+        {/* Right: Cursor position */}
         <div className="flex items-center gap-3">
-          {focusMode && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onShowComingSoon?.('Hints')}
-                className="w-6 h-6 flex items-center justify-center rounded text-gray-600 hover:text-yellow-400 hover:bg-white/[0.05] transition-all cursor-pointer"
-                title="Hints (Coming Soon)"
-              >
-                <Lightbulb className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={onRun}
-                disabled={isRunning || isSubmitting}
-                className="px-2.5 py-0.5 rounded text-[11px] font-semibold text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isRunning ? 'Running...' : 'Run'}
-              </button>
-              <button
-                onClick={onSubmit}
-                disabled={isRunning || isSubmitting || submissionCooldown > 0}
-                className="px-2.5 py-0.5 rounded bg-emerald-600/80 text-white text-[11px] font-semibold hover:bg-emerald-500 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Submitting...' : submissionCooldown > 0 ? `Retry in ${submissionCooldown}s` : 'Submit'}
-              </button>
-            </div>
-          )}
           <span className="text-[11px] font-mono text-gray-600">
             Ln {cursorPos.line}, Col {cursorPos.column}
           </span>

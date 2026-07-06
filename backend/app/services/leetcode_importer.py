@@ -103,143 +103,138 @@ TAG_MAP = {
     "stack": "Stack"
 }
 
+from app.services.import_utils import AliasCache, normalize_title_aggressive, compute_candidate_score, fetch_with_retry, AliasDatabase
+from app.services.importer_exceptions import (
+    ImportNetworkError,
+    ImportProviderUnavailableError,
+    ImportParserError,
+    ImportValidationError,
+    ImportDatabaseError,
+    ImportNotFoundError,
+    ProviderUnavailableException,
+    ProblemNotFoundException,
+    ImportFailedException,
+    AmbiguousProblemException
+)
+
 class LeetCodeImporter:
     @classmethod
-    async def resolve_slug(cls, input_str: str) -> str:
+    async def resolve_slug(cls, input_str: str, session: AsyncSession = None) -> str:
         query = input_str.strip()
+        logger.info(f"[LeetCodeImporter] [DIRECT_SLUG] Resolving slug for query: '{query}'")
 
-        # If it is a URL, extract slug
+        # 1. Check Alias Cache
+        if session:
+            cached = await AliasDatabase.get(session, "leetcode", query)
+            if cached:
+                logger.info(f"[LeetCodeImporter] [ALIAS_LOOKUP] Found alias cache mapping: '{query}' -> '{cached[0]}'")
+                return cached[0]
+
+        # 2. Direct URL or exact slug check
         if "/" in query:
             parts = [p for p in query.split("/") if p]
             if "problems" in parts:
                 idx = parts.index("problems")
                 if idx + 1 < len(parts):
                     return parts[idx + 1]
-            else:
-                return parts[-1]
+            return parts[-1]
 
-        # Clean Google/LeetCode/GFG prefixes just in case
+        # Clean prefixes
         query = re.sub(r"^(google|leetcode|gfg):", "", query, flags=re.IGNORECASE)
-
-        # Clean leading colons or symbols
         query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
 
-        # If query is empty, fallback
         if not query:
             return "unknown-problem"
 
-        # Check common aliases FIRST (before any digit stripping that might corrupt names like "3 sum")
         alias = SLUG_ALIASES.get(query.lower().replace(" ", "").replace("-", ""))
         if alias:
+            logger.info(f"[LeetCodeImporter] [DIRECT_SLUG] Static alias match: '{query}' -> '{alias}'")
             return alias
 
-        # Clean leading question numbers (e.g. "3161. ", "42: ") but NOT single-digit
-        # problem names like "3 Sum", "4 Sum" which are valid problem titles.
+        # Clean leading question numbers
         query = re.sub(r"^\d{2,}[\s\.:]+", "", query)
         query = re.sub(r"^\d+[\.:]+\s*", "", query)
         query = re.sub(r"^[:\s\-\.\#\u2013\u2014]+", "", query)
 
-        # Check if query is purely digits (question ID) or has spaces/punctuation
         is_id = query.isdigit()
         if is_id and query in QUESTION_ID_ALIASES:
             return QUESTION_ID_ALIASES[query]
 
-        # Always try REST API search for better accuracy, even for single-word queries
+        # Fetch LeetCode algorithms list for ranking matching
         url = "https://leetcode.com/api/problems/algorithms/"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
+        
+        pairs = []
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(url, headers=headers, timeout=10.0)
+                resp = await fetch_with_retry(client, "GET", url, headers=headers, timeout=10.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     pairs = data.get("stat_status_pairs", [])
-
-                    if is_id:
-                        for pair in pairs:
-                            stat = pair.get("stat", {})
-                            if str(stat.get("frontend_question_id")) == query:
-                                return stat.get("question__title_slug")
-                    else:
-                        search_slug = re.sub(r"\s+", "-", query.lower()).strip()
-                        # 1. Exact slug match
-                        for pair in pairs:
-                            stat = pair.get("stat", {})
-                            slug = stat.get("question__title_slug")
-                            if slug == search_slug:
-                                return slug
-
-                        # 2. Substring slug match
-                        candidates = []
-                        for pair in pairs:
-                            stat = pair.get("stat", {})
-                            slug = stat.get("question__title_slug", "")
-                            if slug == search_slug or slug.startswith(search_slug + "-") or \
-                               slug.endswith("-" + search_slug) or ("-" + search_slug + "-") in slug:
-                                candidates.append(slug)
-                        if candidates:
-                            candidates.sort(key=len)
-                            return candidates[0]
-
-                        # 3. Substring title match
-                        title_candidates = []
-                        for pair in pairs:
-                            stat = pair.get("stat", {})
-                            title = stat.get("question__title", "").lower()
-                            if query.lower() in title:
-                                title_candidates.append((len(title), stat.get("question__title_slug")))
-                        if title_candidates:
-                            title_candidates.sort(key=lambda x: x[0])
-                            return title_candidates[0][1]
-
-                        # 4. Word-by-word match
-                        import difflib
-                        search_words = [w for w in search_slug.split("-") if len(w) > 2]
-                        if search_words and len(search_words) >= 2:
-                            word_candidates = []
-                            for pair in pairs:
-                                stat = pair.get("stat", {})
-                                slug = stat.get("question__title_slug", "")
-                                slug_words = set(slug.split("-"))
-                                if all(any(word in sw or sw in word for sw in slug_words) for word in search_words):
-                                    title = stat.get("question__title", "").lower()
-                                    sim_title = difflib.SequenceMatcher(None, query.lower(), title).ratio()
-                                    sim_slug = difflib.SequenceMatcher(None, search_slug, slug).ratio()
-                                    if max(sim_title, sim_slug) >= 0.70:
-                                        word_candidates.append((max(sim_title, sim_slug), slug))
-                            if word_candidates:
-                                word_candidates.sort(key=lambda x: (-x[0], len(x[1])))
-                                return word_candidates[0][1]
         except Exception as e:
-            print(f"[LeetCodeImporter] Error in resolve_slug: {e}")
+            logger.warning(f"[LeetCodeImporter] [SEARCH_API] Failed to fetch LeetCode algorithms list: {e}")
 
-        return re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
+        if pairs:
+            if is_id:
+                for pair in pairs:
+                    stat = pair.get("stat", {})
+                    if str(stat.get("frontend_question_id")) == query:
+                        resolved = stat.get("question__title_slug")
+                        if resolved:
+                            if session:
+                                await AliasDatabase.set(session, "leetcode", input_str, resolved)
+                            return resolved
+
+            candidates = []
+            for pair in pairs:
+                stat = pair.get("stat", {})
+                slug = stat.get("question__title_slug", "")
+                title = stat.get("question__title", "")
+                
+                score = compute_candidate_score(query, title, slug, 0.95)
+                
+                if score >= 0.80:
+                    candidates.append({
+                        "slug": slug,
+                        "title": title,
+                        "score": score
+                    })
+            
+            if candidates:
+                candidates.sort(key=lambda x: (-x["score"], len(x["slug"])))
+                # Check for ambiguity
+                if len(candidates) > 1 and candidates[0]["score"] < 1.0:
+                    best_c = candidates[0]
+                    sec_c = candidates[1]
+                    if sec_c["score"] >= 0.75 and (best_c["score"] - sec_c["score"]) < 0.03:
+                        logger.warning(f"[LeetCodeImporter] [RANKING] Ambiguity detected between: '{best_c['title']}' and '{sec_c['title']}'")
+                        raise AmbiguousProblemException(
+                            message=f"Multiple potential matches found for '{query}' on LeetCode.",
+                            candidates=[
+                                {"title": c["title"], "slug": c["slug"], "platform": "leetcode", "score": round(c["score"], 2)}
+                                for c in candidates[:5]
+                            ]
+                        )
+                
+                resolved = candidates[0]["slug"]
+                logger.info(f"[LeetCodeImporter] [RANKING] Resolved query '{query}' to slug '{resolved}' (score: {candidates[0]['score']:.2f})")
+                if session:
+                    await AliasDatabase.set(session, "leetcode", input_str, resolved)
+                return resolved
+
+        # Fallback to direct slug guessing if API list is empty or fails
+        fallback_slug = re.sub(r"[^a-z0-9-]", "", re.sub(r"\s+", "-", query.lower())).strip("-")
+        logger.warning(f"[LeetCodeImporter] [SEARCH_API] Failed/no matches. Using fallback slug: '{fallback_slug}'")
+        return fallback_slug
 
     @classmethod
-    async def import_problem(cls, session: AsyncSession, url_or_slug: str) -> Problem:
-        slug = await cls.resolve_slug(url_or_slug)
-
-        # Query database to check if problem already exists
-        exist_stmt = select(Problem).where(Problem.slug == slug)
-        res = await session.execute(exist_stmt)
-        existing = res.scalar_one_or_none()
-        if existing:
-            is_stale = False
-            if existing.description:
-                desc_lower = existing.description.lower()
-                if "google-style problem placeholder" in desc_lower or \
-                   "backup compiler engine" in desc_lower or \
-                   "analyze the inputs to optimize both runtime" in desc_lower:
-                    is_stale = True
-            if is_stale:
-                print(f"[LeetCodeImporter] Purging stale placeholder problem '{slug}' to allow real import...")
-                await session.delete(existing)
-                await session.flush()
-            else:
-                return existing
-
-        # Fetch LeetCode question data via GraphQL
+    async def fetch_question_data(cls, slug: str) -> dict:
+        """
+        Exposes source-specific detail fetch/scrape behavior.
+        Raises ImportNetworkError, ImportProviderUnavailableError, or ImportNotFoundError.
+        """
         gql_url = "https://leetcode.com/graphql"
         query = """
         query questionData($titleSlug: String!) {
@@ -271,97 +266,184 @@ class LeetCodeImporter:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        logger.info(f"Scraping LeetCode problem data for slug: '{slug}'")
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(gql_url, json=payload, headers=headers, timeout=15.0)
-            if resp.status_code != 200:
-                logger.error(f"Failed to contact LeetCode API for '{slug}' (status {resp.status_code})")
-                raise Exception(f"Failed to contact LeetCode API (status {resp.status_code})")
+        logger.info(f"[PARSER] Scraping LeetCode problem data for slug: '{slug}'")
+        raw_data = None
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await fetch_with_retry(client, "POST", gql_url, json=payload, headers=headers, timeout=15.0)
+                if resp.status_code != 200:
+                    logger.error(f"Failed to contact LeetCode API for '{slug}' (status {resp.status_code})")
+                    raise ImportProviderUnavailableError(f"LeetCode is unreachable or returned status code {resp.status_code}")
+                raw_data = resp.json()
+        except (ImportNetworkError, ImportProviderUnavailableError):
+            raise
+        except (httpx.RequestError, asyncio.TimeoutError) as req_err:
+            logger.error(f"Network error requesting LeetCode problem details: {req_err}")
+            raise ImportNetworkError(f"Network error contacting LeetCode: {req_err}")
+        except Exception as api_err:
+            logger.error(f"Failed to fetch LeetCode question data: {api_err}")
+            raise ImportProviderUnavailableError(f"Failed to fetch LeetCode question data: {api_err}")
 
-            raw_data = resp.json()
-            logger.debug(f"Raw scraped content for '{slug}': {json.dumps(raw_data)}")
+        question = raw_data.get("data", {}).get("question")
+        if not question:
+            logger.error(f"Problem not found on LeetCode for slug: '{slug}'")
+            raise ImportNotFoundError(f"Problem '{slug}' truly does not exist on LeetCode.")
+        return question
 
-            question = raw_data.get("data", {}).get("question")
-            if not question:
-                logger.error(f"Problem not found on LeetCode for slug: '{slug}'")
-                raise Exception("Problem not found on LeetCode. Please check the URL or slug.")
+    @classmethod
+    async def import_problem(cls, session: AsyncSession, url_or_slug: str) -> Problem:
+        try:
+            slug = await cls.resolve_slug(url_or_slug, session)
+        except AmbiguousProblemException:
+            raise
+        except Exception as e:
+            logger.error(f"[LeetCodeImporter] Resolve slug failed for '{url_or_slug}': {e}")
+            raise ImportNotFoundError(f"Could not resolve problem slug for '{url_or_slug}': {e}")
+
+        # Check if problem already exists
+        exist_stmt = select(Problem).where(Problem.slug == slug)
+        res = await session.execute(exist_stmt)
+        existing = res.scalar_one_or_none()
+        if existing:
+            is_stale = False
+            if existing.description:
+                desc_lower = existing.description.lower()
+                if "google-style problem placeholder" in desc_lower or \
+                   "backup compiler engine" in desc_lower or \
+                   "analyze the inputs to optimize both runtime" in desc_lower:
+                    is_stale = True
+            if is_stale:
+                print(f"[LeetCodeImporter] Purging stale placeholder problem '{slug}' to allow real import...")
+                await session.delete(existing)
+                await session.flush()
+            else:
+                return existing
+
+        # Fetch
+        question = await cls.fetch_question_data(slug)
 
         # Parsing Phase
-        logger.info(f"Parsing LeetCode content for slug: '{slug}'")
+        logger.info(f"[PARSER] Parsing LeetCode content for slug: '{slug}'")
         try:
             dto = LeetCodeParser.parse_question_data(slug, question)
             logger.debug(f"Parsed DTO for '{slug}': {json.dumps(dto)}")
         except Exception as parse_err:
             logger.error(f"Parser failure for LeetCode slug '{slug}': {parse_err}")
-            raise Exception(f"Failed to parse LeetCode response: {parse_err}")
+            raise ImportParserError(f"Parser failure for LeetCode slug '{slug}': {parse_err}")
 
         # Validation Phase
-        logger.info(f"Validating LeetCode DTO for slug: '{slug}'")
+        logger.info(f"[VALIDATION] Validating LeetCode DTO for slug: '{slug}'")
         try:
             ProblemImportValidationService.validate_dto(dto)
         except ProblemImportValidationError as val_err:
             logger.error(f"Validation failure for LeetCode slug '{slug}': {val_err.message}")
-            raise
+            raise ImportValidationError(val_err.message, errors=val_err.errors)
+        except Exception as val_err:
+            logger.error(f"Validation error for LeetCode slug '{slug}': {val_err}")
+            raise ImportValidationError(str(val_err))
 
-        # Save Phase: construct DB models
-        logger.info(f"Saving LeetCode problem to DB: '{slug}'")
+        # Save Phase
+        logger.info(f"[DB_SAVE] Saving LeetCode problem to DB: '{slug}'")
+        try:
+            # Tags
+            tags_list = []
+            for tg_name in dto["tags"]:
+                tag_stmt = select(Tag).where(Tag.name == tg_name)
+                tag_res = await session.execute(tag_stmt)
+                tag_obj = tag_res.scalar_one_or_none()
+                if not tag_obj:
+                    tag_obj = Tag(name=tg_name)
+                    session.add(tag_obj)
+                    await session.flush()
+                tags_list.append(tag_obj)
 
-        # Tags
-        tags_list = []
-        for tg_name in dto["tags"]:
-            tag_stmt = select(Tag).where(Tag.name == tg_name)
-            tag_res = await session.execute(tag_stmt)
-            tag_obj = tag_res.scalar_one_or_none()
-            if not tag_obj:
-                tag_obj = Tag(name=tg_name)
-                session.add(tag_obj)
-                await session.flush()
-            tags_list.append(tag_obj)
+            # Templates
+            templates_list = []
+            for tpl_data in dto["templates"]:
+                templates_list.append(ProblemTemplate(
+                    language=tpl_data["language"],
+                    template_code=tpl_data["template_code"],
+                    function_name=tpl_data["function_name"],
+                    arg_style=ArgStyleEnum(tpl_data["arg_style"])
+                ))
 
-        # Templates
-        templates_list = []
-        for tpl_data in dto["templates"]:
-            templates_list.append(ProblemTemplate(
-                language=tpl_data["language"],
-                template_code=tpl_data["template_code"],
-                function_name=tpl_data["function_name"],
-                arg_style=ArgStyleEnum(tpl_data["arg_style"])
-            ))
+            # Test Cases
+            test_cases_objs = []
+            for tc_data in dto["test_cases"]:
+                test_cases_objs.append(TestCase(
+                    input=tc_data["input"],
+                    expected_output=tc_data["expected_output"],
+                    is_sample=tc_data["is_sample"],
+                    order_index=tc_data["order_index"],
+                    weight=tc_data["weight"]
+                ))
 
-        # Test Cases
-        test_cases_objs = []
-        for tc_data in dto["test_cases"]:
-            test_cases_objs.append(TestCase(
-                input=tc_data["input"],
-                expected_output=tc_data["expected_output"],
-                is_sample=tc_data["is_sample"],
-                order_index=tc_data["order_index"],
-                weight=tc_data["weight"]
-            ))
+            score_base = 100
+            if dto["difficulty"] == DifficultyEnum.MEDIUM:
+                score_base = 200
+            elif dto["difficulty"] == DifficultyEnum.HARD:
+                score_base = 400
 
-        score_base = 100
-        if dto["difficulty"] == DifficultyEnum.MEDIUM:
-            score_base = 200
-        elif dto["difficulty"] == DifficultyEnum.HARD:
-            score_base = 400
+            comp_mode = "order_agnostic" if any(kw in slug.lower() for kw in ["three-sum", "3sum", "3-sum", "two-sum", "group-anagrams"]) else "strict"
 
-        problem = Problem(
-            slug=dto["slug"],
-            title=dto["title"],
-            description=dto["description"],
-            difficulty=dto["difficulty"],
-            time_limit_ms=2000,
-            memory_limit_kb=262144,
-            score_base=score_base,
-            runtime_bonus_max=20,
-            hints=json.dumps(dto["hints"]),
-            is_published=True,
-            tags=tags_list,
-            templates=templates_list,
-            test_cases=test_cases_objs
-        )
+            problem = Problem(
+                slug=dto["slug"],
+                title=dto["title"],
+                description=dto["description"],
+                difficulty=dto["difficulty"],
+                time_limit_ms=2000,
+                memory_limit_kb=262144,
+                score_base=score_base,
+                runtime_bonus_max=20,
+                hints=json.dumps(dto["hints"]),
+                is_published=True,
+                tags=tags_list,
+                templates=templates_list,
+                test_cases=test_cases_objs,
+                comparison_mode=comp_mode,
+                source="leetcode"
+            )
 
-        session.add(problem)
-        await session.flush()
-        logger.info(f"Successfully imported and saved LeetCode problem: '{slug}'")
-        return problem
+            # Link companies and topics
+            from app.services.company_service import CompanyService
+            from app.services.topic_service import TopicService
+            
+            # Link topic categories
+            topics_objs = []
+            for t_obj in tags_list:
+                topic = await TopicService.find_or_create_topic(session, t_obj.name)
+                topics_objs.append(topic)
+            problem.topics = topics_objs
+
+            # Look for company tags or match implicit keyword tags
+            companies_objs = []
+            title_lower = problem.title.lower()
+            slug_lower = problem.slug.lower()
+            company_keywords = {
+                "google": "Google",
+                "amazon": "Amazon",
+                "meta": "Meta",
+                "facebook": "Meta",
+                "microsoft": "Microsoft",
+                "apple": "Apple",
+                "uber": "Uber"
+            }
+            for kw, co_name in company_keywords.items():
+                if kw in title_lower or kw in slug_lower:
+                    company = await CompanyService.find_or_create_company(session, co_name)
+                    companies_objs.append(company)
+            problem.companies = companies_objs
+
+            session.add(problem)
+            await session.flush()
+
+            # Invalidate stats cache on new problem import
+            from app.services.statistics_service import StatisticsService
+            await StatisticsService.invalidate_overview_cache()
+
+            logger.info(f"[DB_SAVE] Successfully imported and saved LeetCode problem: '{slug}'")
+            return problem
+        except Exception as db_err:
+            logger.error(f"Database save failure for LeetCode slug '{slug}': {db_err}")
+            raise ImportDatabaseError(f"Database save failure for LeetCode slug '{slug}': {db_err}")
+

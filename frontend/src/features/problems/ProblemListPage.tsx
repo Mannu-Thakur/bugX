@@ -222,6 +222,8 @@ export const ProblemListPage: React.FC = () => {
   const limit = parseInt(searchParams.get('limit') || '20', 10);
   const difficulty = searchParams.get('difficulty') || 'ALL';
   const tag = searchParams.get('tag') || 'ALL';
+  const company = searchParams.get('company') || 'ALL';
+  const topic = searchParams.get('topic') || 'ALL';
   const searchParam = searchParams.get('search') || '';
   const sort = searchParams.get('sort') || 'newest';
 
@@ -276,9 +278,11 @@ export const ProblemListPage: React.FC = () => {
   const handleRandomProblem = async () => {
     setShuffling(true);
     try {
-      const filters: { difficulty?: string; tag?: string } = {};
+      const filters: { difficulty?: string; tag?: string; company?: string; topic?: string } = {};
       if (difficulty !== 'ALL') filters.difficulty = difficulty;
       if (tag !== 'ALL') filters.tag = tag;
+      if (company !== 'ALL') filters.company = company;
+      if (topic !== 'ALL') filters.topic = topic;
 
       const problem = await api.problems.random(filters);
       toast.success(`Fetched random problem: ${problem.title}`);
@@ -303,18 +307,35 @@ export const ProblemListPage: React.FC = () => {
   };
 
   // Queries
+  // Helper: deduplicate problems by normalised title.
+  // Problems imported from multiple sources (LeetCode + GFG) share the same
+  // title but have different ids/slugs — so we key on title, not id.
+  const deduplicateByTitle = <T extends { title: string }>(arr: T[]): T[] => {
+    const seen = new Set<string>();
+    return arr.filter(item => {
+      const key = item.title.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['problems', 'list', { page, limit, difficulty, tag, search: searchParam, sort }],
+    queryKey: ['problems', 'list', { page, limit, difficulty, tag, company, topic, search: searchParam, sort }],
     queryFn: async () => {
       try {
-        return await api.problems.list({
+        const result = await api.problems.list({
           page,
           limit,
           difficulty: difficulty === 'ALL' ? undefined : difficulty,
           tag: tag === 'ALL' ? undefined : tag,
+          company: company === 'ALL' ? undefined : company,
+          topic: topic === 'ALL' ? undefined : topic,
           search: searchParam || undefined,
           sort: sort || undefined,
         });
+        // Deduplicate in case the API returns the same problem more than once
+        return { ...result, items: deduplicateByTitle(result.items) };
       } catch {
         let filtered = [...MOCK_PROBLEMS];
         if (difficulty !== 'ALL') filtered = filtered.filter(p => p.difficulty === difficulty);
@@ -323,15 +344,60 @@ export const ProblemListPage: React.FC = () => {
           const q = searchParam.toLowerCase();
           filtered = filtered.filter(p => p.title.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q));
         }
+        const unique = deduplicateByTitle(filtered);
         return {
-          items: filtered,
-          total: filtered.length,
+          items: unique,
+          total: unique.length,
           page: 1,
           limit: 20,
-          pages: Math.max(1, Math.ceil(filtered.length / 20))
+          pages: Math.max(1, Math.ceil(unique.length / 20))
         };
       }
     },
+    retry: 0,
+  });
+
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies', 'list'],
+    queryFn: async () => {
+      try {
+        return await api.companies.list();
+      } catch {
+        return [];
+      }
+    },
+    retry: 0,
+  });
+
+  const { data: topicsData } = useQuery({
+    queryKey: ['topics', 'list'],
+    queryFn: async () => {
+      try {
+        return await api.topics.list();
+      } catch {
+        return [];
+      }
+    },
+    retry: 0,
+  });
+
+  const { data: activeCompanyData } = useQuery({
+    queryKey: ['company', 'detail', company],
+    queryFn: async () => {
+      if (company === 'ALL') return null;
+      return await api.companies.get(company);
+    },
+    enabled: company !== 'ALL',
+    retry: 0,
+  });
+
+  const { data: activeTopicData } = useQuery({
+    queryKey: ['topic', 'detail', topic],
+    queryFn: async () => {
+      if (topic === 'ALL') return null;
+      return await api.topics.get(topic);
+    },
+    enabled: topic !== 'ALL',
     retry: 0,
   });
 
@@ -367,6 +433,16 @@ export const ProblemListPage: React.FC = () => {
   const tagOptions = [
     { value: 'ALL', label: 'All Tags' },
     ...(tagsData || []).map((t) => ({ value: t.name, label: t.name }))
+  ];
+
+  const companyOptions = [
+    { value: 'ALL', label: 'All Companies' },
+    ...(companiesData || []).map((c) => ({ value: c.slug, label: c.name }))
+  ];
+
+  const topicOptions = [
+    { value: 'ALL', label: 'All Topics' },
+    ...(topicsData || []).map((t) => ({ value: t.slug, label: t.name }))
   ];
 
   // Dynamic statistics
@@ -524,6 +600,124 @@ export const ProblemListPage: React.FC = () => {
         </section>
       )}
 
+      {/* ════════════════════════ CATEGORY STATS BANNER ════════════════════════ */}
+      {(company !== 'ALL' || topic !== 'ALL') && (
+        <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#090d14]/40 backdrop-blur-md p-6 select-none animate-in fade-in slide-in-from-top-3 duration-300">
+          {/* Subtle brand color glow if company is selected */}
+          {company !== 'ALL' && activeCompanyData?.company?.brand_color && (
+            <div
+              className="absolute -right-24 -top-24 w-48 h-48 rounded-full blur-[80px] pointer-events-none opacity-20 transition-all duration-500"
+              style={{ backgroundColor: activeCompanyData.company.brand_color }}
+            />
+          )}
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                {company !== 'ALL' && activeCompanyData?.company && (
+                  <div className="flex items-center gap-2">
+                    {activeCompanyData.company.logo_dark ? (
+                      <img
+                        src={activeCompanyData.company.logo_dark}
+                        alt={activeCompanyData.company.name}
+                        className="h-6 object-contain"
+                      />
+                    ) : (
+                      <h2 className="text-lg font-bold text-white">{activeCompanyData.company.name}</h2>
+                    )}
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/[0.04] text-gray-400 border border-white/[0.06]">
+                      Company Focus
+                    </span>
+                    <button
+                      onClick={() => updateFilter('company', 'ALL')}
+                      className="p-1 hover:bg-white/5 rounded-lg text-gray-500 hover:text-gray-300 transition-all cursor-pointer"
+                      title="Clear Company Filter"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {company !== 'ALL' && topic !== 'ALL' && <span className="text-gray-600 font-mono text-sm">+</span>}
+                {topic !== 'ALL' && activeTopicData?.topic && (
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-white">{activeTopicData.topic.name}</h2>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#4F7DFF]/10 text-[#4F7DFF] border border-[#4F7DFF]/20">
+                      Topic Focus
+                    </span>
+                    <button
+                      onClick={() => updateFilter('topic', 'ALL')}
+                      className="p-1 hover:bg-white/5 rounded-lg text-gray-500 hover:text-gray-300 transition-all cursor-pointer"
+                      title="Clear Topic Filter"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                {company !== 'ALL' && topic !== 'ALL'
+                  ? `Showing ${activeTopicData?.topic?.name} problems frequently asked in ${activeCompanyData?.company?.name} interviews.`
+                  : company !== 'ALL'
+                  ? `Showing problems frequently asked in ${activeCompanyData?.company?.name} interviews.`
+                  : `Showing problems categorized under the ${activeTopicData?.topic?.name} algorithmic tag.`}
+              </p>
+            </div>
+
+            {/* Stats Breakdown Card */}
+            {(company !== 'ALL' ? activeCompanyData?.stats : activeTopicData?.stats) && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6 bg-white/[0.01] border border-white/[0.03] rounded-xl p-4 min-w-[280px]">
+                <div className="text-center sm:text-left shrink-0">
+                  <p className="text-[10px] text-gray-500 font-mono font-bold uppercase">Total Category Problems</p>
+                  <p className="text-2xl font-bold text-white font-mono mt-1">
+                    {company !== 'ALL' ? activeCompanyData?.stats?.totalProblems : activeTopicData?.stats?.totalProblems}
+                  </p>
+                </div>
+                
+                <div className="h-px sm:h-8 w-full sm:w-px bg-white/[0.04]" />
+
+                <div className="flex-1 space-y-2">
+                  {[
+                    { label: 'Easy', count: company !== 'ALL' ? activeCompanyData?.stats?.easyCount : activeTopicData?.stats?.easyCount, color: 'bg-emerald-400' },
+                    { label: 'Medium', count: company !== 'ALL' ? activeCompanyData?.stats?.mediumCount : activeTopicData?.stats?.mediumCount, color: 'bg-amber-400' },
+                    { label: 'Hard', count: company !== 'ALL' ? activeCompanyData?.stats?.hardCount : activeTopicData?.stats?.hardCount, color: 'bg-rose-400' },
+                  ].map((d) => {
+                    const total = (company !== 'ALL' ? activeCompanyData?.stats?.totalProblems : activeTopicData?.stats?.totalProblems) || 1;
+                    const pct = Math.round(((d.count || 0) / total) * 100);
+                    return (
+                      <div key={d.label} className="flex items-center gap-3 text-[10px] font-semibold text-gray-400">
+                        <span className="w-12">{d.label}</span>
+                        <div className="h-1.5 w-24 bg-white/[0.04] rounded-full overflow-hidden shrink-0">
+                          <div className={cn("h-full rounded-full", d.color)} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="w-8 text-right font-mono">{d.count || 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Top Topics List (for Company Focus) */}
+          {company !== 'ALL' && activeCompanyData?.stats?.topics && activeCompanyData.stats.topics.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-white/[0.03] flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">Frequent Topics:</span>
+              {activeCompanyData.stats.topics.slice(0, 5).map((t) => (
+                <button
+                  key={t.slug}
+                  onClick={() => {
+                    updateFilter('topic', t.slug);
+                  }}
+                  className="px-2.5 py-0.5 rounded bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] text-[10px] text-gray-400 hover:text-[#4F7DFF] transition-all font-medium cursor-pointer"
+                >
+                  {t.name} ({t.count})
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ════════════════════════ DISCOVERY TOOLBAR ════════════════════════ */}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2 bg-[#0A0D14] p-2 rounded-2xl border border-white/[0.04] select-none">
         
@@ -563,8 +757,28 @@ export const ProblemListPage: React.FC = () => {
           />
         </div>
 
-        {/* Sort */}
+        {/* Company */}
         <div className="md:col-span-2">
+          <Select
+            options={companyOptions}
+            value={company}
+            onChange={(e) => updateFilter('company', e.target.value)}
+            className="!h-8 !py-1 text-xs border-white/[0.04] bg-[#05070A]"
+          />
+        </div>
+
+        {/* Topic */}
+        <div className="md:col-span-2">
+          <Select
+            options={topicOptions}
+            value={topic}
+            onChange={(e) => updateFilter('topic', e.target.value)}
+            className="!h-8 !py-1 text-xs border-white/[0.04] bg-[#05070A]"
+          />
+        </div>
+
+        {/* Sort */}
+        <div className="md:col-span-4">
           <Select
             options={[
               { value: 'newest', label: 'Newest First' },
@@ -581,6 +795,8 @@ export const ProblemListPage: React.FC = () => {
             className="!h-8 !py-1 text-xs border-white/[0.04] bg-[#05070A]"
           />
         </div>
+
+        <div className="md:col-span-6"></div>
 
         {/* Shuffle */}
         <div className="md:col-span-1 flex items-end">
@@ -650,23 +866,29 @@ export const ProblemListPage: React.FC = () => {
         ) : (
           // Problem Rows Feed
           <div className="space-y-3 select-none">
-            {(data?.items || []).map((p) => {
+            {deduplicateByTitle(data?.items || []).map((p) => {
               const isSolved = p.user_status?.solved;
               const diffText = p.difficulty === 'MEDIUM' ? 'Medium' : p.difficulty === 'EASY' ? 'Easy' : 'Hard';
               
-              const diffBadgeClass =
+              const diffClass =
                 p.difficulty === 'HARD'
-                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  ? 'difficulty-badge-hard'
                   : p.difficulty === 'MEDIUM'
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                  ? 'difficulty-badge-medium'
+                  : 'difficulty-badge-easy';
 
               return (
                 <div
                   key={p.id}
+                  style={{
+                    background: 'rgba(255,255,255,0.025)',
+                    border: 'none',
+                    borderRadius: '18px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,.2), 0 12px 40px rgba(0,0,0,.25)'
+                  }}
                   className={cn(
-                    "relative bg-[#0A0D14] border border-white/[0.04] hover:border-white/[0.08] hover:bg-white/[0.015] rounded-2xl p-5 flex items-start justify-between gap-4 transition-all duration-200 hover:-translate-y-[1px] group",
-                    isSolved && "border-emerald-500/10"
+                    "relative hover:bg-white/[0.04] p-5 flex items-start justify-between gap-4 transition-all duration-200 hover:-translate-y-[1px] group",
+                    isSolved && "bg-emerald-950/5"
                   )}
                 >
                   <div className="flex-1 min-w-0 space-y-2.5">
@@ -682,12 +904,15 @@ export const ProblemListPage: React.FC = () => {
 
                     {/* Level 2: Secondary - Difficulty, Points, Tags (horizontally scrollable if necessary) */}
                     <div className="flex items-center flex-wrap gap-2.5 max-w-full">
-                      <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border shrink-0", diffBadgeClass)}>
+                      <span className={cn("difficulty-badge", diffClass)}>
                         {diffText}
                       </span>
 
-                      <span className="text-[11px] font-mono font-bold text-amber-400/80 shrink-0">
-                        {p.score_base} pts
+                      <span
+                        style={{ background: 'rgba(79,70,229,.18)', color: '#a5b4fc' }}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider scale-90 select-none shrink-0 border-none"
+                      >
+                        {p.score_base} {p.score_base === 1 ? 'PT' : 'PTS'}
                       </span>
 
                       {p.tags && p.tags.length > 0 && (

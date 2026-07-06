@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,13 +7,16 @@ import {
   MapPin,
   Pencil,
   ExternalLink,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
+import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { useUserStats, useUserSubmissions } from '../profile/hooks';
 import { SubmissionHistoryTable } from './ui/SubmissionHistoryTable';
 import { cn } from '../../shared/lib/cn';
 import { EditProfileModal } from '../auth/ui/EditProfileModal';
 import { safeParseDate } from '../../shared/lib/date';
+import { FEATURES } from '../../shared/config/features';
 
 const LIMIT = 10;
 
@@ -36,11 +39,24 @@ const LinkedInIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
+  const toast = useToast();
+
+  const handleShareProfile = () => {
+    const shareUrl = `${window.location.origin}/u/${user?.username || ''}`;
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        toast.success('Public profile link copied to clipboard!');
+      })
+      .catch(() => {
+        toast.error('Failed to copy link. Please manually copy: ' + shareUrl);
+      });
+  };
 
   const { data: stats } = useUserStats();
   const { data: submissionsPage, isLoading: subsLoading, error: subsError } = useUserSubmissions(page, LIMIT);
 
   const [editOpen, setEditOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -175,14 +191,27 @@ export const ProfilePage: React.FC = () => {
                 <p className="text-sm text-gray-500 font-mono mt-0.5">@{user.username}</p>
               </div>
 
-              {/* Edit Profile — secondary button */}
-              <button
-                onClick={() => setEditOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-200 border border-white/[0.06] hover:border-white/[0.12] rounded-lg transition-all duration-200 bg-white/[0.02] hover:bg-white/[0.04] sm:ml-auto self-start cursor-pointer"
-              >
-                <Pencil className="w-3 h-3" />
-                Edit Profile
-              </button>
+              <div className="flex flex-wrap items-center gap-2 sm:ml-auto self-start">
+                {/* Share Profile button */}
+                {FEATURES.PUBLIC_PROFILES && (
+                  <button
+                    onClick={handleShareProfile}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-200 border border-white/[0.06] hover:border-white/[0.12] rounded-lg transition-all duration-200 bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    Share Profile
+                  </button>
+                )}
+
+                {/* Edit Profile — secondary button */}
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-200 border border-white/[0.06] hover:border-white/[0.12] rounded-lg transition-all duration-200 bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit Profile
+                </button>
+              </div>
             </div>
 
             {/* Bio */}
@@ -223,6 +252,84 @@ export const ProfilePage: React.FC = () => {
         </div>
       </section>
 
+      {/* ════════════════════════ QUICK ACTIONS ════════════════════════ */}
+      {(FEATURES.ANALYTICS || FEATURES.RESUME_EXPORT) && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {FEATURES.ANALYTICS && (
+            <Link
+              to="/analytics"
+              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 overflow-hidden hover:border-[#4F7DFF]/30 transition-all duration-300"
+            >
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#4F7DFF]/[0.04] rounded-full blur-[40px] pointer-events-none group-hover:bg-[#4F7DFF]/[0.08] transition-all duration-300" />
+              <div className="relative flex items-center gap-4">
+                <div className="p-2.5 rounded-xl bg-[#4F7DFF]/10 text-[#4F7DFF] group-hover:bg-[#4F7DFF]/20 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m6 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m4 0v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4m0 0h6" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Analytics Dashboard</h3>
+                    <svg className="w-3.5 h-3.5 text-gray-600 group-hover:text-[#4F7DFF] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-emerald-400 font-mono">{totalSolved}</span> solved
+                    </span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-amber-400 font-mono">{currentStreak}</span> day streak
+                    </span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-[#4F7DFF] font-mono">{accumulatedScore}</span> score
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
+          {FEATURES.RESUME_EXPORT && (
+            <Link
+              to="/resume"
+              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 overflow-hidden hover:border-[#7A5FFF]/30 transition-all duration-300"
+            >
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#7A5FFF]/[0.04] rounded-full blur-[40px] pointer-events-none group-hover:bg-[#7A5FFF]/[0.08] transition-all duration-300" />
+              <div className="relative flex items-center gap-4">
+                <div className="p-2.5 rounded-xl bg-[#7A5FFF]/10 text-[#7A5FFF] group-hover:bg-[#7A5FFF]/20 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">Export Resume</h3>
+                    <svg className="w-3.5 h-3.5 text-gray-600 group-hover:text-[#7A5FFF] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-emerald-400 font-mono">{totalEasy}</span>E
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-amber-400 font-mono">{totalMed}</span>M
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <span className="text-rose-400 font-mono">{totalHard}</span>H
+                    </span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Print-ready PDF</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
+        </section>
+      )}
+
       {/* ════════════════════════ ACCOMPLISHMENTS ════════════════════════ */}
       <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5 flex items-center gap-2">
@@ -243,43 +350,97 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Problems Solved — spans 2 cols */}
-          <div className="sm:col-span-2 rounded-xl border border-white/[0.04] bg-white/[0.015] p-4 flex flex-col gap-2">
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Problems Solved
-              </span>
-              {/* Difficulty chips inline on right */}
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="relative group flex items-center gap-1 text-[10px] font-semibold cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span className="text-emerald-400 font-mono">{totalEasy}</span>
-                  <span className="text-gray-500">Easy</span>
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-[#1c1d27] border border-white/[0.08] text-[10px] font-semibold text-emerald-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none shadow-lg z-10">{totalEasy} Easy solved</span>
+          <div 
+            className="sm:col-span-2 rounded-xl border border-white/[0.04] bg-white/[0.015] p-4 flex flex-row items-center gap-6 relative overflow-hidden transition-all duration-300 hover:bg-white/[0.03] hover:border-white/[0.08] min-h-[92px]"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            {/* Left: Circular Chart */}
+            <div className="relative w-16 h-16 shrink-0">
+              <svg className="w-full h-full transform -rotate-90">
+                {/* Track */}
+                <circle cx="32" cy="32" r="26" className="stroke-white/[0.03] fill-none" strokeWidth="5" />
+                {totalSolved > 0 ? (
+                  <>
+                    {/* Easy */}
+                    <circle 
+                      cx="32" 
+                      cy="32" 
+                      r="26" 
+                      className="stroke-emerald-400 fill-none transition-all duration-500" 
+                      strokeWidth="5" 
+                      strokeDasharray={`${(totalEasy / totalSolved) * 2 * Math.PI * 26} ${2 * Math.PI * 26}`} 
+                      strokeDashoffset={0} 
+                    />
+                    {/* Medium */}
+                    <circle 
+                      cx="32" 
+                      cy="32" 
+                      r="26" 
+                      className="stroke-amber-400 fill-none transition-all duration-500" 
+                      strokeWidth="5" 
+                      strokeDasharray={`${(totalMed / totalSolved) * 2 * Math.PI * 26} ${2 * Math.PI * 26}`} 
+                      strokeDashoffset={-((totalEasy / totalSolved) * 2 * Math.PI * 26)} 
+                    />
+                    {/* Hard */}
+                    <circle 
+                      cx="32" 
+                      cy="32" 
+                      r="26" 
+                      className="stroke-rose-400 fill-none transition-all duration-500" 
+                      strokeWidth="5" 
+                      strokeDasharray={`${(totalHard / totalSolved) * 2 * Math.PI * 26} ${2 * Math.PI * 26}`} 
+                      strokeDashoffset={-(((totalEasy + totalMed) / totalSolved) * 2 * Math.PI * 26)} 
+                    />
+                  </>
+                ) : null}
+              </svg>
+              {/* Center count */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center select-none pointer-events-none">
+                <span className="text-lg font-bold tracking-tight text-gray-100 font-mono leading-none">
+                  {totalSolved}
                 </span>
-                <span className="relative group flex items-center gap-1 text-[10px] font-semibold cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span className="text-amber-400 font-mono">{totalMed}</span>
-                  <span className="text-gray-500">Med</span>
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-[#1c1d27] border border-white/[0.08] text-[10px] font-semibold text-amber-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none shadow-lg z-10">{totalMed} Medium solved</span>
-                </span>
-                <span className="relative group flex items-center gap-1 text-[10px] font-semibold cursor-default">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                  <span className="text-rose-400 font-mono">{totalHard}</span>
-                  <span className="text-gray-500">Hard</span>
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-[#1c1d27] border border-white/[0.08] text-[10px] font-semibold text-rose-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none shadow-lg z-10">{totalHard} Hard solved</span>
+                <span className="text-[6px] text-gray-500 uppercase tracking-widest font-black mt-0.5">
+                  Solved
                 </span>
               </div>
             </div>
-            <span className="text-2xl sm:text-3xl font-semibold text-gray-100 tracking-tight font-mono">{totalSolved}</span>
-            {/* Visual bar */}
-            {totalSolved > 0 && (
-              <div className="flex h-1.5 w-full rounded-full overflow-hidden bg-white/[0.04] mt-0.5">
-                <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${(totalEasy / totalSolved) * 100}%` }} />
-                <div className="bg-amber-400 transition-all duration-500" style={{ width: `${(totalMed / totalSolved) * 100}%` }} />
-                <div className="bg-rose-400 transition-all duration-500" style={{ width: `${(totalHard / totalSolved) * 100}%` }} />
+
+            {/* Right: Dynamic Info Panel */}
+            <div className="flex-1 min-w-0 h-10 relative">
+              <div className={cn(
+                "absolute inset-0 flex flex-col justify-center transition-all duration-300 transform",
+                isHovered ? "opacity-0 -translate-y-2 pointer-events-none" : "opacity-100 translate-y-0"
+              )}>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Problems Solved
+                </span>
+                <span className="text-2xl font-semibold text-gray-100 tracking-tight font-mono mt-0.5">
+                  {totalSolved}
+                </span>
               </div>
-            )}
+
+              <div className={cn(
+                "absolute inset-0 flex items-center transition-all duration-300 transform",
+                isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"
+              )}>
+                <div className="grid grid-cols-3 gap-3 w-full">
+                  <div className="flex flex-col">
+                    <span className="text-[8px] text-gray-500 uppercase font-black tracking-wider">Easy</span>
+                    <span className="text-xs font-black text-emerald-400 font-mono mt-0.5">{totalEasy}</span>
+                  </div>
+                  <div className="flex flex-col border-x border-white/[0.04] px-3">
+                    <span className="text-[8px] text-gray-500 uppercase font-black tracking-wider">Medium</span>
+                    <span className="text-xs font-black text-amber-400 font-mono mt-0.5">{totalMed}</span>
+                  </div>
+                  <div className="flex flex-col pl-1">
+                    <span className="text-[8px] text-gray-500 uppercase font-black tracking-wider">Hard</span>
+                    <span className="text-xs font-black text-rose-400 font-mono mt-0.5">{totalHard}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

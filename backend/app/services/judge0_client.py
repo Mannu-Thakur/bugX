@@ -52,7 +52,7 @@ class Judge0Client:
         url = f"{self.base_url}/submissions?base64_encoded=false&wait=true"
 
         # timeout = time limit + buffer
-        timeout = (time_limit_ms / 1000.0) + 10.0
+        timeout = (time_limit_ms / 1000.0) + 45.0
 
         async def _try_api(client_to_use):
             response = await client_to_use.post(url, json=payload, timeout=timeout)

@@ -6,9 +6,11 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+env/
 .pytest_cache/
 .mypy_cache/
 htmlcov/
+.coverage
 
 # Environment files
 .env
@@ -21,23 +23,27 @@ backend/judge0.conf
 node_modules/
 dist/
 frontend/dist/
+frontend/.vite/
 
 # Browser profiles
 .debug-profile/
 .headless-profile*/
 
-# Screenshots
+# Screenshots (temporary)
 frontend/problem-*.png
 
 # ==========================
 # Logs
 # ==========================
 *.log
+uvicorn*.log
+vite*.log
 
 # ==========================
 # Databases
 # ==========================
 *.db
+backend/sqlite_fallback.db
 
 # ==========================
 # Storage / Temp
@@ -45,6 +51,7 @@ frontend/problem-*.png
 backend/storage/
 backend/tmp/
 backend/tmp_pytest/
+backend/scratch/
 tmp/
 tmp_pytest/
 .sandbox/
@@ -59,27 +66,32 @@ tmp_pytest/
 Thumbs.db
 
 # ==========================
-# Scripts
+# Generated API reports & JSON dumps
+# ==========================
+backend/api_round_*_raw_results.json
+backend/gfg_*.json
+api_round_*.md
+api_test_rounds.md
+
+# ==========================
+# Generated test artifacts
+# ==========================
+backend/test_out.txt
+backend/evidence_*/
+
+# ==========================
+# Temporary local scripts (not for deployment)
 # ==========================
 auto_push.ps1
+e2e_test.ps1
+backend/collect_evidence_*.py
+backend/run_r*.py
+backend/fix_node_templates.py
+backend/verify_node_fix.py
+backend/inspect_templates.py
+backend/test_regex.py
 
-# Build artifacts
-frontend/dist/
-
-# SQLite database
-backend/sqlite_fallback.db
-
-# Python virtual env (alternative names)
-env/
-
-# Coverage files
-.coverage
-
-# Local secrets
-backend/.env
-
-# Uvicorn logs
-uvicorn*.log
-vite*.log
-
-backend/scratch/
+# ==========================
+# Generated cache
+# ==========================
+backend/app/services/alias_cache.json

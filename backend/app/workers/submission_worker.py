@@ -19,7 +19,7 @@ logger = logging.getLogger("submission_worker")
 class SubmissionWorker:
     def __init__(self):
         self.settings = get_settings()
-        self.redis = aioredis.from_url(self.settings.REDIS_URL, decode_responses=True)
+        self.redis = aioredis.from_url(self.settings.REDIS_URL, decode_responses=True, socket_timeout=15.0)
         self.judge0_client = Judge0Client(self.settings.JUDGE0_URL)
         self.judge_service = JudgeService(self.judge0_client)
         self.running = True

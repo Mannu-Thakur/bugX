@@ -1,6 +1,6 @@
 // Phase 5 — TanStack Query hooks for profile data
 import { useQuery } from '@tanstack/react-query';
-import { fetchUserStats, fetchUserSubmissions } from './api';
+import { fetchUserStats, fetchUserSubmissions, fetchPublicProfile } from './api';
 
 /** Fetch the authenticated user's stats. Stale for 60 s. */
 export function useUserStats() {
@@ -22,3 +22,15 @@ export function useUserSubmissions(page: number, limit = 20) {
     retry: 1,
   });
 }
+
+/** Fetch public profile details by username. */
+export function usePublicProfile(username: string) {
+  return useQuery({
+    queryKey: ['public-profile', username],
+    queryFn: () => fetchPublicProfile(username),
+    staleTime: 10_000,
+    retry: 1,
+    enabled: !!username,
+  });
+}
+

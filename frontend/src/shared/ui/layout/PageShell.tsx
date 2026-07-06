@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -8,17 +8,58 @@ import { useToast } from '../toast/ToastProvider';
 import { UserMenu } from '../../../features/auth/ui/UserMenu';
 import { EditProfileModal } from '../../../features/auth/ui/EditProfileModal';
 import { BugXLogo } from '../logo/BugXLogo';
+import { MyAiLogo } from '../logo/MyAiLogo';
+import { Modal } from '../modal/Modal';
 import { api } from '../../lib/api';
 import { SettingsModal } from './SettingsModal';
+import { useDailyChallengeStatus } from '../../../features/daily/useDailyChallenge';
+import { useQuery } from '@tanstack/react-query';
 
 export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolean; hideFooter?: boolean }> = ({ children, fullWidth = false }) => {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [currentStreak, setCurrentStreak] = useState(0);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'timer' | 'editor' | 'shortcuts' | 'x'>('timer');
+  const { data: statsData } = useQuery({
+    queryKey: ['users', 'stats'],
+    queryFn: () => api.users.getStats(),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+
+  const currentStreak = React.useMemo(() => {
+    if (!statsData) return 0;
+    let streak = statsData.current_streak ?? 0;
+    if (statsData.last_active_date) {
+      const parts = statsData.last_active_date.split('-');
+      if (parts.length === 3) {
+        const lastActive = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        const today = new Date();
+        lastActive.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - lastActive.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 1) {
+          streak = 0;
+        }
+      }
+    }
+    return streak;
+  }, [statsData]);
+
   const [popoverOpen, setPopoverOpen] = useState(false);
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: dailyStatus } = useDailyChallengeStatus();
+  const dailyProblemSlug = dailyStatus?.problem?.slug;
+  const isDailySolved = dailyStatus?.solved_today ?? false;
+
+  // X states
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [isWaitlisted, setIsWaitlisted] = useState(() => localStorage.getItem('bugx_x_waitlisted') === 'true' || localStorage.getItem('bugx_ai_waitlisted') === 'true');
 
   // Sync Focus Mode setting
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('bugx_focusMode') === 'true');
@@ -29,6 +70,30 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
     };
     window.addEventListener('bugx-settings-changed', handleSync);
     return () => window.removeEventListener('bugx-settings-changed', handleSync);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSettings = (e: Event) => {
+      const ce = e as CustomEvent<{ tab?: 'timer' | 'editor' | 'shortcuts' | 'x' }>;
+      if (ce.detail?.tab) {
+        setSettingsInitialTab(ce.detail.tab);
+      }
+      setSettingsOpen(true);
+    };
+    window.addEventListener('bugx-open-settings', handleOpenSettings);
+
+    // Also register as a direct window function for absolute robustness
+    (window as any).bugxOpenSettings = (tab?: 'timer' | 'editor' | 'shortcuts' | 'x') => {
+      if (tab) {
+        setSettingsInitialTab(tab);
+      }
+      setSettingsOpen(true);
+    };
+
+    return () => {
+      window.removeEventListener('bugx-open-settings', handleOpenSettings);
+      delete (window as any).bugxOpenSettings;
+    };
   }, []);
 
   const segments = location.pathname.split('/').filter(Boolean);
@@ -47,6 +112,20 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
   const popoverRef = React.useRef<HTMLDivElement>(null);
   const { success: showToastSuccess } = useToast();
+
+  useEffect(() => {
+    if (user?.email) {
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  const handleJoinWaitlist = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    localStorage.setItem('bugx_x_waitlisted', 'true');
+    setIsWaitlisted(true);
+    showToastSuccess("You have successfully joined the bugX X waitlist!");
+  };
 
   useEffect(() => {
     const handleProblemLoaded = (e: Event) => {
@@ -128,16 +207,16 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
     setTimerPopoverOpen(false);
   }, [location.pathname]);
 
-  const formatTime = (totalSecs: number) => {
-    const hrs = Math.floor(totalSecs / 3600);
-    const mins = Math.floor((totalSecs % 3600) / 60);
-    const secs = totalSecs % 60;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    if (hrs > 0) {
-      return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
-    }
-    return `${pad(mins)}:${pad(secs)}`;
-  };
+  // const formatTime = (totalSecs: number) => {
+  //   const hrs = Math.floor(totalSecs / 3600);
+  //   const mins = Math.floor((totalSecs % 3600) / 60);
+  //   const secs = totalSecs % 60;
+  //   const pad = (n: number) => String(n).padStart(2, '0');
+  //   if (hrs > 0) {
+  //     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+  //   }
+  //   return `${pad(mins)}:${pad(secs)}`;
+  // };
 
   const renderTimerWidget = () => {
     if (!activeProblem) return null;
@@ -380,60 +459,28 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
   const day = today.getDate();
   const month = today.toLocaleString('default', { month: 'short' }).toUpperCase();
 
-  const getStreakMessage = (streak: number) => {
-    if (streak === 0) return "Start your streak!";
-    if (streak === 1) return "Now or Never!";
-    if (streak < 4) return "Keep the fire burning!";
-    if (streak < 7) return "You are on a roll!";
-    return "Unstoppable coder!";
-  };
+  // const getStreakMessage = (streak: number) => {
+  //   if (streak === 0) return "Start your streak!";
+  //   if (streak === 1) return "Now or Never!";
+  //   if (streak < 4) return "Keep the fire burning!";
+  //   if (streak < 7) return "You are on a roll!";
+  //   return "Unstoppable coder!";
+  // };
 
-  const { user, logout } = useAuth();
 
-  // Fetch daily streak when user is logged in
-  useEffect(() => {
-    if (!user) {
-      setCurrentStreak(0);
-      return;
-    }
-    let cancelled = false;
-    api.users.getStats()
-      .then((stats) => {
-        if (!cancelled) {
-          let streak = stats.current_streak ?? 0;
-          if (stats.last_active_date) {
-            const parts = stats.last_active_date.split('-');
-            if (parts.length === 3) {
-              const lastActive = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-              const today = new Date();
-              lastActive.setHours(0, 0, 0, 0);
-              today.setHours(0, 0, 0, 0);
-              const diffTime = today.getTime() - lastActive.getTime();
-              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-              if (diffDays > 1) {
-                streak = 0;
-              }
-            }
-          }
-          setCurrentStreak(streak);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setCurrentStreak(0);
-      });
-    return () => { cancelled = true; };
-  }, [user]);
+
+  // Fetch daily streak when user is logged in is now handled via useQuery above
 
   const navLinks = [
     { to: '/problems', label: 'Problems', icon: <Terminal className="w-4 h-4" /> },
-    { to: '/battle', label: 'Code Battle', icon: <Swords className="w-4 h-4 text-[#d97706]" /> },
+    { to: '/battle', label: 'Contest', icon: <Swords className="w-4 h-4 text-[#d97706]" /> },
     { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
     ...(user ? [{ to: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> }] : []),
     { to: '/settings', label: 'Vault', icon: <BookOpen className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-dark-bg text-gray-200">
+    <div className={cn("min-h-screen flex flex-col bg-dark-bg text-gray-200", isProblemPage && "h-screen overflow-hidden min-h-0")}>
       {/* Top Navbar */}
       {!isFocusModeActive && (
         <header className="sticky top-0 z-40 w-full bg-[#05070A]/80 backdrop-blur-md border-b border-white/[0.05] select-none">
@@ -470,6 +517,18 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                     {link.label}
                   </NavLink>
                 ))}
+
+                {/* X Placeholder Link */}
+                <button
+                  onClick={() => {
+                    setSettingsInitialTab('x');
+                    setSettingsOpen(true);
+                  }}
+                  className="relative flex items-center gap-1.5 h-full text-[13px] font-bold text-orange-500 hover:text-orange-400 transition-colors duration-150 cursor-pointer select-none"
+                >
+                  <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
+                  <span>X</span>
+                </button>
               </nav>
             </div>
 
@@ -484,18 +543,27 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                   onMouseLeave={handleMouseLeave}
                 >
                   <Link
-                    to="/profile"
+                    to={dailyProblemSlug ? `/problems/${dailyProblemSlug}` : '/problems'}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-semibold bg-[#ffffff05] hover:bg-[#ffffff10] rounded-lg transition-colors border border-white/[0.06] select-none cursor-pointer group"
                   >
-                    <Flame className={cn(
-                      "w-4 h-4 transition-colors",
-                      currentStreak > 0
-                        ? "text-[#d97706] group-hover:text-[#f59e0b] animate-pulse"
-                        : "text-gray-500 group-hover:text-gray-400"
-                    )} />
+                    <Flame
+                      className={cn(
+                        "w-4 h-4 transition-colors",
+                        isDailySolved
+                          ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                          : currentStreak > 0
+                            ? "text-[#d97706] group-hover:text-[#f59e0b] animate-pulse"
+                            : "text-gray-500 group-hover:text-amber-500"
+                      )}
+                      fill={isDailySolved ? "currentColor" : "none"}
+                    />
                     <span className={cn(
                       "text-xs font-bold tabular-nums",
-                      currentStreak > 0 ? "text-[#d97706]" : "text-gray-500"
+                      isDailySolved
+                        ? "text-emerald-400"
+                        : currentStreak > 0
+                          ? "text-[#d97706]"
+                          : "text-gray-500"
                     )}>
                       {currentStreak}
                     </span>
@@ -504,17 +572,26 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                   {/* Popover */}
                   {popoverOpen && (
                     <div
-                      className="absolute right-0 top-full mt-2 w-48 bg-[#05070a]/95 border border-white/[0.06] rounded-xl shadow-2xl p-2.5 text-white z-50 flex items-center justify-between backdrop-blur-md animate-scale-in"
+                      className="absolute right-0 top-full mt-2 w-52 bg-[#05070a]/95 border border-white/[0.06] rounded-xl shadow-2xl p-2.5 text-white z-50 flex items-center justify-between backdrop-blur-md animate-scale-in"
                       onMouseEnter={handleMouseEnter}
                       onMouseLeave={handleMouseLeave}
                     >
                       {/* Left Side */}
                       <div className="flex flex-col">
                         <span className="text-[#d97706] font-semibold text-xs leading-tight tracking-wide">
-                          {currentStreak} Streak
+                          {currentStreak} Day Streak
                         </span>
-                        <span className="text-gray-300 font-medium text-[10px] mt-0.5">
-                          {getStreakMessage(currentStreak)}
+                        <span className="text-gray-300 font-medium text-[10px] mt-1.5 flex flex-col gap-0.5">
+                          <span>Daily Challenge:</span>
+                          {isDailySolved ? (
+                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                              Solved today! 🎉
+                            </span>
+                          ) : (
+                            <span className="text-amber-500 font-bold flex items-center gap-1 animate-pulse">
+                              Pending solve ⚡
+                            </span>
+                          )}
                         </span>
                       </div>
 
@@ -627,20 +704,31 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
             {/* Mobile Actions */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 md:hidden shrink-0">
-              {user && (
+               {user && (
                 <Link
-                  to="/profile"
+                  to={dailyProblemSlug ? `/problems/${dailyProblemSlug}` : '/problems'}
                   className="flex items-center gap-1 p-1.5 text-gray-400 hover:text-gray-200 hover:bg-dark-hover rounded-lg transition-colors border border-dark-border select-none cursor-pointer"
-                  title={currentStreak > 0 ? `🔥 ${currentStreak} day streak! Keep coding!` : `⚡ Start your streak!`}
+                  title={isDailySolved ? '🔥 Daily solved! Keep it up!' : '⚡ Today\'s daily challenge is pending!'}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Flame className={cn(
-                    "w-4 h-4",
-                    currentStreak > 0 ? "text-[#d97706]" : "text-gray-500"
-                  )} />
+                  <Flame
+                    className={cn(
+                      "w-4 h-4",
+                      isDailySolved
+                        ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                        : currentStreak > 0
+                          ? "text-[#d97706]"
+                          : "text-gray-500"
+                    )}
+                    fill={isDailySolved ? "currentColor" : "none"}
+                  />
                   <span className={cn(
                     "text-xs font-bold tabular-nums",
-                    currentStreak > 0 ? "text-[#d97706]" : "text-gray-500"
+                    isDailySolved
+                      ? "text-emerald-400"
+                      : currentStreak > 0
+                        ? "text-[#d97706]"
+                        : "text-gray-500"
                   )}>
                     {currentStreak}
                   </span>
@@ -690,6 +778,18 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                   {link.label}
                 </NavLink>
               ))}
+
+              {/* Mobile X link */}
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setAiModalOpen(true);
+                }}
+                className="flex items-center gap-3 w-full px-3 py-2 text-left text-[#d97706] hover:text-amber-500 hover:bg-dark-hover text-base rounded-md"
+              >
+                <Sparkles className="w-4 h-4 text-[#d97706]" />
+                <span className="flex-1">X</span>
+              </button>
 
               <div className="border-t border-dark-border/40 my-2 pt-2">
                 {user ? (
@@ -770,9 +870,10 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
       {/* Main Page Area */}
       <main className={cn(
         "flex-1 w-full flex flex-col mx-auto",
-        (fullWidth || isFocusModeActive) ? "max-w-none p-0" : "max-w-7xl px-4 sm:px-6 lg:px-8 py-3"
+        (fullWidth || isFocusModeActive) ? "max-w-none p-0" : "max-w-7xl px-4 sm:px-6 lg:px-8 py-3",
+        isProblemPage && "min-h-0 overflow-hidden"
       )}>
-        <div className="flex-1 w-full h-full">
+        <div className={cn("flex-1 w-full h-full", isProblemPage && "min-h-0 overflow-hidden")}>
           {children}
         </div>
       </main>
@@ -781,7 +882,100 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
       <EditProfileModal isOpen={editProfileOpen} onClose={() => setEditProfileOpen(false)} />
 
       {/* Settings Modal */}
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} initialTab={settingsInitialTab} />
+
+      {/* X Modal */}
+      <Modal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        title="bugX X"
+        size="md"
+      >
+        <div className="flex flex-col items-center p-2 text-center select-none">
+          {/* Logo container with animated pulse/glow background */}
+          <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
+            <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-xl animate-pulse" />
+            <MyAiLogo className="w-16 h-16 relative z-10 animate-bounce" style={{ animationDuration: '3s' }} />
+          </div>
+
+          <span className="px-2.5 py-1 text-[11px] font-bold tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-full uppercase mb-4 animate-pulse">
+            Coming Soon
+          </span>
+
+          <h3 className="text-xl font-bold text-white mb-2">
+            Supercharge Your Coding with bugX X
+          </h3>
+          <p className="text-sm text-gray-400 max-w-sm mb-6 leading-relaxed">
+            Stuck on a tricky problem? bugX X will analyze your code, explain complex syntax, and generate edge-case test cases to guide you to the solution.
+          </p>
+
+          {/* Features grid */}
+          <div className="w-full grid grid-cols-1 gap-3.5 text-left mb-6">
+            <div className="flex gap-3 p-3 bg-dark-bg/40 border border-[#ffffff08] rounded-xl hover:border-purple-500/20 transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                <Brain className="w-4 h-4 text-purple-400" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-200">Intelligent Hint Generator</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">Receive structured hints and advice without spoiling the final answer.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-3 bg-dark-bg/40 border border-[#ffffff08] rounded-xl hover:border-indigo-500/20 transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-200">Interactive Code Explanations</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">Select a chunk of code and ask AI to explain its functionality or suggest optimizations.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-3 bg-dark-bg/40 border border-[#ffffff08] rounded-xl hover:border-blue-500/20 transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Cpu className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-200">Stress Test Case Generator</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">Automatically discover boundary bugs and corner cases with customized testing inputs.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Waitlist form */}
+          <div className="w-full border-t border-dark-border/60 pt-6 mt-2 select-text">
+            {isWaitlisted ? (
+              <div className="flex flex-col items-center gap-2 p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-300">You're on the waitlist!</span>
+                <span className="text-[11px] text-gray-400 text-center">We will notify you at <strong className="text-gray-300 font-semibold">{email}</strong> when beta begins.</span>
+              </div>
+            ) : (
+              <form onSubmit={handleJoinWaitlist} className="flex flex-col gap-2 w-full">
+                <label className="text-[11px] text-gray-400 text-left font-semibold uppercase tracking-wider mb-1">
+                  Get notified when bugX X goes live
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 px-3.5 py-2 text-sm rounded-lg bg-dark-bg border border-dark-border text-gray-200 focus:outline-none focus:border-purple-500/40 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg shadow-md shadow-purple-500/15 transition-all select-none active:scale-[0.98] cursor-pointer"
+                  >
+                    Join Waitlist
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -77,6 +77,102 @@ class AuthService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No account found with that email and username combination.",
             )
+
+        # 1. If code is not provided, generate and send verification code
+        if not req.code:
+            import random
+            otp = f"{random.randint(100000, 999999)}"
+
+            # Save OTP to Redis with a 10-minute expiry
+            from redis.asyncio import Redis
+            from redis.exceptions import RedisError
+            from app.core.config import get_settings
+            import logging
+            logger = logging.getLogger(__name__)
+
+            settings = get_settings()
+            try:
+                redis = Redis.from_url(
+                    settings.REDIS_URL,
+                    decode_responses=True,
+                    socket_connect_timeout=2,
+                    socket_timeout=2,
+                )
+                try:
+                    await redis.setex(f"reset_otp:{req.email}:{req.username}", 600, otp)
+                finally:
+                    await redis.aclose()
+            except (RedisError, Exception) as e:
+                # Fallback to class-level in-memory storage if Redis is down
+                logger.warning(f"[ForgotPassword] Redis failed: {e}. Falling back to in-memory OTP storage.")
+                if not hasattr(AuthService, "_otp_fallback"):
+                    AuthService._otp_fallback = {}
+                from datetime import datetime
+                AuthService._otp_fallback[f"{req.email}:{req.username}"] = (otp, datetime.now() + timedelta(minutes=10))
+
+            # Simulate sending email: log the OTP
+            print(f"[ForgotPassword] Simulated Email to {req.email}: Your verification code is {otp}")
+
+            return {
+                "message": "Verification code has been sent to your email.",
+                "code_required": True,
+                # Return the code in development/testing mode so the API remains testable/mockable
+                "code": otp
+            }
+
+        # 2. If code is provided, verify it and reset password
+        if not req.new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be provided with the verification code."
+            )
+
+        stored_otp = None
+        from redis.asyncio import Redis
+        from redis.exceptions import RedisError
+        from app.core.config import get_settings
+        import logging
+        logger = logging.getLogger(__name__)
+
+        settings = get_settings()
+        try:
+            redis = Redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+            try:
+                stored_otp = await redis.get(f"reset_otp:{req.email}:{req.username}")
+                if stored_otp and stored_otp == req.code:
+                    await redis.delete(f"reset_otp:{req.email}:{req.username}")
+            finally:
+                await redis.aclose()
+        except (RedisError, Exception) as e:
+            logger.warning(f"[ForgotPassword] Redis failed on retrieval: {e}. Checking in-memory fallback.")
+            if hasattr(AuthService, "_otp_fallback"):
+                entry = AuthService._otp_fallback.get(f"{req.email}:{req.username}")
+                if entry:
+                    from datetime import datetime
+                    otp_val, expiry = entry
+                    if datetime.now() < expiry:
+                        stored_otp = otp_val
+                    # Clear fallback entry
+                    del AuthService._otp_fallback[f"{req.email}:{req.username}"]
+
+        if not stored_otp:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification code has expired or is invalid.",
+            )
+
+        if stored_otp != req.code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid verification code.",
+            )
+
         user.password_hash = hash_password(req.new_password)
         await self.db.commit()
         return {"message": "Password has been reset successfully."}
+

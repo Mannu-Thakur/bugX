@@ -1,9 +1,12 @@
 import json
+import logging
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.problem import Problem
+from app.models.problem import Problem, user_problems
 from app.models.problem_template import ProblemTemplate
 from app.models.submission import Submission
 from app.models.user import User
@@ -37,7 +40,22 @@ class SubmissionController:
         # Spectator / participant check if battle_id is present
         is_battle_submission = False
         if payload.battle_id:
+            from app.models.battle import Battle
             from app.models.battle_player import BattlePlayer
+            
+            battle_stmt = select(Battle).where(Battle.id == payload.battle_id).with_for_update()
+            battle = (await session.execute(battle_stmt)).scalar_one_or_none()
+            if not battle:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Battle not found"
+                )
+            if battle.status == "finished":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Battle is already finished"
+                )
+
             player_stmt = select(BattlePlayer).where(
                 BattlePlayer.battle_id == payload.battle_id,
                 BattlePlayer.username == user.username
@@ -58,6 +76,16 @@ class SubmissionController:
         problem = (await session.execute(prob_stmt)).scalar_one_or_none()
         if not problem:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
+
+        # Verify access visibility
+        if not problem.is_public and user.role.value != "ADMIN":
+            assoc_stmt = select(user_problems).where(
+                user_problems.c.user_id == user.id,
+                user_problems.c.problem_id == problem.id
+            )
+            assoc_res = await session.execute(assoc_stmt)
+            if not assoc_res.first():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
 
         # Validate Template
         tpl_stmt = select(ProblemTemplate).where(
@@ -91,7 +119,7 @@ class SubmissionController:
         except Exception as queue_err:
             # Redis is offline — run judging as a background asyncio task so
             # the endpoint returns 202 immediately and the frontend can poll.
-            print(f"[Redis Fallback] Redis lpush failed: {queue_err}. Spawning background judge task.")
+            logger.warning(f"[Redis Fallback] Redis lpush failed: {queue_err}. Spawning background judge task.")
 
             sub_id = submission.id  # capture before session closes
 
@@ -122,7 +150,7 @@ class SubmissionController:
                             await scoring_service.on_submission_complete(bg_session, fresh_sub)
                             await bg_session.commit()
                     except Exception as err:
-                        print(f"[Redis Fallback] Background judge/score failed: {err}")
+                        logger.warning(f"[Redis Fallback] Background judge/score failed: {err}")
                         await bg_session.rollback()
 
             import asyncio as _asyncio

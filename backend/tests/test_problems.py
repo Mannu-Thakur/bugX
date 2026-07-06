@@ -46,7 +46,7 @@ async def test_admin_create_tag_and_problem(client: AsyncClient, db: AsyncSessio
         "difficulty": "EASY",
         "time_limit_ms": 2000,
         "memory_limit_kb": 262144,
-        "score_base": 100,
+        "score_base": 1,
         "runtime_bonus_max": 20,
         "expected_complexity": "O(N)",
         "tag_ids": [tag_id],
@@ -241,7 +241,7 @@ async def test_get_last_submission(client: AsyncClient, db: AsyncSession):
         difficulty="EASY",
         time_limit_ms=2000,
         memory_limit_kb=262144,
-        score_base=100,
+        score_base=1,
         is_published=True
     )
     db.add(problem)
@@ -266,7 +266,7 @@ async def test_get_last_submission(client: AsyncClient, db: AsyncSession):
         status=SubmissionStatus.ACCEPTED,
         passed_count=2,
         total_count=2,
-        score=100,
+        score=1,
         run_samples_only=False
     )
     db.add(submission)
@@ -319,6 +319,13 @@ async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession, mo
     import httpx
     from unittest.mock import AsyncMock
 
+    # Register/login user
+    reg_resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "import_user@example.com", "username": "importuser", "password": "Password123"}
+    )
+    token = reg_resp.json()["access_token"]
+
     original_get = httpx.AsyncClient.get
     original_post = httpx.AsyncClient.post
 
@@ -349,6 +356,7 @@ async def test_problem_import_fallback(client: AsyncClient, db: AsyncSession, mo
 
     resp = await client.post(
         "/api/v1/problems/import",
+        headers={"Authorization": f"Bearer {token}"},
         json={"url_or_slug": non_existent_slug}
     )
 
@@ -363,6 +371,13 @@ async def test_gfg_discovery_pipeline_and_errors(client: AsyncClient, monkeypatc
     from app.services.gfg_importer import GFGImporter
     from unittest.mock import AsyncMock
     import httpx
+
+    # Register/login user
+    reg_resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "gfg_user@example.com", "username": "gfguser", "password": "Password123"}
+    )
+    token = reg_resp.json()["access_token"]
 
     original_get = httpx.AsyncClient.get
 
@@ -422,6 +437,7 @@ async def test_gfg_discovery_pipeline_and_errors(client: AsyncClient, monkeypatc
     # 4. Test error handling for non-existent GFG problem via API import
     resp = await client.post(
         "/api/v1/problems/import",
+        headers={"Authorization": f"Bearer {token}"},
         json={"url_or_slug": "gfg:this-problem-truly-does-not-exist-at-all-99999"}
     )
     assert resp.status_code == 404
@@ -495,6 +511,13 @@ async def test_api_import_ambiguous_match_resolution(client: AsyncClient, monkey
     from app.services.gfg_importer import GFGImporter
     from app.services.importer_exceptions import AmbiguousProblemException
 
+    # Register/login user
+    reg_resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "ambig_user@example.com", "username": "ambiguser", "password": "Password123"}
+    )
+    token = reg_resp.json()["access_token"]
+
     async def mock_import_problem(session, url_or_slug):
         raise AmbiguousProblemException(
             message="Multiple potential matches found.",
@@ -504,10 +527,11 @@ async def test_api_import_ambiguous_match_resolution(client: AsyncClient, monkey
             ]
         )
 
-    monkeypatch.setattr("app.services.gfg_importer.GFGImporter.import_problem", mock_import_problem)
+    monkeypatch.setattr("app.services.import_orchestrator.ImportOrchestrator.import_problem", mock_import_problem)
 
     resp = await client.post(
         "/api/v1/problems/import",
+        headers={"Authorization": f"Bearer {token}"},
         json={"url_or_slug": "gfg:ambiguous-term"}
     )
 
@@ -516,4 +540,107 @@ async def test_api_import_ambiguous_match_resolution(client: AsyncClient, monkey
     assert data["detail"]["error_type"] == "AMBIGUOUS_MATCH"
     assert len(data["detail"]["candidates"]) == 2
     assert data["detail"]["candidates"][0]["slug"] == "option-a"
+
+
+@pytest.mark.asyncio
+async def test_problem_visibility_isolation(client: AsyncClient, db: AsyncSession, monkeypatch):
+    # 1. Register User A and User B
+    resp_a = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "usera@example.com", "username": "usera", "password": "Password123"}
+    )
+    token_a = resp_a.json()["access_token"]
+
+    resp_b = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "userb@example.com", "username": "userb", "password": "Password123"}
+    )
+    token_b = resp_b.json()["access_token"]
+
+    # 2. Mock importer logic so User A can import a problem
+    from app.services.leetcode_importer import LeetCodeImporter
+    from app.models.problem import Problem, DifficultyEnum
+    
+    async def mock_import_problem(session, url_or_slug):
+        from sqlalchemy import select
+        stmt = select(Problem).where(Problem.slug == "palindrome-partitioning")
+        res = await session.execute(stmt)
+        existing = res.scalar_one_or_none()
+        if existing:
+            return existing
+
+        # Create a mock problem structure
+        prob = Problem(
+            slug="palindrome-partitioning",
+            title="Palindrome Partitioning",
+            description="Partition a string into palindromes.",
+            difficulty=DifficultyEnum.MEDIUM,
+            is_published=True,
+            is_public=False
+        )
+        session.add(prob)
+        await session.flush()
+        return prob
+
+    monkeypatch.setattr("app.services.leetcode_importer.LeetCodeImporter.import_problem", mock_import_problem)
+    monkeypatch.setattr("app.services.gfg_importer.GFGImporter.import_problem", mock_import_problem)
+    monkeypatch.setattr("app.services.import_orchestrator.ImportOrchestrator.import_problem", mock_import_problem)
+
+    # 3. User A imports the problem
+    import_resp = await client.post(
+        "/api/v1/problems/import",
+        headers={"Authorization": f"Bearer {token_a}"},
+        json={"url_or_slug": "palindrome-partitioning"}
+    )
+    assert import_resp.status_code == 201
+    assert import_resp.json()["slug"] == "palindrome-partitioning"
+
+    # 4. User A lists problems — should see the imported problem
+    list_a_resp = await client.get(
+        "/api/v1/problems",
+        headers={"Authorization": f"Bearer {token_a}"}
+    )
+    assert list_a_resp.status_code == 200
+    a_items = [p["slug"] for p in list_a_resp.json()["items"]]
+    assert "palindrome-partitioning" in a_items
+
+    # 5. User B lists problems — should NOT see the imported problem
+    list_b_resp = await client.get(
+        "/api/v1/problems",
+        headers={"Authorization": f"Bearer {token_b}"}
+    )
+    assert list_b_resp.status_code == 200
+    b_items = [p["slug"] for p in list_b_resp.json()["items"]]
+    assert "palindrome-partitioning" not in b_items
+
+    # 6. User B tries to view details of User A's problem directly — should get 404
+    detail_b_resp = await client.get(
+        "/api/v1/problems/palindrome-partitioning",
+        headers={"Authorization": f"Bearer {token_b}"}
+    )
+    assert detail_b_resp.status_code == 404
+
+    # 7. Anonymous user lists problems — should NOT see it
+    anon_list_resp = await client.get("/api/v1/problems")
+    assert anon_list_resp.status_code == 200
+    anon_items = [p["slug"] for p in anon_list_resp.json()["items"]]
+    assert "palindrome-partitioning" not in anon_items
+
+    # 8. User B imports the same problem — should now succeed and be visible to both
+    import_b_resp = await client.post(
+        "/api/v1/problems/import",
+        headers={"Authorization": f"Bearer {token_b}"},
+        json={"url_or_slug": "palindrome-partitioning"}
+    )
+    assert import_b_resp.status_code == 201
+
+    # User B lists problems again — should see it now
+    list_b_resp_2 = await client.get(
+        "/api/v1/problems",
+        headers={"Authorization": f"Bearer {token_b}"}
+    )
+    assert list_b_resp_2.status_code == 200
+    b_items_2 = [p["slug"] for p in list_b_resp_2.json()["items"]]
+    assert "palindrome-partitioning" in b_items_2
+
 

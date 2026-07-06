@@ -1,7 +1,9 @@
 from typing import Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, status, Response
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import insert, select
+from app.models.problem import user_problems
 from app.core.database import get_db
 from app.core.deps import get_optional_user, require_admin, get_current_active_user
 from app.models.user import User
@@ -32,6 +34,11 @@ async def list_problems(
         "newest",
         pattern="^(newest|oldest|title|title_asc|title_desc|difficulty_asc|difficulty_desc|acceptance|acceptance_asc|acceptance_desc)$",
     ),
+    company: Optional[str] = Query(None),
+    topic: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    solved: Optional[str] = Query(None),
+    bookmarked: Optional[str] = Query(None),
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
@@ -43,7 +50,12 @@ async def list_problems(
         difficulty=difficulty,
         tag=tag,
         search=search,
-        sort=sort
+        sort=sort,
+        company=company,
+        topic=topic,
+        source=source,
+        solved=solved,
+        bookmarked=bookmarked
     )
 
 @router.get("/tags", response_model=List[TagResponse])
@@ -76,6 +88,11 @@ async def get_random_problem(
         tag=tag
     )
 
+@router.get("/import/metrics")
+async def import_metrics(current_user: User = Depends(require_admin)) -> Any:
+    from app.services.import_orchestrator import get_metrics
+    return await get_metrics()
+
 @router.get("/{slug}", response_model=ProblemDetail)
 async def get_problem(
     slug: str = Path(..., min_length=1, max_length=100),
@@ -104,6 +121,27 @@ async def get_last_submission(
 ) -> Any:
     controller = ProblemController(db)
     return await controller.get_last_submission(slug, current_user)
+
+
+@router.post("/{slug}/bookmark", status_code=status.HTTP_200_OK)
+async def bookmark_problem(
+    slug: str = Path(..., min_length=1, max_length=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    from app.services.bookmark_service import BookmarkService
+    return await BookmarkService.toggle_bookmark(db, current_user.id, slug)
+
+
+@router.delete("/{slug}/bookmark", status_code=status.HTTP_204_NO_CONTENT)
+async def unbookmark_problem(
+    slug: str = Path(..., min_length=1, max_length=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+) -> None:
+    from app.services.bookmark_service import BookmarkService
+    await BookmarkService.toggle_bookmark(db, current_user.id, slug)
+
 
 from pydantic import BaseModel
 
@@ -409,7 +447,7 @@ class Solution {{
         difficulty=DifficultyEnum.EASY if is_two_sum else DifficultyEnum.MEDIUM,
         time_limit_ms=2000,
         memory_limit_kb=262144,
-        score_base=100 if is_two_sum else 200,
+        score_base=1 if is_two_sum else 3,
         runtime_bonus_max=20,
         is_published=True,
         tags=[arrays_tag, ht_tag] if is_two_sum else [dyn_tag, arrays_tag],
@@ -421,133 +459,99 @@ class Solution {{
     await db.flush()
     return problem
 
-@router.post("/import", response_model=ProblemDetail, status_code=status.HTTP_201_CREATED)
+@router.post("/import", response_model=Any, status_code=status.HTTP_201_CREATED)
 async def import_problem(
     req: ProblemImportRequest,
-    current_user: Optional[User] = Depends(get_optional_user),
+    response: Response,
+    background: bool = Query(False),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
-    from app.services.leetcode_importer import LeetCodeImporter
+    from app.services.import_orchestrator import ImportOrchestrator
     from app.services.google_importer import GoogleImporter
-    from app.services.problem_import_validation_service import ProblemImportValidationError
+    from app.services.import_job_manager import ImportJobManager
     from app.services.importer_exceptions import (
-        ProblemNotFoundException,
-        ProviderUnavailableException,
-        ImportFailedException,
+        ImportNetworkError,
+        ImportProviderUnavailableError,
+        ImportParserError,
+        ImportValidationError,
+        ImportDatabaseError,
+        ImportNotFoundError,
         AmbiguousProblemException
     )
     import re
+
+    url_or_slug = req.url_or_slug
+
+    if background:
+        # Async background processing
+        job_id = await ImportJobManager.enqueue_import(
+            url_or_slug,
+            user_id=str(current_user.id) if current_user else None
+        )
+        response.status_code = status.HTTP_202_ACCEPTED
+        return {"job_id": job_id, "status": "pending", "progress": 0}
+
+    # Sync processing (default behavior)
     try:
-        url_or_slug = req.url_or_slug
-        if url_or_slug.startswith("gfg:") or "geeksforgeeks" in url_or_slug.lower() or "gfg" in url_or_slug.lower():
-            from app.services.gfg_importer import GFGImporter
-            if url_or_slug.startswith("gfg:"):
-                url_or_slug = url_or_slug[len("gfg:"):]
-            try:
-                problem = await GFGImporter.import_problem(db, url_or_slug)
-            except ProblemNotFoundException as nf_exc:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail={"error_type": "NOT_FOUND", "message": nf_exc.message}
-                )
-            except AmbiguousProblemException as amb_exc:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={"error_type": "AMBIGUOUS_MATCH", "message": amb_exc.message, "candidates": amb_exc.candidates}
-                )
-            except ProviderUnavailableException as pu_exc:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail={"error_type": "PROVIDER_UNAVAILABLE", "message": pu_exc.message}
-                )
-            except ImportFailedException as if_exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail={"error_type": "IMPORT_FAILED", "message": if_exc.message}
-                )
-            except Exception as gfg_err:
-                print(f"[ImportEndpoint] GFG import failed: {gfg_err}")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail={"error_type": "NOT_FOUND", "message": f"Could not find problem '{url_or_slug}' on GeeksforGeeks."}
-                )
-        elif url_or_slug.startswith("google:") or "google" in url_or_slug.lower():
-            if url_or_slug.startswith("google:"):
-                url_or_slug = url_or_slug[len("google:"):]
-            try:
-                problem = await GoogleImporter.resolve_and_import(db, url_or_slug)
-            except ProblemImportValidationError as val_err:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=val_err.message
-                )
-            except Exception as google_err:
-                print(f"[ImportEndpoint] Google import failed: {google_err}")
-                err_msg = str(google_err)
-                if "Import validation failed:" in err_msg:
-                    match = re.search(r"(Import validation failed:.*)", err_msg)
-                    detail_msg = match.group(1) if match else err_msg
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=detail_msg
-                    )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Could not find problem '{url_or_slug}' online. The problem may not exist or could not be fetched. Please check your spelling and try a direct URL."
-                )
+        if url_or_slug.startswith("google:"):
+            # Curated / Google interview questions route
+            clean_url = url_or_slug[len("google:"):]
+            problem = await GoogleImporter.resolve_and_import(db, clean_url)
         else:
-            le_val_error = None
-            le_err = None
-            try:
-                problem = await LeetCodeImporter.import_problem(db, url_or_slug)
-            except ProblemImportValidationError as le_val:
-                le_val_error = le_val
-                print(f"[ImportEndpoint] LeetCode validation failed: {le_val.message}. Trying GFGImporter...")
-            except Exception as e:
-                le_err = e
-                print(f"[ImportEndpoint] LeetCode import failed: {le_err}. Retrying with GFGImporter...")
- 
-            if 'problem' not in locals():
-                try:
-                    from app.services.gfg_importer import GFGImporter
-                    problem = await GFGImporter.import_problem(db, url_or_slug)
-                except ProblemNotFoundException as nf_exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={"error_type": "NOT_FOUND", "message": nf_exc.message}
-                    )
-                except AmbiguousProblemException as amb_exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail={"error_type": "AMBIGUOUS_MATCH", "message": amb_exc.message, "candidates": amb_exc.candidates}
-                    )
-                except ProviderUnavailableException as pu_exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail={"error_type": "PROVIDER_UNAVAILABLE", "message": pu_exc.message}
-                    )
-                except ImportFailedException as if_exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail={"error_type": "IMPORT_FAILED", "message": if_exc.message}
-                    )
-                except Exception as gfg_err:
-                    if le_val_error:
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=le_val_error.message
-                        )
-                    print(f"[ImportEndpoint] Both LeetCode and GFG failed: {le_err} | {gfg_err}")
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={"error_type": "NOT_FOUND", "message": f"Could not find problem '{url_or_slug}' on LeetCode or GeeksforGeeks."}
-                    )
- 
+            # Let the orchestrator handle all other queries (and prefix strip if needed)
+            problem = await ImportOrchestrator.import_problem(db, url_or_slug)
+
+        # Mark imported problems as non-public
+        problem.is_public = False
+        db.add(problem)
+        await db.flush()
+
+        # Add mapping to user_problems
+        if current_user:
+            assoc_stmt = select(user_problems).where(
+                user_problems.c.user_id == current_user.id,
+                user_problems.c.problem_id == problem.id
+            )
+            assoc_res = await db.execute(assoc_stmt)
+            if not assoc_res.first():
+                insert_stmt = insert(user_problems).values(
+                    user_id=current_user.id,
+                    problem_id=problem.id
+                )
+                await db.execute(insert_stmt)
+
         await db.commit()
- 
+
         # Retrieve using controller to guarantee exact response format
         controller = ProblemController(db)
-        return await controller.get_problem(problem.slug, current_user)
+        problem_data = await controller.get_problem(problem.slug, current_user)
+        from app.schemas.problem import ProblemDetail
+        return ProblemDetail.model_validate(problem_data)
+    except ImportNotFoundError as nf_exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_type": "NOT_FOUND", "message": nf_exc.message}
+        )
+    except AmbiguousProblemException as amb_exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error_type": "AMBIGUOUS_MATCH", "message": amb_exc.message, "candidates": amb_exc.candidates}
+        )
+    except (ImportProviderUnavailableError, ImportNetworkError) as pu_exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error_type": "PROVIDER_UNAVAILABLE", "message": pu_exc.message}
+        )
+    except (ImportParserError, ImportValidationError, ImportDatabaseError) as parse_exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error_type": "IMPORT_FAILED", "message": parse_exc.message}
+        )
     except HTTPException:
         await db.rollback()
         raise
@@ -557,9 +561,194 @@ async def import_problem(
         print(f"[ImportEndpoint] Failed to import problem: {e}")
         traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to import problem: {str(e)}"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error_type": "IMPORT_FAILED", "message": str(e)}
         )
+
+@router.get("/import/job/{job_id}")
+async def get_import_job(
+    job_id: str = Path(..., description="The unique ID of the import job"),
+    current_user: User = Depends(get_current_active_user)
+) -> Any:
+    from app.services.import_job_manager import ImportJobManager
+    job = await ImportJobManager.get_job_status(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_type": "NOT_FOUND", "message": f"Import job '{job_id}' not found."}
+        )
+    return job
+
+@router.get("/import/analytics")
+async def get_import_analytics(
+    current_user: User = Depends(require_admin)
+) -> Any:
+    """
+    Returns dashboard analytics for the importer pipeline.
+    """
+    import json
+    from redis.asyncio import Redis
+    from app.core.config import get_settings
+    from app.services.import_orchestrator import get_metrics
+    
+    settings = get_settings()
+    
+    # 1. Fetch main metrics
+    metrics = await get_metrics()
+    
+    # 2. Redis-based stats
+    latency_histogram = {}
+    failure_categories = {}
+    top_queries = []
+    ranking_log = []
+    
+    provider_health = {
+        "leetcode": {"status": "healthy", "avg_response_time_ms": 0.0, "timeout_frequency": 0.0, "consecutive_failures": 0},
+        "gfg": {"status": "healthy", "avg_response_time_ms": 0.0, "timeout_frequency": 0.0, "consecutive_failures": 0}
+    }
+    
+    try:
+        redis = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        try:
+            # Latency histogram
+            hist = await redis.hgetall("metrics:latency_histogram")
+            for k, v in hist.items():
+                latency_histogram[k] = int(v)
+                
+            # Failure categories
+            failures = await redis.hgetall("metrics:failure_categories")
+            for k, v in failures.items():
+                failure_categories[k] = int(v)
+                
+            # Top queries
+            top = await redis.zrevrange("metrics:top_queries", 0, 9, withscores=True)
+            for query, score in top:
+                top_queries.append({"query": query, "count": int(score)})
+                
+            # Ranking log
+            log_entries = await redis.lrange("metrics:ranking_log", 0, 19)
+            for entry in log_entries:
+                try:
+                    ranking_log.append(json.loads(entry))
+                except Exception:
+                    pass
+                    
+            # Provider health & circuit breaker states
+            for provider in ("leetcode", "gfg"):
+                cb_state = await redis.get(f"circuit_breaker:{provider}:state") or "CLOSED"
+                cb_failures = int(await redis.get(f"circuit_breaker:{provider}:failures") or 0)
+                
+                status_str = "healthy"
+                if cb_state == "OPEN":
+                    status_str = "unhealthy"
+                elif cb_state == "HALF-OPEN" or cb_failures > 0:
+                    status_str = "degraded"
+                    
+                total_calls = int(await redis.get(f"health:{provider}:total_calls") or 0)
+                total_time = float(await redis.get(f"health:{provider}:total_time_ms") or 0.0)
+                timeouts = int(await redis.get(f"health:{provider}:timeouts") or 0)
+                
+                avg_time = total_time / total_calls if total_calls > 0 else 0.0
+                timeout_freq = timeouts / total_calls if total_calls > 0 else 0.0
+                
+                provider_health[provider] = {
+                    "status": status_str,
+                    "avg_response_time_ms": avg_time,
+                    "timeout_frequency": timeout_freq,
+                    "consecutive_failures": cb_failures
+                }
+        finally:
+            await redis.aclose()
+    except Exception as e:
+        # If Redis is unavailable, provide fallback empty structures
+        pass
+        
+    return {
+        "cache_statistics": {
+            "hits": metrics.get("cache_hits", 0),
+            "misses": metrics.get("cache_misses", 0),
+            "hit_rate": metrics.get("cache_hit_rate", 0.0)
+        },
+        "successful_imports": metrics.get("successful_imports", 0),
+        "failed_imports": metrics.get("failed_imports", 0),
+        "parser_failures": metrics.get("parser_failures", 0),
+        "average_import_time_s": metrics.get("average_import_time_s", 0.0),
+        "source_distribution": metrics.get("source_distribution", {}),
+        "latency_histogram": latency_histogram,
+        "failure_categories": failure_categories,
+        "top_queries": top_queries,
+        "provider_health": provider_health,
+        "ranking_log": ranking_log
+    }
+
+@router.get("/import/prometheus")
+async def get_import_prometheus(current_user: User = Depends(require_admin)) -> Response:
+    """
+    Exposes Prometheus-compliant plaintext metrics.
+    """
+    from redis.asyncio import Redis
+    from app.core.config import get_settings
+    from app.services.import_orchestrator import get_metrics
+    
+    settings = get_settings()
+    metrics = await get_metrics()
+    
+    lines = []
+    
+    # 1. Main counts
+    lines.append("# HELP import_successful_imports_total Total successful imports")
+    lines.append("# TYPE import_successful_imports_total counter")
+    lines.append(f"import_successful_imports_total {metrics.get('successful_imports', 0)}")
+    
+    lines.append("# HELP import_failed_imports_total Total failed imports")
+    lines.append("# TYPE import_failed_imports_total counter")
+    lines.append(f"import_failed_imports_total {metrics.get('failed_imports', 0)}")
+    
+    lines.append("# HELP import_parser_failures_total Total parser failures")
+    lines.append("# TYPE import_parser_failures_total counter")
+    lines.append(f"import_parser_failures_total {metrics.get('parser_failures', 0)}")
+    
+    # Hit rate
+    lines.append("# HELP import_cache_hit_rate Importer cache hit rate")
+    lines.append("# TYPE import_cache_hit_rate gauge")
+    lines.append(f"import_cache_hit_rate {metrics.get('cache_hit_rate', 0.0)}")
+    
+    # Latency
+    lines.append("# HELP import_average_latency_seconds Average import latency in seconds")
+    lines.append("# TYPE import_average_latency_seconds gauge")
+    lines.append(f"import_average_latency_seconds {metrics.get('average_import_time_s', 0.0)}")
+    
+    # Provider usage
+    lines.append("# HELP import_provider_usage_total Total imports by provider")
+    lines.append("# TYPE import_provider_usage_total counter")
+    for provider, count in metrics.get("source_distribution", {}).items():
+        lines.append(f'import_provider_usage_total{{provider="{provider}"}} {count}')
+        
+    # Provider failures & health from Redis
+    try:
+        redis = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+        try:
+            lines.append("# HELP import_provider_failures_total Total failures by provider")
+            lines.append("# TYPE import_provider_failures_total counter")
+            for provider in ("leetcode", "gfg"):
+                fails = int(await redis.get(f"metrics:provider_failures:{provider}") or 0)
+                lines.append(f'import_provider_failures_total{{provider="{provider}"}} {fails}')
+                
+                # Health states
+                cb_state = await redis.get(f"circuit_breaker:{provider}:state") or "CLOSED"
+                state_val = 1.0 if cb_state == "CLOSED" else (0.5 if cb_state == "HALF-OPEN" else 0.0)
+                lines.append(f"# HELP import_provider_health Provider circuit breaker health status (1=healthy, 0.5=degraded, 0=unhealthy)")
+                lines.append(f"# TYPE import_provider_health gauge")
+                lines.append(f'import_provider_health{{provider="{provider}"}} {state_val}')
+        finally:
+            await redis.aclose()
+    except Exception:
+        pass
+        
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/plain"
+    )
  
 # ── Admin routes ────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ from typing import Optional
 
 class OutputCompareService:
     @staticmethod
-    def compare(expected_output: str, actual_output: str, problem_slug: Optional[str] = None) -> bool:
+    def compare(expected_output: str, actual_output: str, problem_slug: Optional[str] = None, comparison_mode: Optional[str] = None) -> bool:
         if expected_output is None:
             expected_output = ""
         if actual_output is None:
@@ -21,19 +21,24 @@ class OutputCompareService:
             if OutputCompareService._compare_deep(expected_json, actual_json):
                 return True
                 
-            # 2. If it fails, check if the problem is order-agnostic
-            if problem_slug:
+            # 2. Determine if order-agnostic comparison is needed
+            use_order_agnostic = False
+            if comparison_mode and comparison_mode == "order_agnostic":
+                use_order_agnostic = True
+            elif problem_slug:
+                # Legacy fallback: slug-based detection for problems that don't have comparison_mode set
                 slug_lower = problem_slug.lower()
                 order_agnostic_keywords = ["three-sum", "3sum", "3-sum", "two-sum", "group-anagrams"]
                 if any(kw in slug_lower for kw in order_agnostic_keywords):
-                    # Sort both and compare again
-                    try:
-                        sorted_expected = OutputCompareService._sort_nested(expected_json)
-                        sorted_actual = OutputCompareService._sort_nested(actual_json)
-                        return OutputCompareService._compare_deep(sorted_expected, sorted_actual)
-                    except Exception:
-                        # If sorting fails for any reason, fallback to deep comparison failure
-                        pass
+                    use_order_agnostic = True
+
+            if use_order_agnostic:
+                try:
+                    sorted_expected = OutputCompareService._sort_nested(expected_json)
+                    sorted_actual = OutputCompareService._sort_nested(actual_json)
+                    return OutputCompareService._compare_deep(sorted_expected, sorted_actual)
+                except Exception:
+                    pass
             
             return False
         except json.JSONDecodeError:

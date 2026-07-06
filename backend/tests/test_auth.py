@@ -94,13 +94,29 @@ async def test_forgot_password_success(client: AsyncClient, db: AsyncSession):
         "/api/v1/auth/register",
         json={"email": "reset@example.com", "username": "resetuser", "password": "Password123"}
     )
-    # Reset password
-    resp = await client.post(
+    # Step 1: Request OTP
+    resp_step1 = await client.post(
         "/api/v1/auth/forgot-password",
-        json={"email": "reset@example.com", "username": "resetuser", "new_password": "NewPassword789"}
+        json={"email": "reset@example.com", "username": "resetuser"}
     )
-    assert resp.status_code == 200
-    assert resp.json()["message"] == "Password has been reset successfully."
+    assert resp_step1.status_code == 200
+    res_data1 = resp_step1.json()
+    assert res_data1["code_required"] is True
+    assert "code" in res_data1
+    otp = res_data1["code"]
+
+    # Step 2: Reset password using OTP
+    resp_step2 = await client.post(
+        "/api/v1/auth/forgot-password",
+        json={
+            "email": "reset@example.com",
+            "username": "resetuser",
+            "code": otp,
+            "new_password": "NewPassword789"
+        }
+    )
+    assert resp_step2.status_code == 200
+    assert resp_step2.json()["message"] == "Password has been reset successfully."
 
     # Login with new password
     login_resp = await client.post(

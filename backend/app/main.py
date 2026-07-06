@@ -31,18 +31,15 @@ def create_app() -> FastAPI:
 
         # Auto-create tables and auto-seed the database if empty on startup
         try:
-            from app.core.database import Base, engine, AsyncSessionLocal
+            from app.core.database import AsyncSessionLocal
             from app.services.seeder_service import seed_problems
 
-            # Dynamically create tables on SQLite/PostgreSQL
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                await _ensure_user_profile_columns(conn)
-                await _ensure_battle_columns(conn)
+            # Schema changes are strictly managed via Alembic migrations.
 
             # Seed base problems
             async with AsyncSessionLocal() as session:
                 await seed_problems(session)
+                await session.commit()
         except Exception as e:
             print(f"Startup database initialization error: {e}")
 
@@ -112,6 +109,10 @@ def create_app() -> FastAPI:
     from app.routers.leaderboard import router as leaderboard_router
     from app.routers.problems import router as problems_router
     from app.routers.battle import router as battle_router
+    from app.routers.daily import router as daily_router
+    from app.routers.companies import router as companies_router
+    from app.routers.topics import router as topics_router
+    from app.routers.stats import router as stats_router
 
     app.include_router(
         health_router,
@@ -143,6 +144,21 @@ def create_app() -> FastAPI:
         tags=["problems"],
     )
     app.include_router(
+        companies_router,
+        prefix=f"{settings.API_V1_PREFIX}/companies",
+        tags=["companies"],
+    )
+    app.include_router(
+        topics_router,
+        prefix=f"{settings.API_V1_PREFIX}/topics",
+        tags=["topics"],
+    )
+    app.include_router(
+        stats_router,
+        prefix=f"{settings.API_V1_PREFIX}/stats",
+        tags=["stats"],
+    )
+    app.include_router(
         leaderboard_router,
         prefix=f"{settings.API_V1_PREFIX}/leaderboard",
         tags=["leaderboard"],
@@ -151,6 +167,11 @@ def create_app() -> FastAPI:
         battle_router,
         prefix=f"{settings.API_V1_PREFIX}/battle",
         tags=["battle"],
+    )
+    app.include_router(
+        daily_router,
+        prefix=settings.API_V1_PREFIX,
+        tags=["daily"],
     )
 
     return app
@@ -218,6 +239,22 @@ async def _ensure_battle_columns(conn) -> None:
     if "battle_id" not in sub_existing and sub_existing:
         try:
             await conn.execute(text("ALTER TABLE submissions ADD COLUMN battle_id UUID"))
+        except Exception:
+            pass
+
+
+async def _ensure_problem_columns(conn) -> None:
+    """Auto-add comparison_mode column to problems table if it doesn't exist."""
+    def existing_cols(sync_conn) -> set[str]:
+        try:
+            return {column["name"] for column in inspect(sync_conn).get_columns("problems")}
+        except Exception:
+            return set()
+
+    existing = await conn.run_sync(existing_cols)
+    if "comparison_mode" not in existing and existing:
+        try:
+            await conn.execute(text("ALTER TABLE problems ADD COLUMN comparison_mode VARCHAR(50) DEFAULT 'strict' NOT NULL"))
         except Exception:
             pass
 

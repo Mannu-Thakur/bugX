@@ -1,12 +1,12 @@
 """Problem repository — DB queries for the problems catalog."""
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.problem import Problem, problem_tags
+from app.models.problem import Problem, problem_tags, user_problems, problem_companies, problem_topics
 from app.models.submission import Submission, SubmissionStatus
 from app.models.tag import Tag
 from app.models.test_case import TestCase
@@ -26,12 +26,30 @@ class ProblemRepo:
         tag: Optional[str] = None,
         search: Optional[str] = None,
         sort: str = "title",
+        current_user: Optional[Any] = None,
+        company: Optional[str] = None,
+        topic: Optional[str] = None,
+        source: Optional[str] = None,
+        solved: Optional[str] = None,
+        bookmarked: Optional[str] = None,
     ) -> tuple[List[Problem], int]:
         base = (
             select(Problem)
             .where(Problem.is_published == True)  # noqa: E712
-            .options(selectinload(Problem.tags))
+            .options(
+                selectinload(Problem.tags),
+                selectinload(Problem.companies),
+                selectinload(Problem.topics)
+            )
         )
+
+        if current_user and current_user.role.value == "ADMIN":
+            pass
+        elif current_user:
+            user_prob_subq = select(user_problems.c.problem_id).where(user_problems.c.user_id == current_user.id)
+            base = base.where(or_(Problem.is_public == True, Problem.id.in_(user_prob_subq)))  # noqa: E712
+        else:
+            base = base.where(Problem.is_public == True)  # noqa: E712
 
         if difficulty:
             base = base.where(Problem.difficulty == difficulty)
@@ -42,6 +60,44 @@ class ProblemRepo:
                 Tag, Tag.id == problem_tags.c.tag_id
             ).where(Tag.name == tag)
             base = base.where(Problem.id.in_(tag_subq))
+
+        if company:
+            from app.models.company import Company
+            comp_subq = select(problem_companies.c.problem_id).join(
+                Company, Company.id == problem_companies.c.company_id
+            ).where(Company.slug == company)
+            base = base.where(Problem.id.in_(comp_subq))
+
+        if topic:
+            from app.models.topic import Topic
+            top_subq = select(problem_topics.c.problem_id).join(
+                Topic, Topic.id == problem_topics.c.topic_id
+            ).where(Topic.slug == topic)
+            base = base.where(Problem.id.in_(top_subq))
+
+        if source:
+            base = base.where(Problem.source.ilike(source))
+
+        if solved and current_user:
+            from app.models.user_progress import UserProblemProgress
+            solved_subq = select(UserProblemProgress.problem_id).where(
+                UserProblemProgress.user_id == current_user.id,
+                UserProblemProgress.solved == True
+            )
+            if solved in ("solved", "true"):
+                base = base.where(Problem.id.in_(solved_subq))
+            elif solved in ("unsolved", "false"):
+                base = base.where(Problem.id.not_in(solved_subq))
+
+        if bookmarked and current_user:
+            from app.models.user_progress import Bookmark
+            bookmark_subq = select(Bookmark.problem_id).where(
+                Bookmark.user_id == current_user.id
+            )
+            if bookmarked in ("true", "1"):
+                base = base.where(Problem.id.in_(bookmark_subq))
+            elif bookmarked in ("false", "0"):
+                base = base.where(Problem.id.not_in(bookmark_subq))
 
         if search:
             escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -79,6 +135,18 @@ class ProblemRepo:
 
         base = base.offset((page - 1) * limit).limit(limit)
         rows = list((await session.execute(base)).scalars().unique().all())
+
+        # Deduplicate by normalised title — prevents same problem imported from
+        # multiple sources (e.g. LeetCode + GFG) from appearing twice in the list.
+        seen_titles: set[str] = set()
+        deduped_rows: list[Problem] = []
+        for row in rows:
+            key = row.title.strip().lower()
+            if key not in seen_titles:
+                seen_titles.add(key)
+                deduped_rows.append(row)
+        rows = deduped_rows
+
         return rows, total
 
     @staticmethod
@@ -115,6 +183,7 @@ class ProblemRepo:
         *,
         difficulty: Optional[str] = None,
         tag: Optional[str] = None,
+        current_user: Optional[Any] = None,
     ) -> Optional[Problem]:
         base = (
             select(Problem)
@@ -125,6 +194,14 @@ class ProblemRepo:
                 selectinload(Problem.test_cases),
             )
         )
+
+        if current_user and current_user.role.value == "ADMIN":
+            pass
+        elif current_user:
+            user_prob_subq = select(user_problems.c.problem_id).where(user_problems.c.user_id == current_user.id)
+            base = base.where(or_(Problem.is_public == True, Problem.id.in_(user_prob_subq)))  # noqa: E712
+        else:
+            base = base.where(Problem.is_public == True)  # noqa: E712
 
         if difficulty:
             base = base.where(Problem.difficulty == difficulty)

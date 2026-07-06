@@ -29,11 +29,14 @@ class LoginRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
-    new_password: str = Field(..., min_length=8)
+    code: str | None = None
+    new_password: str | None = None
 
     @field_validator("new_password")
     @classmethod
-    def validate_new_password(cls, v: str) -> str:
+    def validate_new_password(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         if not any(char.isdigit() for char in v):
             raise ValueError("Password must contain at least 1 digit")
         if not any(char.isalpha() for char in v):
