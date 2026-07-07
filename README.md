@@ -2,16 +2,14 @@
 
 # 🐞 bugX
 
-### A Modern AI-Powered Coding Platform for Practice, Battles & Algorithm Visualization
+### An AI-Powered Coding Platform for Practice, Battles & Algorithm Visualization
 
-<img src="brand_assets/logo.png" width="120"/>
+Practice coding, compete in real-time battles, prepare for interviews, and learn algorithms visually—all in one platform.
 
-Practice coding, compete in real-time battles, learn with AI, and visualize algorithms — all in one platform.
-
-![React](https://img.shields.io/badge/React-19-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-![Python](https://img.shields.io/badge/Python-3.11-yellow)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-success)
 
 </div>
@@ -20,58 +18,50 @@ Practice coding, compete in real-time battles, learn with AI, and visualize algo
 
 # 🚀 Overview
 
-bugX is a full-stack coding platform inspired by LeetCode and Codeforces, built to make competitive programming more interactive and engaging.
+**bugX** is a modern full-stack coding platform designed to make competitive programming and interview preparation more interactive, engaging, and intelligent.
 
-It combines coding practice, multiplayer battles, AI assistance, and an interactive algorithm visualization playground into one seamless experience.
+It combines **coding practice**, **real-time multiplayer battles**, **AI-powered learning**, **company-wise interview preparation**, **daily challenges**, and an **interactive algorithm visualization playground** into one seamless experience.
 
-Whether you're preparing for interviews or learning data structures, bugX provides the tools to practice, understand, and improve.
+Whether you're preparing for placements, improving your DSA skills, or learning algorithms visually, bugX provides everything you need in one place.
 
 ---
 
 # ✨ Features
 
-## 💻 Coding Platform
+## 💻 Smart Coding Workspace
 
-- Curated coding problems
-- Multiple programming languages
-- Custom test cases
+- Multi-language code editor
 - Real-time code execution
-- Difficulty-wise filtering
+- Custom test cases
 - Submission history
-- Performance statistics
+- Difficulty-based filtering
+- Topic-wise problem collections
+- Company-wise interview questions
+- Daily coding challenges
+- Bookmark & progress tracking
 
 ---
 
-## ⚔️ Real-Time Code Battles
+## 🤖 AI-Powered Learning
 
-- 1v1 multiplayer battles
-- Shared coding environment
-- Live countdown timer
-- Real-time leaderboard
-- Winner determination based on speed and correctness
-
----
-
-## 🤖 AI Coding Assistant
-
-Recently integrated AI capabilities to enhance the learning experience.
+Integrated AI to make problem solving more efficient and educational.
 
 Features include:
 
-- Explain coding problems
-- Generate solution approaches
-- Optimize existing code
-- Debug common mistakes
-- Explain algorithms in simple language
-- Provide learning hints instead of direct answers
+- AI problem explanations
+- AI-generated solution approaches
+- AI code review & optimization
+- AI debugging assistance
+- AI interview simulator
+- Intelligent hints without revealing complete solutions
 
 ---
 
-## 🎮 Algorithm Visualization Playground
+## 📊 Algorithm Visualization Playground
 
-A dedicated playground to visualize algorithms step-by-step.
+An interactive playground for understanding algorithms through real-time animations.
 
-Supports visual learning for concepts such as:
+Currently supports:
 
 - Bubble Sort
 - Selection Sort
@@ -79,32 +69,79 @@ Supports visual learning for concepts such as:
 - Merge Sort
 - Quick Sort
 - Binary Search
-- BFS
-- DFS
+- Breadth First Search (BFS)
+- Depth First Search (DFS)
 
-Interactive controls:
+Interactive Controls:
 
-- ▶️ Play
+- ▶ Play
 - ⏸ Pause
 - ⏭ Step Forward
-- 🔄 Reset
-- Speed Control
+- 🎚 Speed Control
+- 🔄 Reset Visualization
 
-Designed for students to understand how algorithms work internally.
+Designed to help students understand how algorithms work internally through visual learning.
 
 ---
 
-## 📈 Dashboard
+## ⚔️ Real-Time Coding Battles
 
-- Problem statistics
-- Submission analytics
+Compete against other programmers in live coding matches.
+
+Features include:
+
+- 1v1 multiplayer battles
+- Live countdown timer
+- Shared coding environment
+- Automatic winner detection
+- Live battle leaderboard
+
+---
+
+## 📈 Personalized Dashboard
+
+Track your learning journey with detailed analytics.
+
+- Solved problems
+- Submission statistics
+- Topic-wise progress
+- Company-wise progress
 - Battle history
-- Progress tracking
-- Solved problem insights
+- Performance insights
 
 ---
 
-# 🏗 Architecture
+## 🏆 Interview Preparation
+
+Everything needed for placement preparation.
+
+- Company-specific problem collections
+- Topic-wise learning paths
+- Daily coding challenges
+- AI interview simulator
+- Performance tracking
+
+---
+
+# 🌟 Why bugX?
+
+bugX isn't just another coding platform.
+
+It combines competitive programming, AI-assisted learning, interview preparation, and interactive algorithm visualization into one modern developer ecosystem.
+
+Whether you're:
+
+- Preparing for placements
+- Practicing DSA
+- Learning algorithms visually
+- Improving interview skills
+- Competing with friends
+
+bugX provides everything in one platform.
+
+---
+
+# 🏗️ Architecture
 
 ```
 Frontend (React + TypeScript)
@@ -119,12 +156,12 @@ Frontend (React + TypeScript)
             ├── Code Execution
             │
             ▼
-        PostgreSQL / SQLite
+     PostgreSQL / SQLite
 ```
 
 ---
 
-# 🛠 Tech Stack
+# 🛠️ Tech Stack
 
 ## Frontend
 
@@ -133,6 +170,7 @@ Frontend (React + TypeScript)
 - Vite
 - Tailwind CSS
 - React Router
+- Monaco Editor
 
 ## Backend
 
@@ -140,18 +178,19 @@ Frontend (React + TypeScript)
 - Python
 - SQLAlchemy
 - JWT Authentication
-- REST APIs
-
-## AI
-
-- LLM Integration
-- Prompt Engineering
-- AI Explanation Engine
 
 ## Database
 
 - PostgreSQL
-- SQLite (Development)
+- SQLite
+
+## AI
+
+- Large Language Model (LLM) Integration
+- AI Code Review
+- AI Interview Simulator
+- AI Problem Explanation
+- Prompt Engineering
 
 ## Tools
 
@@ -170,6 +209,7 @@ bugX
 ├── backend
 ├── docs
 ├── brand_assets
+├── .gitignore
 └── README.md
 ```
 
@@ -177,15 +217,16 @@ bugX
 
 # 🚀 Getting Started
 
-## Clone
+## Clone the Repository
 
 ```bash
 git clone https://github.com/Mannu-Thakur/bugX.git
+cd bugX
 ```
 
 ---
 
-## Backend
+## Backend Setup
 
 ```bash
 cd backend
@@ -201,7 +242,7 @@ uvicorn app.main:app --reload
 
 ---
 
-## Frontend
+## Frontend Setup
 
 ```bash
 cd frontend
@@ -213,46 +254,33 @@ npm run dev
 
 ---
 
-# 🎯 Upcoming Features
+# 🚀 Roadmap
 
-- AI Interview Simulator
-- AI Code Review
-- AI Mock Interviews
-- Contest Hosting
-- Daily Coding Challenges
-- Company-wise Problem Sets
-- Collaborative Coding Rooms
-- AI Personalized Learning Path
-- More Algorithm Visualizations
-- Graph Algorithm Animations
+Future enhancements planned for bugX:
 
----
-
-# 📸 Screenshots
-
-> Add screenshots here
-
-- Landing Page
-- Problem Page
-- Battle Arena
-- AI Assistant
-- Algorithm Visualizer
-- Dashboard
+- Collaborative coding rooms
+- Friends & social profiles
+- Discussion forums
+- Achievement badges
+- AI personalized learning roadmap
+- Additional graph algorithm visualizations
+- Dynamic Programming visualizations
+- Mobile app support
 
 ---
 
-# 🌟 Why bugX?
+# 📌 Project Highlights
 
-Unlike traditional coding platforms, bugX focuses on learning as much as solving.
-
-It combines:
-
-- Competitive Programming
-- AI Learning Assistance
-- Interactive Visualizations
-- Multiplayer Coding Battles
-
-making it an all-in-one platform for interview preparation and algorithm mastery.
+- 🤖 AI-powered coding assistant
+- 🧠 AI interview simulator
+- 🔍 AI code review & optimization
+- 📊 Interactive algorithm visualization playground
+- ⚔️ Real-time multiplayer coding battles
+- 💼 Company-wise interview preparation
+- 📚 Topic-wise learning paths
+- 📅 Daily coding challenges
+- 📈 Personalized performance analytics
+- 🌙 Modern responsive user interface
 
 ---
 
@@ -260,11 +288,20 @@ making it an all-in-one platform for interview preparation and algorithm mastery
 
 Contributions are welcome!
 
-Feel free to open an issue or submit a pull request.
+If you'd like to improve bugX, feel free to fork the repository, create a feature branch, and submit a pull request.
 
- 
+---
+
+# 📜 License
+
+This project is licensed under the **MIT License**.
+
+---
 
 <div align="center">
- 
+
+### ⭐ If you found this project helpful, consider giving it a star!
+
+Made with ❤️ by **Mannu Kumar Thakur**
 
 </div>
