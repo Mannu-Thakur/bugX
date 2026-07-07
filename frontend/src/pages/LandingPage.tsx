@@ -15,7 +15,9 @@ import {
   GitBranch,
   Timer,
   CheckCircle2,
-  Bookmark
+  Bookmark,
+  Bot,
+  Cpu
 } from 'lucide-react';
 import { Button } from '../shared/ui/button/Button';
 import { BugXLogo } from '../shared/ui/logo/BugXLogo';
@@ -205,6 +207,98 @@ const LeaderboardPreview: React.FC = () => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+/* ─── AI Judge Live Typing Mock Showcase ─── */
+const AIMatchReportShowcase: React.FC = () => {
+  const [text, setText] = useState('');
+  const [isTyping, setIsTyping] = useState(true);
+
+  useEffect(() => {
+    if (!isTyping) return;
+
+    const lines = [
+      "⚡ AI Match Verdict: Analysis complete.",
+      "",
+      "🏆 WINNER ANALYSIS (priya_jha):",
+      "• Code complexity: O(N) time, O(1) space.",
+      "• Approach: Optimized dual-pointer in-place.",
+      "💡 Tip: Excellent boundary case handling.",
+      "",
+      "❌ RUNNER UP ANALYSIS (mkt2016):",
+      "• Status: Empty submission or compile failure.",
+      "💡 Advice: Focus on parsing base inputs first."
+    ];
+
+    let currentLine = 0;
+    let currentChar = 0;
+    let output = '';
+
+    const typingInterval = setInterval(() => {
+      if (currentLine < lines.length) {
+        const line = lines[currentLine];
+        if (currentChar < line.length) {
+          output += line[currentChar];
+          setText(output + '█');
+          currentChar++;
+        } else {
+          output += '\n';
+          currentLine++;
+          currentChar = 0;
+        }
+      } else {
+        clearInterval(typingInterval);
+        setIsTyping(false);
+        // Wait 5 seconds, then restart typing loop
+        setTimeout(() => {
+          setText('');
+          setIsTyping(true);
+        }, 5000);
+      }
+    }, 20);
+
+    return () => clearInterval(typingInterval);
+  }, [isTyping]);
+
+  return (
+    <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0c0f16]/95 overflow-hidden shadow-2xl transition-all duration-500 hover:border-[#7A5FFF]/40 hover:shadow-[#7A5FFF]/[0.03] flex flex-col sm:flex-row h-[320px]">
+      {/* Sidebar: Light-dark */}
+      <div className="w-full sm:w-[150px] bg-[#161a26] border-b sm:border-b-0 sm:border-r border-white/[0.05] p-4 flex flex-col justify-between shrink-0 font-sans select-none">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
+            <span className="text-[9px] font-black uppercase text-cyan-400 tracking-wider">AI Judge</span>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <span className="block text-[8px] uppercase text-gray-500 font-bold">STATUS</span>
+              <span className="text-[10px] font-black text-emerald-450 font-mono">Realtime</span>
+            </div>
+            <div>
+              <span className="block text-[8px] uppercase text-gray-500 font-bold">MODEL</span>
+              <span className="text-[10px] font-black text-gray-300 font-mono">Gemini 2.5</span>
+            </div>
+          </div>
+        </div>
+        <div className="hidden sm:block pt-3 border-t border-white/[0.05]">
+          <span className="text-[8px] text-gray-500 font-mono leading-tight block">Analyzing code complexity & logic flow</span>
+        </div>
+      </div>
+
+      {/* Main Terminal panel: Deep dark */}
+      <div className="flex-1 p-4 bg-[#07090e] flex flex-col overflow-hidden relative">
+        {/* Glow ambient background inside terminal */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(122,95,255,0.06),transparent_60%)] pointer-events-none" />
+        <div className="flex justify-between items-center text-[8px] text-gray-600 font-mono border-b border-white/[0.04] pb-2 mb-3 select-none">
+          <span>JUDGMENT_STREAM // ACTIVE</span>
+          <span>12.5 KB/S</span>
+        </div>
+        <pre className="flex-grow font-mono text-[10px] leading-relaxed text-[#a5f3fc] overflow-y-auto whitespace-pre-wrap select-text pr-1 custom-scrollbar min-h-0">
+          <code>{text}</code>
+        </pre>
+      </div>
     </div>
   );
 };
@@ -825,6 +919,64 @@ var reverseList = function(head) {
 
             <ScrollReveal delay={120}>
               <LeaderboardPreview />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════ NEW FEATURE: AI JUDGE HIGHLIGHT ═══════════════════ */}
+      <section className="py-24 border-b border-white/[0.03] bg-gradient-to-b from-transparent via-[#4F7DFF]/[0.015] to-transparent relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(122,95,255,0.03),transparent_70%)] pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+          <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            
+            <ScrollReveal className="space-y-6">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 border border-[#7A5FFF]/35 bg-[#7A5FFF]/5 px-3 py-1 rounded-full text-[10px] font-bold text-[#b8a6ff] tracking-wider uppercase select-none animate-pulse">
+                  <Sparkles className="w-3.5 h-3.5 text-[#7A5FFF]" />
+                  Realtime AI Code Review
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
+                  AI Arena Judge & Match Report Cards
+                </h2>
+              </div>
+              
+              <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
+                Step into the future of competitive coding. Every contest in the 1v1 Arena is evaluated in real-time by our advanced AI Judge. Receive structured, high-fidelity Match Report Cards detailing your time/space complexity (Big-O), code efficiency comparisons, logical gaps, and custom suggestions to accelerate your problem solving velocity.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                {[
+                  { icon: <Bot className="w-4 h-4 text-cyan-400" />, title: 'Real-time Verdict', desc: 'Instantly stream technical evaluations after submission.' },
+                  { icon: <Cpu className="w-4 h-4 text-purple-400" />, title: 'Complexity Breakdown', desc: 'Detailed O(N) review comparing code performance.' },
+                  { icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />, title: 'Bug & Edge Cases', desc: 'Find hidden logical flaws before you submit to prod.' },
+                  { icon: <Sparkles className="w-4 h-4 text-amber-400" />, title: 'Actionable Advice', desc: 'Custom tailored feedback to level up your algorithms.' }
+                ].map((feature, idx) => (
+                  <div key={idx} className="flex gap-3 p-4 rounded-xl border border-white/[0.04] bg-[#0c0f16]/30 hover:border-[#7A5FFF]/20 transition-all duration-300">
+                    <div className="p-2 h-fit rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                      {feature.icon}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-200">{feature.title}</h4>
+                      <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">{feature.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <Link to="/battle" className="block w-fit">
+                  <Button variant="primary" className="h-10 rounded-lg px-5 text-xs font-semibold bg-[#7A5FFF] hover:bg-[#8b75ff] text-white shadow-[0_4px_16px_rgba(122,95,255,0.15)] hover:shadow-[0_4px_24px_rgba(122,95,255,0.25)] hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer flex items-center gap-2 group">
+                    <Swords className="w-3.5 h-3.5" />
+                    <span>Duel in the Arena</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+                  </Button>
+                </Link>
+              </div>
+            </ScrollReveal>
+
+            <ScrollReveal delay={120} className="w-full flex justify-center">
+              <AIMatchReportShowcase />
             </ScrollReveal>
           </div>
         </div>

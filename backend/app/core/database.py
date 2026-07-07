@@ -1,9 +1,12 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
+import logging
 import socket
 import sys
 import os
 import time
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -64,17 +67,17 @@ IS_TESTING = (
 
 if IS_TESTING:
     db_url = settings.DATABASE_URL
-    print(f"[Database] Testing environment detected. Using database URL: {db_url}")
+    logger.info("[Database] Testing environment detected. Using database URL: %s", db_url)
 else:
     if not settings.DATABASE_URL.startswith("postgresql"):
         raise ValueError(f"Only PostgreSQL is allowed in production/development runtime. Found: {settings.DATABASE_URL}")
 
-    print("[Database] Waiting for PostgreSQL database to be reachable...")
+    logger.info("[Database] Waiting for PostgreSQL database to be reachable...")
     if not wait_for_postgres(settings.DATABASE_URL, timeout=15.0):
         raise ConnectionError("PostgreSQL database is unreachable. Failing fast.")
 
     db_url = settings.DATABASE_URL
-    print("[Database] PostgreSQL is reachable. Using PostgreSQL.")
+    logger.info("[Database] PostgreSQL is reachable. Using PostgreSQL.")
 
 engine = create_async_engine(db_url, pool_pre_ping=True)
 AsyncSessionLocal = async_sessionmaker(

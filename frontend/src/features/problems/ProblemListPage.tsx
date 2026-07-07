@@ -9,6 +9,7 @@ import {
   XCircle,
   X,
   Plus,
+  Code,
 } from 'lucide-react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -482,8 +483,16 @@ export const ProblemListPage: React.FC = () => {
           )}
         </div>
 
-        {/* Fetch Online Toggle Trigger */}
-        <div className="shrink-0 relative">
+        {/* Fetch Online & Visualizer Toggle Triggers */}
+        <div className="shrink-0 flex items-center gap-2 relative">
+          <Link
+            to="/visualizer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-purple-400 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/40 rounded-lg transition-all duration-200 bg-purple-500/5 hover:bg-purple-500/10 cursor-pointer"
+          >
+            <Code className="w-3.5 h-3.5 text-purple-400" />
+            Visualizer Playground
+          </Link>
+
           <button
             type="button"
             onClick={() => setIsImporterOpen(!isImporterOpen)}

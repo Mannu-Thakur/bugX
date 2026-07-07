@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckSquare, CheckCircle2, XCircle, AlertTriangle, Terminal, Code, Cpu, Maximize2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../../shared/lib/cn';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../../shared/lib/api';
+import { AlgorithmVisualizer } from './AlgorithmVisualizer';
 
 interface TestCase {
   id: string;
@@ -31,7 +32,7 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
   onCollapse,
   isCollapsed = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cases' | 'result'>('cases');
+  const [activeTab, setActiveTab] = useState<'cases' | 'result' | 'visualizer'>('cases');
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
   const [customCases, setCustomCases] = useState<{ id: string; input: string }[]>([]);
 
@@ -169,6 +170,22 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse ml-0.5" />
             )}
           </button>
+
+          {/* Pipe separator */}
+          <span className="text-dark-border text-xs font-light px-0.5 select-none">|</span>
+
+          <button
+            onClick={() => setActiveTab('visualizer')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all',
+              activeTab === 'visualizer'
+                ? 'text-dark-text font-bold'
+                : 'text-dark-text/50 hover:text-dark-text/80 font-medium'
+            )}
+          >
+            <Code className="w-3.5 h-3.5 text-purple-400" />
+            Visualizer
+          </button>
         </div>
 
         {/* Right Utility Icons */}
@@ -200,7 +217,9 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 bg-dark-bg">
-        {activeTab === 'cases' ? (
+        {activeTab === 'visualizer' ? (
+          <AlgorithmVisualizer />
+        ) : activeTab === 'cases' ? (
           <div className="space-y-4">
             {/* Case selector */}
             <div className="flex flex-wrap items-center gap-2 select-none">

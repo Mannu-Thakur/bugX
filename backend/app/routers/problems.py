@@ -1,5 +1,8 @@
+import logging
 from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status, Response
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import insert, select
@@ -193,7 +196,7 @@ async def create_dynamic_fallback_problem(db: AsyncSession, url_or_slug: str) ->
                     is_bad = True
                     break
         if is_bad:
-            print(f"[create_dynamic_fallback_problem] Stale or invalid fallback problem '{slug}' detected. Purging...")
+            logger.info("[create_dynamic_fallback_problem] Stale or invalid fallback problem '%s' detected. Purging...", slug)
             await db.delete(existing)
             await db.flush()
         else:
@@ -557,9 +560,7 @@ async def import_problem(
         raise
     except Exception as e:
         await db.rollback()
-        import traceback
-        print(f"[ImportEndpoint] Failed to import problem: {e}")
-        traceback.print_exc()
+        logger.exception("[ImportEndpoint] Failed to import problem: %s", e)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error_type": "IMPORT_FAILED", "message": str(e)}

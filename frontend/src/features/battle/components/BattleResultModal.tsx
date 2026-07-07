@@ -398,108 +398,148 @@ Make the layout professional, with bullet points and code snippets where relevan
       <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-[#4F7DFF]/4 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#7A5FFF]/3 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="relative max-w-2xl w-full z-10 space-y-5 bg-[#0b0e14]/50 border border-white/[0.06] backdrop-blur-md rounded-2xl p-6 sm:p-8 animate-fade-in my-8 shadow-2xl">
-        {/* Header Title */}
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.1)]">
-            <Trophy className="w-7 h-7 text-yellow-400 animate-bounce" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-2xl font-black tracking-tight text-gray-150 animate-pulse">Battle Complete</h2>
-            <p className="text-xs text-gray-500">Problem: {problemTitle}</p>
-            {winnerUsername && (
-              <p className="text-sm font-bold text-yellow-400 mt-1">
-                🎉 Winner: {winnerUsername} 🎉
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Summary Stats Row */}
-        <div className="grid grid-cols-3 gap-3 bg-white/[0.02] p-3.5 rounded-xl border border-white/[0.04]">
-          <div className="text-center">
-            <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Duration</span>
-            <span className="text-xs font-bold text-gray-250 mt-1 block">{getMatchDuration()}</span>
-          </div>
-          <div className="text-center border-x border-white/[0.04]">
-            <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Fastest Solve</span>
-            <span className="text-xs font-bold text-emerald-450 mt-1 block">{getFastestSolve()}</span>
-          </div>
-          <div className="text-center">
-            <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Success Rate</span>
-            <span className="text-xs font-bold text-blue-450 mt-1 block">{getSuccessRate()}</span>
-          </div>
-        </div>
-
-        {/* Podium Standings list */}
-        <div className="space-y-2">
-          {sortedLeaderboard.map((p, idx) => {
-            const color = PLAYER_COLORS[p.player_index % PLAYER_COLORS.length];
-            const isWinner = idx === 0 && p.solved;
-
-            const highlightClass = 
-              idx === 0 && p.solved
-                ? "bg-yellow-500/5 border-yellow-500/20 shadow-[0_0_15px_rgba(234,179,8,0.03)]" 
-                : idx === 1 && p.solved
-                  ? "bg-slate-400/5 border-slate-400/20 shadow-[0_0_15px_rgba(148,163,184,0.03)]"
-                  : idx === 2 && p.solved
-                    ? "bg-amber-700/5 border-amber-700/20 shadow-[0_0_15px_rgba(180,83,9,0.03)]"
-                    : "bg-white/[0.01] hover:border-white/[0.04]";
-
-            return (
-              <div
-                key={p.player_index}
-                className={cn(
-                  "flex items-center justify-between py-3.5 px-4 rounded-xl border border-transparent transition-all duration-300",
-                  highlightClass
-                )}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-dark-bg/60 shrink-0">
-                    {idx === 0 ? <Medal className="w-4 h-4 text-yellow-500" /> :
-                     idx === 1 ? <Medal className="w-4 h-4 text-slate-400" /> :
-                     idx === 2 ? <Medal className="w-4 h-4 text-amber-600" /> :
-                     <span className="text-[10px] font-black text-gray-600">#{idx + 1}</span>}
-                  </div>
-
-                  <div className="min-w-0">
-                    <span className={cn("text-xs font-black flex items-center gap-1.5 truncate", color.text)}>
-                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", color.dot)} />
-                      {p.username}
-                    </span>
-                    <span className="text-[9px] text-gray-550 block mt-0.5 font-medium">
-                      {p.attempts} attempt{p.attempts !== 1 ? 's' : ''} · {p.solved ? 'Solved' : 'Failed'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className={cn("text-sm font-black block", isWinner ? 'text-yellow-400 font-extrabold' : 'text-gray-250')}>
-                    {p.score} <span className="text-[9px] text-gray-555 font-bold">PTS</span>
-                  </span>
-                  {p.solved_at && (
-                    <span className="text-[8px] text-gray-600 font-mono">
-                      {safeParseDate(p.solved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                  )}
-                </div>
+      <div className={cn(
+        "relative w-full z-10 grid gap-6 backdrop-blur-md rounded-2xl p-6 sm:p-8 animate-fade-in my-8 shadow-2xl bg-[#0a0e17] border border-[#1f293d] items-stretch",
+        activeModelWithKey && showReportCard ? "max-w-6xl grid-cols-1 lg:grid-cols-12" : "max-w-xl grid-cols-1"
+      )}>
+        {/* Left Column: Battle Info, Standings & Navigation */}
+        <div className={cn(
+          "flex flex-col justify-between space-y-5",
+          activeModelWithKey && showReportCard ? "lg:col-span-5" : ""
+        )}>
+          <div className="space-y-5">
+            {/* Header Title */}
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                <Trophy className="w-7 h-7 text-yellow-400 animate-bounce" />
               </div>
-            );
-          })}
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black tracking-tight text-gray-150 animate-pulse">Battle Complete</h2>
+                <p className="text-xs text-gray-500">Problem: {problemTitle}</p>
+                {winnerUsername && (
+                  <p className="text-sm font-bold text-yellow-400 mt-1">
+                    🎉 Winner: {winnerUsername} 🎉
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Summary Stats Row */}
+            <div className="grid grid-cols-3 gap-3 bg-[#131926] p-3.5 rounded-xl border border-[#1f2a3f]">
+              <div className="text-center">
+                <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Duration</span>
+                <span className="text-xs font-bold text-gray-250 mt-1 block">{getMatchDuration()}</span>
+              </div>
+              <div className="text-center border-x border-[#1f2a3f]">
+                <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Fastest Solve</span>
+                <span className="text-xs font-bold text-emerald-450 mt-1 block">{getFastestSolve()}</span>
+              </div>
+              <div className="text-center">
+                <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Success Rate</span>
+                <span className="text-xs font-bold text-blue-450 mt-1 block">{getSuccessRate()}</span>
+              </div>
+            </div>
+
+            {/* Podium Standings list */}
+            <div className="space-y-2">
+              {sortedLeaderboard.map((p, idx) => {
+                const color = PLAYER_COLORS[p.player_index % PLAYER_COLORS.length];
+                const isWinner = idx === 0 && p.solved;
+
+                const highlightClass = 
+                  idx === 0 && p.solved
+                    ? "bg-yellow-500/10 border-yellow-500/25 shadow-[0_0_15px_rgba(234,179,8,0.05)]" 
+                    : idx === 1 && p.solved
+                      ? "bg-slate-400/10 border-slate-400/25 shadow-[0_0_15px_rgba(148,163,184,0.03)]"
+                      : idx === 2 && p.solved
+                        ? "bg-amber-700/10 border-amber-700/25 shadow-[0_0_15px_rgba(180,83,9,0.03)]"
+                        : "bg-[#111724] border border-[#1e273b] hover:bg-[#161f30] hover:border-[#25324c]";
+
+                return (
+                  <div
+                    key={p.player_index}
+                    className={cn(
+                      "flex items-center justify-between py-3.5 px-4 rounded-xl border border-transparent transition-all duration-300",
+                      highlightClass
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-dark-bg/60 shrink-0">
+                        {idx === 0 ? <Medal className="w-4 h-4 text-yellow-500" /> :
+                         idx === 1 ? <Medal className="w-4 h-4 text-slate-400" /> :
+                         idx === 2 ? <Medal className="w-4 h-4 text-amber-600" /> :
+                         <span className="text-[10px] font-black text-gray-600">#{idx + 1}</span>}
+                      </div>
+
+                      <div className="min-w-0">
+                        <span className={cn("text-xs font-black flex items-center gap-1.5 truncate", color.text)}>
+                          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", color.dot)} />
+                          {p.username}
+                        </span>
+                        <span className="text-[9px] text-gray-550 block mt-0.5 font-medium">
+                          {p.attempts} attempt{p.attempts !== 1 ? 's' : ''} · {p.solved ? 'Solved' : 'Failed'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className={cn("text-sm font-black block", isWinner ? 'text-yellow-400 font-extrabold' : 'text-gray-250')}>
+                        {p.score} <span className="text-[9px] text-gray-555 font-bold">PTS</span>
+                      </span>
+                      {p.solved_at && (
+                        <span className="text-[8px] text-gray-600 font-mono">
+                          {safeParseDate(p.solved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Show Report Card button if it was dismissed */}
+          {activeModelWithKey && !showReportCard && (
+            <button
+              onClick={() => setShowReportCard(true)}
+              className="w-full py-2.5 bg-[#0d1018] hover:bg-[#111622] border border-white/[0.05] hover:border-[#4F7DFF]/25 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-300 transition-all flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#4F7DFF]/60" />
+              Show AI Report Card
+            </button>
+          )}
+
+          <div className="h-px bg-white/[0.03]" />
+
+          {/* Navigation Actions (moved to left column) */}
+          <div className="grid grid-cols-2 gap-3 select-none">
+            <button
+              onClick={() => navigate('/')}
+              className="py-3 px-4 bg-[#090b11] hover:bg-[#111520] border border-white/5 hover:border-white/10 rounded-xl text-xs font-bold text-gray-400 hover:text-white transition-all flex items-center justify-center gap-1.5"
+            >
+              <ArrowLeft className="w-4 h-4" /> Return to Home
+            </button>
+            <button
+              onClick={onReturn}
+              className="py-3 px-4 bg-[#161b29] hover:bg-[#1f2639] border border-white/5 hover:border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center"
+            >
+              Return to Arena Setup
+            </button>
+          </div>
         </div>
 
-        {/* AI Report Card Section: Horizontal dark layout */}
+        {/* Right Column: AI Report Card (fills the height and is side-by-side with left column) */}
         {activeModelWithKey && showReportCard && (
-          <div className="border border-white/[0.06] bg-[#0d1018] rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] w-full">
+          <div className="lg:col-span-7 flex flex-col h-full min-h-[460px] max-h-[580px] border border-[#1d273a] bg-[#0d121d] rounded-2xl overflow-hidden shadow-lg">
             {/* Header bar */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05] bg-[#0b0e15]/80">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#212d44] bg-[#131928]">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-[#4F7DFF]/15 border border-[#4F7DFF]/25 flex items-center justify-center">
                   <Sparkles className="w-3.5 h-3.5 text-[#4F7DFF] animate-pulse" />
                 </div>
                 <div>
                   <span className="text-[11px] font-black uppercase text-gray-300 tracking-wider">AI Match Report</span>
-                  <span className="text-[9px] text-gray-600 block font-mono">{activeModelWithKey.provider.name} · {activeModelWithKey.model.displayName}</span>
+                  <span className="text-[9px] text-gray-500 block font-mono">{activeModelWithKey.provider.name} · {activeModelWithKey.model.displayName}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -526,42 +566,42 @@ Make the layout professional, with bullet points and code snippets where relevan
               </div>
             </div>
 
-            {/* Horizontal body: left metadata + right content */}
-            <div className="flex flex-row min-h-[220px] max-h-[360px]">
-              {/* Left: Dark metadata panel */}
-              <div className="w-[180px] bg-[#0a0d14] border-r border-white/[0.05] p-4 flex flex-col gap-4 shrink-0">
-                <div className="space-y-3">
+            {/* Side-by-side inside report card: Left metadata bar + Right scrollable contents */}
+            <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
+              {/* Left panel inside Report Card: Light Dark styling */}
+              <div className="w-[170px] bg-[#182030] border-r border-[#26324d] p-4 flex flex-col justify-between shrink-0">
+                <div className="space-y-4">
                   <div>
-                    <span className="block text-[8px] uppercase text-[#4F7DFF]/70 font-bold tracking-wider mb-1">Provider</span>
-                    <span className="text-[11px] font-black text-gray-300">{activeModelWithKey.provider.name}</span>
+                    <span className="block text-[8px] uppercase text-[#4F7DFF] font-bold tracking-wider mb-1">Provider</span>
+                    <span className="text-[11px] font-black text-gray-200">{activeModelWithKey.provider.name}</span>
                   </div>
                   <div>
-                    <span className="block text-[8px] uppercase text-[#4F7DFF]/70 font-bold tracking-wider mb-1">Model</span>
+                    <span className="block text-[8px] uppercase text-[#4F7DFF] font-bold tracking-wider mb-1">Model</span>
                     <span className="text-[10px] font-bold text-gray-400 block truncate" title={activeModelWithKey.model.displayName}>
                       {activeModelWithKey.model.displayName}
                     </span>
                   </div>
                   <div>
-                    <span className="block text-[8px] uppercase text-[#4F7DFF]/70 font-bold tracking-wider mb-1">Players</span>
+                    <span className="block text-[8px] uppercase text-[#4F7DFF] font-bold tracking-wider mb-1">Players</span>
                     <span className="text-[10px] font-bold text-gray-400">{players.length} combatants</span>
                   </div>
                   <div>
-                    <span className="block text-[8px] uppercase text-[#4F7DFF]/70 font-bold tracking-wider mb-1">Status</span>
+                    <span className="block text-[8px] uppercase text-[#4F7DFF] font-bold tracking-wider mb-1">Status</span>
                     <span className={`text-[10px] font-bold ${isGenerating ? 'text-emerald-400' : generationError ? 'text-rose-400' : 'text-gray-400'}`}>
                       {isGenerating ? 'Analyzing...' : generationError ? 'Error' : reportCardText ? 'Complete' : 'Idle'}
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-auto pt-3 border-t border-white/[0.05]">
-                  <div className="text-[8px] text-gray-600 font-mono leading-relaxed">
+                <div className="pt-3 border-t border-[#26324d]">
+                  <div className="text-[8px] text-gray-500 font-mono leading-relaxed">
                     {isGenerating ? 'Streaming analysis in real-time...' : 'AI-powered judge feedback.'}
                   </div>
                 </div>
               </div>
 
-              {/* Right: Report content area */}
-              <div className="flex-1 p-4 bg-[#0d1018] flex flex-col overflow-hidden">
+              {/* Right content panel: Deep Dark styling */}
+              <div className="flex-1 p-5 bg-[#0c101b] flex flex-col min-h-0 overflow-hidden">
                 {/* Loading / Generating State */}
                 {isGenerating && reportCardText === '' && (
                   <div className="flex-grow flex flex-col items-center justify-center py-10 gap-3">
@@ -584,7 +624,7 @@ Make the layout professional, with bullet points and code snippets where relevan
 
                 {/* Report Content */}
                 {reportCardText !== '' && (
-                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2 select-text">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1.5 space-y-2 select-text min-h-0">
                     {parseBlocks(reportCardText).map((block, i) => {
                       if (block.type === 'code') {
                         return (
@@ -599,7 +639,7 @@ Make the layout professional, with bullet points and code snippets where relevan
                       return (
                         <div
                           key={i}
-                          className="text-xs leading-relaxed font-normal select-text break-words text-gray-400"
+                          className="text-xs leading-relaxed font-normal select-text break-words text-gray-300"
                           dangerouslySetInnerHTML={{ __html: html }}
                         />
                       );
@@ -618,36 +658,8 @@ Make the layout professional, with bullet points and code snippets where relevan
             </div>
           </div>
         )}
-
-        {/* Show Report Card button if it was dismissed */}
-        {activeModelWithKey && !showReportCard && (
-          <button
-            onClick={() => setShowReportCard(true)}
-            className="w-full py-2.5 bg-[#0d1018] hover:bg-[#111622] border border-white/[0.05] hover:border-[#4F7DFF]/25 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-300 transition-all flex items-center justify-center gap-2"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#4F7DFF]/60" />
-            Show AI Report Card
-          </button>
-        )}
-
-        <div className="h-px bg-white/[0.03]" />
-
-        {/* Navigation Actions */}
-        <div className="grid grid-cols-2 gap-3 select-none">
-          <button
-            onClick={() => navigate('/')}
-            className="py-3 px-4 bg-[#090b11] hover:bg-[#111520] border border-white/5 hover:border-white/10 rounded-xl text-xs font-bold text-gray-400 hover:text-white transition-all flex items-center justify-center gap-1.5"
-          >
-            <ArrowLeft className="w-4 h-4" /> Return to Home
-          </button>
-          <button
-            onClick={onReturn}
-            className="py-3 px-4 bg-[#161b29] hover:bg-[#1f2639] border border-white/5 hover:border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all flex items-center justify-center"
-          >
-            Return to Arena Setup
-          </button>
-        </div>
       </div>
     </div>
   );
 };
+

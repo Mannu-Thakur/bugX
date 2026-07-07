@@ -17,6 +17,7 @@ import { PrivacyPage } from '../pages/PrivacyPage';
 import { CookiePage } from '../pages/CookiePage';
 import { TermsPage } from '../pages/TermsPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
+import { VisualizerPage } from '../pages/VisualizerPage';
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
 import { lazy, Suspense } from 'react';
 import { AppearancePage } from '../features/appearance/AppearancePage';
@@ -70,6 +71,14 @@ export const router = createBrowserRouter([
     element: (
       <PageShell fullWidth>
         <LeaderboardPage />
+      </PageShell>
+    ),
+  },
+  {
+    path: '/visualizer',
+    element: (
+      <PageShell fullWidth>
+        <VisualizerPage />
       </PageShell>
     ),
   },

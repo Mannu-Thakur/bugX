@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2, Code } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -475,6 +475,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
     { to: '/problems', label: 'Problems', icon: <Terminal className="w-4 h-4" /> },
     { to: '/battle', label: 'Contest', icon: <Swords className="w-4 h-4 text-[#d97706]" /> },
     { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
+    { to: '/visualizer', label: 'Visualizer', icon: <Code className="w-4 h-4 text-purple-400" /> },
     ...(user ? [{ to: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> }] : []),
     { to: '/settings', label: 'Vault', icon: <BookOpen className="w-4 h-4" /> },
   ];

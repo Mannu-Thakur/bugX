@@ -1,6 +1,9 @@
+import logging
 from datetime import timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import RoleEnum, User
@@ -87,8 +90,6 @@ class AuthService:
             from redis.asyncio import Redis
             from redis.exceptions import RedisError
             from app.core.config import get_settings
-            import logging
-            logger = logging.getLogger(__name__)
 
             settings = get_settings()
             try:
@@ -111,7 +112,7 @@ class AuthService:
                 AuthService._otp_fallback[f"{req.email}:{req.username}"] = (otp, datetime.now() + timedelta(minutes=10))
 
             # Simulate sending email: log the OTP
-            print(f"[ForgotPassword] Simulated Email to {req.email}: Your verification code is {otp}")
+            logger.info("[ForgotPassword] Simulated Email to %s: Your verification code is %s", req.email, otp)
 
             return {
                 "message": "Verification code has been sent to your email.",
@@ -131,8 +132,6 @@ class AuthService:
         from redis.asyncio import Redis
         from redis.exceptions import RedisError
         from app.core.config import get_settings
-        import logging
-        logger = logging.getLogger(__name__)
 
         settings = get_settings()
         try:

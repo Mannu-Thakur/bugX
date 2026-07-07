@@ -1,5 +1,8 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -41,7 +44,7 @@ def create_app() -> FastAPI:
                 await seed_problems(session)
                 await session.commit()
         except Exception as e:
-            print(f"Startup database initialization error: {e}")
+            logger.exception("Startup database initialization error: %s", e)
 
         # Start redis pub/sub listener for battle events
         import asyncio
