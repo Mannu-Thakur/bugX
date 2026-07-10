@@ -161,8 +161,8 @@ export function DailyChallengeCard({ compact = false, className }: DailyChalleng
   /* Prefer authenticated data when available */
   const data = statusQuery.data ?? publicQuery.data;
   const { problem } = data;
-  const solvedToday = !!('solved_today' in data ? (data as any).solved_today : false);
-  const everSolved  = !!('ever_solved'  in data ? (data as any).ever_solved  : false);
+  const solvedToday = !!('solved_today' in data ? (data as Record<string, unknown>).solved_today : false);
+  const everSolved  = !!('ever_solved'  in data ? (data as Record<string, unknown>).ever_solved  : false);
 
   const diff = DIFF_STYLE[problem.difficulty] ?? DIFF_STYLE.EASY;
 

@@ -243,7 +243,7 @@ class AliasDatabase:
                 redis = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
                 try:
                     val = json.dumps({"slug": alias_obj.canonical_slug, "source": alias_obj.source})
-                    await redis.setex(f"import_cache:alias:{norm}", settings.IMPORT_CACHE_TTL, val)
+                    await redis.set(f"import_cache:alias:{norm}", val, ex=settings.IMPORT_CACHE_TTL)
                 finally:
                     await redis.aclose()
             except Exception as cache_err:
@@ -298,7 +298,7 @@ class AliasDatabase:
             redis = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
             try:
                 val = json.dumps({"slug": slug, "source": platform})
-                await redis.setex(f"import_cache:alias:{norm}", settings.IMPORT_CACHE_TTL, val)
+                await redis.set(f"import_cache:alias:{norm}", val, ex=settings.IMPORT_CACHE_TTL)
             finally:
                 await redis.aclose()
         except Exception as cache_err:

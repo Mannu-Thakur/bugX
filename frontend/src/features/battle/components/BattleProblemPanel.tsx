@@ -2,13 +2,14 @@ import React from 'react';
 import { ChevronLeft } from 'lucide-react';
 import type { BattleProblem } from '../types/battle.types';
 import { ProblemDescription } from '../../problems/components/ProblemDescription';
+import type { ProblemDetail } from '../../../shared/lib/api';
 
 interface BattleProblemPanelProps {
   problem: BattleProblem | null;
   width: number;
   onResize: (newWidth: number) => void;
   onClose: () => void;
-  user?: any;
+  user?: unknown;
   activeLanguage?: 'python' | 'javascript' | 'cpp' | 'java';
   notes?: string;
   onNotesChange?: (notes: string) => void;
@@ -83,7 +84,7 @@ export const BattleProblemPanel: React.FC<BattleProblemPanelProps> = ({
       {/* Scrollable Description Container */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <ProblemDescription
-          problem={problem as any}
+          problem={problem as unknown as ProblemDetail}
           user={user}
           focusMode={true}
           notes={notes}

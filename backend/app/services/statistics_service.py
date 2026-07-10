@@ -51,7 +51,7 @@ class StatisticsService:
 
         if redis_client and "pytest" not in sys.modules:
             try:
-                await redis_client.setex(cache_key, 3600, json.dumps(stats))
+                await redis_client.set(cache_key, json.dumps(stats), ex=3600)
                 await redis_client.aclose()
             except Exception as e:
                 logger.debug(f"Redis stats cache write failed: {e}")

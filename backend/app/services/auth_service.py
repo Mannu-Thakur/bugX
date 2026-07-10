@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,10 @@ from app.models.user_stats import UserStats
 from app.repositories.user_repo import UserRepo
 from app.repositories.user_stats_repo import UserStatsRepo
 from app.schemas.auth import ForgotPasswordRequest, LoginRequest, RegisterRequest, Token
+
+# Redis OTP key prefix and TTL
+_OTP_PREFIX = "reset_otp"
+_OTP_TTL_SECONDS = 600  # 10 minutes
 
 
 class AuthService:
@@ -66,14 +71,14 @@ class AuthService:
                 status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN"
             )
 
-        if req.remember:
-            expires_delta = timedelta(days=30)
-        else:
-            expires_delta = timedelta(hours=2)
+        expires_delta = timedelta(days=30) if req.remember else timedelta(hours=2)
         access_token = create_access_token(str(user.id), user.role.value, expires_delta=expires_delta)
         return Token(access_token=access_token, user=user)
 
     async def forgot_password(self, req: ForgotPasswordRequest) -> dict:
+        from app.core.config import get_settings
+        settings = get_settings()
+
         user = await self.user_repo.get_by_email(req.email)
         if not user or user.username != req.username:
             raise HTTPException(
@@ -81,91 +86,80 @@ class AuthService:
                 detail="No account found with that email and username combination.",
             )
 
-        # 1. If code is not provided, generate and send verification code
+        # ── Phase 1: Generate and dispatch OTP ───────────────────────────────
         if not req.code:
-            import random
-            otp = f"{random.randint(100000, 999999)}"
+            # Cryptographically secure 6-digit OTP
+            otp = f"{secrets.randbelow(900_000) + 100_000}"
+            otp_key = f"{_OTP_PREFIX}:{req.email}:{req.username}"
 
-            # Save OTP to Redis with a 10-minute expiry
-            from redis.asyncio import Redis
-            from redis.exceptions import RedisError
-            from app.core.config import get_settings
+            # Persist OTP in Redis (primary) with a 10-minute TTL
+            stored = await _store_otp(otp_key, otp, settings)
 
-            settings = get_settings()
-            try:
-                redis = Redis.from_url(
-                    settings.REDIS_URL,
-                    decode_responses=True,
-                    socket_connect_timeout=2,
-                    socket_timeout=2,
+            if not stored:
+                # Redis unavailable — cannot safely issue a reset
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Password reset is temporarily unavailable. Please try again shortly.",
                 )
-                try:
-                    await redis.setex(f"reset_otp:{req.email}:{req.username}", 600, otp)
-                finally:
-                    await redis.aclose()
-            except (RedisError, Exception) as e:
-                # Fallback to class-level in-memory storage if Redis is down
-                logger.warning(f"[ForgotPassword] Redis failed: {e}. Falling back to in-memory OTP storage.")
-                if not hasattr(AuthService, "_otp_fallback"):
-                    AuthService._otp_fallback = {}
-                from datetime import datetime
-                AuthService._otp_fallback[f"{req.email}:{req.username}"] = (otp, datetime.now() + timedelta(minutes=10))
 
-            # Simulate sending email: log the OTP
-            logger.info("[ForgotPassword] Simulated Email to %s: Your verification code is %s", req.email, otp)
+            # Send real email if SMTP is configured
+            email_sent = False
+            if settings.smtp_configured:
+                from app.services.email_service import send_otp_email
+                email_sent = await send_otp_email(to=req.email, otp=otp)
+                if not email_sent:
+                    logger.error(
+                        "[ForgotPassword] SMTP configured but email failed to send to %s. "
+                        "OTP is in the server logs for manual recovery.",
+                        req.email,
+                    )
 
-            return {
-                "message": "Verification code has been sent to your email.",
+            # Always log OTP server-side (useful in all environments for ops / debugging)
+            logger.info(
+                "[ForgotPassword] OTP for %s (username=%s): %s  [email_sent=%s]",
+                req.email, req.username, otp, email_sent,
+            )
+
+            response: dict = {
+                "message": (
+                    "A verification code has been sent to your email."
+                    if email_sent
+                    else "Verification code generated. Check server logs."
+                ),
                 "code_required": True,
-                # Return the code in development/testing mode so the API remains testable/mockable
-                "code": otp
+                "email_sent": email_sent,
             }
 
-        # 2. If code is provided, verify it and reset password
+            # In development without SMTP, surface the OTP in the response so the
+            # API remains testable without needing a real mailbox.
+            # NEVER exposed in production.
+            if settings.is_development and not settings.smtp_configured:
+                response["dev_code"] = otp
+                response["dev_note"] = (
+                    "OTP returned only because ENV=development and SMTP is not configured. "
+                    "Configure SMTP_HOST/USER/PASSWORD in .env to enable real email."
+                )
+
+            return response
+
+        # ── Phase 2: Verify OTP and reset password ────────────────────────────
         if not req.new_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New password must be provided with the verification code."
+                detail="new_password is required when submitting a verification code.",
             )
 
-        stored_otp = None
-        from redis.asyncio import Redis
-        from redis.exceptions import RedisError
-        from app.core.config import get_settings
-
-        settings = get_settings()
-        try:
-            redis = Redis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-            )
-            try:
-                stored_otp = await redis.get(f"reset_otp:{req.email}:{req.username}")
-                if stored_otp and stored_otp == req.code:
-                    await redis.delete(f"reset_otp:{req.email}:{req.username}")
-            finally:
-                await redis.aclose()
-        except (RedisError, Exception) as e:
-            logger.warning(f"[ForgotPassword] Redis failed on retrieval: {e}. Checking in-memory fallback.")
-            if hasattr(AuthService, "_otp_fallback"):
-                entry = AuthService._otp_fallback.get(f"{req.email}:{req.username}")
-                if entry:
-                    from datetime import datetime
-                    otp_val, expiry = entry
-                    if datetime.now() < expiry:
-                        stored_otp = otp_val
-                    # Clear fallback entry
-                    del AuthService._otp_fallback[f"{req.email}:{req.username}"]
+        otp_key = f"{_OTP_PREFIX}:{req.email}:{req.username}"
+        stored_otp = await _retrieve_and_delete_otp(otp_key, settings)
 
         if not stored_otp:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Verification code has expired or is invalid.",
+                detail="Verification code has expired or is invalid. Please request a new one.",
             )
 
-        if stored_otp != req.code:
+        # Constant-time comparison prevents timing attacks
+        if not secrets.compare_digest(stored_otp, req.code):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid verification code.",
@@ -173,5 +167,56 @@ class AuthService:
 
         user.password_hash = hash_password(req.new_password)
         await self.db.commit()
+        logger.info("[ForgotPassword] Password reset successfully for %s", req.email)
         return {"message": "Password has been reset successfully."}
 
+
+# ── Private Redis helpers ─────────────────────────────────────────────────────
+
+async def _store_otp(key: str, otp: str, settings) -> bool:
+    """
+    Persist OTP in Redis with TTL.
+    Returns True on success, False if Redis is unavailable.
+    """
+    from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+    try:
+        redis = Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        try:
+            await redis.set(key, otp, ex=_OTP_TTL_SECONDS)
+            return True
+        finally:
+            await redis.aclose()
+    except (RedisError, Exception) as exc:
+        logger.error("[ForgotPassword] Redis unavailable, cannot store OTP: %s", exc)
+        return False
+
+
+async def _retrieve_and_delete_otp(key: str, settings) -> str | None:
+    """
+    Atomically fetch and delete the OTP from Redis.
+    Returns the stored OTP string, or None if missing / Redis is down.
+    """
+    from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+    try:
+        redis = Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        try:
+            # GETDEL atomically reads and removes — no second window for reuse
+            stored = await redis.getdel(key)
+            return stored
+        finally:
+            await redis.aclose()
+    except (RedisError, Exception) as exc:
+        logger.error("[ForgotPassword] Redis unavailable, cannot retrieve OTP: %s", exc)
+        return None

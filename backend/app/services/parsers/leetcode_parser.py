@@ -69,6 +69,37 @@ class LeetCodeParser:
             return "single"
 
     @staticmethod
+    def _parse_param_count(code: str, language: str, function_name: str) -> int:
+        """Return the actual number of parameters for function_name in code.
+
+        Works on both raw LeetCode snippets (which have 'self') and cleaned
+        templates (where 'self' has already been stripped out).
+        """
+        if language == "python":
+            clean_code = "\n".join([line for line in code.split("\n") if not line.strip().startswith("#")])
+            # Try with self (raw snippet)
+            match = re.search(fr"def\s+{re.escape(function_name)}\s*\(\s*self\s*(?:,\s*([^)]*))?\)", clean_code)
+            if match:
+                params_str = match.group(1) or ""
+                params = [p.strip() for p in params_str.split(",") if p.strip()]
+                return max(1, len(params))
+            # Try without self (cleaned template)
+            match = re.search(fr"def\s+{re.escape(function_name)}\s*\(\s*([^)]*)\)", clean_code)
+            if match:
+                params_str = match.group(1) or ""
+                params = [p.strip() for p in params_str.split(",") if p.strip()]
+                return max(1, len(params))
+        else:  # javascript
+            match = re.search(fr"{re.escape(function_name)}\s*=\s*function\s*\(\s*([^)]*)\)", code)
+            if not match:
+                match = re.search(fr"function\s+{re.escape(function_name)}\s*\(\s*([^)]*)\)", code)
+            if match:
+                params_str = match.group(1) or ""
+                params = [p.strip() for p in params_str.split(",") if p.strip()]
+                return max(1, len(params))
+        return 1
+
+    @staticmethod
     def _clean_python_template(code: str) -> str:
         lines = code.split("\n")
         cleaned_lines = []
@@ -96,18 +127,65 @@ class LeetCodeParser:
 
     @staticmethod
     def _extract_expected_outputs(html_content: str) -> List[str]:
+        """Extract expected output values from LeetCode HTML problem content.
+
+        Strategy:
+        1. First try to extract from raw HTML using <strong>Output:</strong> tags
+           (LeetCode's current format) before stripping tags, preserving value fidelity.
+        2. Fall back to a plain-text regex pass with re.DOTALL so it works across
+           multi-line collapsed content.
+        """
         if not html_content:
             return []
-        # Strip HTML entities
+
+        # --- Pass 1: Extract from bold-tagged HTML (LeetCode current format) ---
+        # Matches: <strong>Output:</strong>\n<strong class="example">true</strong>
+        # or:      <strong>Output:</strong> true
+        bold_pattern = r"<strong[^>]*>\s*Output\s*:\s*</strong>\s*(.*?)(?=<strong[^>]*>|<p>|<ul>|$)"
+        raw_matches = re.findall(bold_pattern, html_content, re.IGNORECASE | re.DOTALL)
+        bold_outputs = []
+        for rm in raw_matches:
+            # Strip remaining HTML tags from the captured group
+            clean = re.sub(r"<[^>]+>", " ", rm)
+            clean = re.sub(r"&nbsp;", " ", clean)
+            clean = re.sub(r"&lt;", "<", clean)
+            clean = re.sub(r"&gt;", ">", clean)
+            clean = re.sub(r"&amp;", "&", clean)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                bold_outputs.append(clean)
+
+        if bold_outputs:
+            return bold_outputs
+
+        # --- Pass 1b: Inline pattern — <p><strong>Output:</strong> value</p> ---
+        # Also handles <p><strong>Output:</strong><strong class="example"> true</strong></p>
+        inline_pattern = r"<p[^>]*>\s*<strong[^>]*>\s*Output\s*:\s*</strong>\s*(?:<strong[^>]*>)?\s*(.*?)\s*(?:</strong>)?\s*</p>"
+        inline_matches = re.findall(inline_pattern, html_content, re.IGNORECASE | re.DOTALL)
+        inline_outputs = []
+        for rm in inline_matches:
+            clean = re.sub(r"<[^>]+>", " ", rm)
+            clean = re.sub(r"&nbsp;", " ", clean)
+            clean = re.sub(r"&lt;", "<", clean)
+            clean = re.sub(r"&gt;", ">", clean)
+            clean = re.sub(r"&amp;", "&", clean)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                inline_outputs.append(clean)
+
+        if inline_outputs:
+            return inline_outputs
+
+        # --- Pass 2: Plain-text fallback ---
         text = html_content.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
         # Strip all HTML tags, leaving plain text
         text = re.sub(r"<[^>]+>", " ", text)
-        # Collapse multiple spaces
+        # Collapse multiple spaces / newlines
         text = re.sub(r"\s+", " ", text)
 
-        # Find all "Output:" matches
-        pattern = r"Output\s*:\s*(.*?)(?=\s*(?:Explanation|Input|Example|Constraints|Note|$))"
-        matches = re.findall(pattern, text, re.IGNORECASE)
+        # Find all "Output:" matches — re.DOTALL ensures we cross collapsed whitespace
+        pattern = r"Output\s*:\s*(.*?)(?=\s*(?:Explanation|Input|Example|Constraints|Note|Output|$))"
+        matches = re.findall(pattern, text, re.IGNORECASE | re.DOTALL)
         return [m.strip() for m in matches if m.strip()]
 
     @classmethod
@@ -219,14 +297,20 @@ class LeetCodeParser:
                 "arg_style": arg_style
             })
 
-        # Determine param count
+        # Determine param count — read it from the actual template signature,
+        # not a hardcoded value, so 3-param problems (e.g. Interleaving String)
+        # get their inputs grouped correctly.
         num_params = 1
         ref_tpl = next((t for t in templates_list if t["language"] == "python"), None)
         if not ref_tpl:
             ref_tpl = next((t for t in templates_list if t["language"] == "javascript"), None)
         if ref_tpl:
             if ref_tpl["arg_style"] == "positional":
-                num_params = 2
+                num_params = cls._parse_param_count(
+                    ref_tpl["template_code"],
+                    ref_tpl["language"],
+                    ref_tpl["function_name"]
+                )
             else:
                 num_params = 1
 
@@ -253,8 +337,11 @@ class LeetCodeParser:
             tc_inputs = [[1]]
 
         expected_outputs = cls._extract_expected_outputs(description)
+        # Pad with "null" only up to the number of inputs so we can filter below
         while len(expected_outputs) < len(tc_inputs):
             expected_outputs.append("null")
+
+        PLACEHOLDER_VALUES = {"null", '"null"', '""', ""}
 
         test_cases_list = []
         for idx, tc_in in enumerate(tc_inputs):
@@ -264,6 +351,11 @@ class LeetCodeParser:
                 in_str = json.dumps(tc_in[0])
 
             out_val = expected_outputs[idx]
+            # Skip test cases whose expected output is a placeholder — they would
+            # fail validation and produce wrong-answer verdicts in the judge.
+            if out_val.strip() in PLACEHOLDER_VALUES:
+                continue
+
             test_cases_list.append({
                 "input": in_str,
                 "expected_output": out_val,
@@ -272,17 +364,22 @@ class LeetCodeParser:
                 "weight": 1
             })
 
-        # Duplicate to generate 3 hidden test cases
+        # Re-index order_index sequentially after filtering
+        for i, tc in enumerate(test_cases_list):
+            tc["order_index"] = i
+
+        # Duplicate to generate 3 hidden test cases (only if we have at least one valid sample)
         sample_len = len(test_cases_list)
-        for h_idx in range(3):
-            ref_case = test_cases_list[h_idx % sample_len]
-            test_cases_list.append({
-                "input": ref_case["input"],
-                "expected_output": ref_case["expected_output"],
-                "is_sample": False,
-                "order_index": sample_len + h_idx,
-                "weight": 1
-            })
+        if sample_len > 0:
+            for h_idx in range(3):
+                ref_case = test_cases_list[h_idx % sample_len]
+                test_cases_list.append({
+                    "input": ref_case["input"],
+                    "expected_output": ref_case["expected_output"],
+                    "is_sample": False,
+                    "order_index": sample_len + h_idx,
+                    "weight": 1
+                })
 
         return {
             "slug": slug,

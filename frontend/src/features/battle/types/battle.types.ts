@@ -47,6 +47,7 @@ export interface BattlePlayerState {
   code: string;
   lang: 'python' | 'javascript' | 'cpp' | 'java';
   terminal: { status: 'idle' | 'running' | 'success' | 'failed'; logs: string[] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   testResults: any[];
   progress?: Record<string, {
     code: string;
@@ -68,9 +69,11 @@ export interface BattleRoom {
   time_left: number | null;
   problem_source: string;
   selected_slug: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   custom_problem: any;
   problem_id: string | null;
   selected_slugs?: string[] | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   custom_problems?: any[] | null;
   problem_ids?: string[] | null;
   start_time: string | null;

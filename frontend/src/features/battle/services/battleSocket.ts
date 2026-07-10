@@ -19,9 +19,11 @@ export type BattleEventType = typeof BATTLE_EVENTS[keyof typeof BATTLE_EVENTS];
 
 export class BattleSocketService {
   private socket: WebSocket | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pingIntervalId: any = null;
   private roomId: string;
   private playerIndex: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onMessageCallback: (event: any) => void;
   private onConnectCallback?: () => void;
   private onDisconnectCallback?: () => void;
@@ -33,6 +35,7 @@ export class BattleSocketService {
   constructor(
     roomId: string,
     playerIndex: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onMessage: (event: any) => void,
     onConnect?: () => void,
     onDisconnect?: () => void
@@ -117,7 +120,7 @@ export class BattleSocketService {
       console.error('[BattleSocket] Connection error:', err);
     };
 
-    this.socket.onclose = (_event) => {
+    this.socket.onclose = () => {
       this.stopPingPong();
       this.onDisconnectCallback?.();
 
@@ -157,6 +160,7 @@ export class BattleSocketService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public send(message: any) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {

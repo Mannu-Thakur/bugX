@@ -64,11 +64,13 @@ export const BattleLobbyPage: React.FC = () => {
 
   useEffect(() => {
     if (!user || player1Name.trim()) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlayer1Name(user.username || user.email.split('@')[0]);
   }, [player1Name, user]);
 
   useEffect(() => {
     if (!catalogProblems.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedSlugs(prev => {
       const valid = prev.filter(slug => catalogProblems.some(p => p.slug === slug));
       return valid.length ? valid : [catalogProblems[0].slug];
@@ -236,8 +238,9 @@ export const BattleLobbyPage: React.FC = () => {
       } catch {
         // User can copy from the visible textbox
       }
-    } catch (err: any) {
-      alert(`Failed to generate invite. Error: ${err.message || err}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(`Failed to generate invite. Error: ${errorMsg}`);
     } finally {
       setIsCreatingInvite(false);
     }
@@ -743,7 +746,7 @@ export const BattleLobbyPage: React.FC = () => {
                       <div key={lang.key} className="space-y-1">
                         <span className="text-[10px] text-gray-600 font-medium block">{lang.label}</span>
                         <textarea
-                          value={(customProblems[activeCustomIdx] as any)[lang.key]}
+                          value={customProblems[activeCustomIdx][lang.key as keyof CustomProblem] as string}
                           onChange={e => {
                             const val = e.target.value;
                             updateActiveCustomProblem(p => ({ ...p, [lang.key]: val }));

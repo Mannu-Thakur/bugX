@@ -1198,9 +1198,13 @@ function generateCppTemplate(pyCode: string): string {
     return ct.startsWith('vector') ? `${ct}& ${name}` : `${ct} ${name}`;
   }).join(', ');
   let retStmt = '';
-  if (cppRet === 'void') retStmt = '';
-  else if (CPP_DEFAULTS[cppRet]) retStmt = `\n        return ${CPP_DEFAULTS[cppRet]};`;
-  else retStmt = '\n        return {};';
+  if (cppRet !== 'void') {
+    if (CPP_DEFAULTS[cppRet]) {
+      retStmt = `\n        return ${CPP_DEFAULTS[cppRet]};`;
+    } else {
+      retStmt = '\n        return {};';
+    }
+  }
   return `class Solution {\npublic:\n    ${cppRet} ${fnName}(${cppParams}) {\n        // Write your solution here${retStmt}\n    }\n};`;
 }
 
@@ -1215,26 +1219,32 @@ function generateJavaTemplate(pyCode: string): string {
     return `${jt} ${name}`;
   }).join(', ');
   let retStmt = '';
-  if (javaRet === 'void') retStmt = '';
-  else if (JAVA_DEFAULTS[javaRet]) retStmt = `\n        return ${JAVA_DEFAULTS[javaRet]};`;
-  else if (javaRet.endsWith('[]')) retStmt = `\n        return new ${javaRet.slice(0, -2)}[0];`;
-  else if (javaRet.startsWith('List')) retStmt = '\n        return new ArrayList<>();';
-  else retStmt = '\n        return null;';
+  if (javaRet !== 'void') {
+    if (JAVA_DEFAULTS[javaRet]) {
+      retStmt = `\n        return ${JAVA_DEFAULTS[javaRet]};`;
+    } else if (javaRet.endsWith('[]')) {
+      retStmt = `\n        return new ${javaRet.slice(0, -2)}[0];`;
+    } else if (javaRet.startsWith('List')) {
+      retStmt = '\n        return new ArrayList<>();';
+    } else {
+      retStmt = '\n        return null;';
+    }
+  }
   return `class Solution {\n    public ${javaRet} ${fnName}(${javaParams}) {\n        // Write your solution here${retStmt}\n    }\n}`;
 }
 
 // Inject C++ and Java templates for ALL mock problems dynamically
 Object.keys(MOCK_PROBLEM_DETAILS).forEach(slug => {
   const prob = MOCK_PROBLEM_DETAILS[slug];
-  const pyTpl = prob.templates.find((t: any) => t.language === 'python');
+  const pyTpl = prob.templates.find(t => t.language === 'python');
   if (!pyTpl) return;
   const pyCode: string = pyTpl.source_code || pyTpl.template_code || '';
   // Add C++ template if not already present
-  if (!prob.templates.some((t: any) => t.language === 'cpp')) {
+  if (!prob.templates.some(t => t.language === 'cpp')) {
     prob.templates.push({ language: 'cpp', source_code: generateCppTemplate(pyCode) });
   }
   // Add Java template if not already present
-  if (!prob.templates.some((t: any) => t.language === 'java')) {
+  if (!prob.templates.some(t => t.language === 'java')) {
     prob.templates.push({ language: 'java', source_code: generateJavaTemplate(pyCode) });
   }
 });

@@ -59,6 +59,7 @@ export const SubmissionResultPage: React.FC = () => {
       const cached = localStorage.getItem(`ai_insight_${id}`);
       if (cached) {
         try {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setAiInsights(JSON.parse(cached));
         } catch {
           localStorage.removeItem(`ai_insight_${id}`);
@@ -190,9 +191,9 @@ Error Message: ${submission.error_message || 'None'}
       } else {
         throw new Error('AI response did not match the expected schema.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setAiError(err?.message || 'Failed to generate AI insights.');
+      setAiError(err instanceof Error ? err.message : 'Failed to generate AI insights.');
     } finally {
       setAiLoading(false);
     }
@@ -317,7 +318,6 @@ Error Message: ${submission.error_message || 'None'}
   /* ── Derived values ── */
   const resultRows = results || [];
   const failedResults = resultRows.filter(r => !r.passed).length;
-  const showResultBreakdown = !isPending && (isLoadingResults || isErrorResults || resultRows.length > 0);
 
   const isAccepted   = submission.status === 'ACCEPTED';
   const isSamplePassed = submission.status === 'SAMPLE_PASSED';
@@ -543,8 +543,7 @@ Error Message: ${submission.error_message || 'None'}
       </div>
 
       {/* ── Result note + perf specs ── */}
-      {(showResultBreakdown || true) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
           {/* Result note (spans 2 cols) */}
           <div className="sm:col-span-2 rounded-xl border border-zinc-800 bg-[#131316] px-5 py-4">
@@ -625,7 +624,6 @@ Error Message: ${submission.error_message || 'None'}
             </div>
           </div>
         </div>
-      )}
 
       {/* ── AI Insights ── */}
       {aiInsights ? (

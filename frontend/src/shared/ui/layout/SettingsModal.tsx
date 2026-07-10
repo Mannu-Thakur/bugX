@@ -20,6 +20,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
 
   useEffect(() => {
     if (isOpen && initialTab) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab(initialTab);
     }
   }, [isOpen, initialTab]);

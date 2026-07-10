@@ -83,7 +83,7 @@ export const AlgorithmVisualizer: React.FC = () => {
   const [bsArray, setBsArray] = useState<number[]>([]);
 
   // Playback timer ref
-  const timerRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize Linked List Reversal simulation
   const initLLSimulation = (valuesStr: string) => {
@@ -354,6 +354,7 @@ export const AlgorithmVisualizer: React.FC = () => {
   // Re-run initialization when algorithm or input inputs change
   useEffect(() => {
     if (algo === 'linked_list_reverse') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       initLLSimulation(inputValue);
     } else if (algo === 'binary_search') {
       initBSSimulation(inputValue, targetValue);

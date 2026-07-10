@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, startTransition } from 'react';
 import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import { RotateCcw, ChevronDown, Lightbulb, Maximize2, Play, CloudUpload, StickyNote, BookOpen } from 'lucide-react';
 import { cn } from '../../../shared/lib/cn';
@@ -48,8 +48,6 @@ const LANGUAGE_OPTIONS = [
 ] as const;
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
-  problemSlug: _problemSlug,
-  templates: _templates,
   code,
   onChangeCode,
   language,
@@ -61,7 +59,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   isSubmitting = false,
   onRun,
   onSubmit,
-  focusMode: _focusMode = false,
   onShowComingSoon,
   onShowHints,
   submissionCooldown = 0,
@@ -74,7 +71,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   isDescriptionOpen = true,
   hideHints = false,
 }) => {
-  const xCtx = (() => { try { return useX(); } catch { return null; } })();
+  const xCtx = useX();
   const hasUnread = xCtx ? xCtx.messages.length > 0 && !xCtx.isOpen : false;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(() => !document.documentElement.classList.contains('light'));
@@ -99,13 +96,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reference to the Monaco editor instance for wheel propagation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   // Reference to the Monaco namespace (needed for Range in executeEdits)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const monacoRef = useRef<any>(null);
 
   useEffect(() => {
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((window as any).bugxActiveEditor === editorRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).bugxActiveEditor = null;
       }
       if (saveTimeoutRef.current) {
@@ -173,15 +174,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     onSubmitRef.current = onSubmit;
   }, [onRun, onSubmit]);
 
-  // Sync font size when user loads or changes
+  // Sync font size when user loads or changes.
+  // Deferred via startTransition so we avoid a synchronous setState-in-effect
+  // cascade that the linter (react-hooks/set-state-in-effect) correctly flags.
   useEffect(() => {
-    if (user) {
-      const saved = userStorage.getFontSize(user.id);
-      if (saved) {
-        setFontSize(Math.min(Math.max(saved, 10), 28));
-      }
-    }
-  }, [user?.id]);
+    if (!user) return;
+    const saved = userStorage.getFontSize(user.id);
+    if (!saved) return;
+    const clamped = Math.min(Math.max(saved, 10), 28);
+    startTransition(() => setFontSize(clamped));
+  }, [user]);
 
   // const changeFontSize = (delta: number) => {
   //   setFontSize(prev => {
@@ -307,6 +309,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).bugxActiveEditor = editor;
 
     // Add Run shortcut (Ctrl + Enter)
@@ -334,7 +337,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
 
     // Track cursor location in real time
-    editor.onDidChangeCursorPosition((e: any) => {
+    editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number } }) => {
       setCursorPos({ line: e.position.lineNumber, column: e.position.column });
     });
 
@@ -422,7 +425,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
               {LANGUAGE_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => { onChangeLanguage(opt.value as any); setDropdownOpen(false); }}
+                  onClick={() => { onChangeLanguage(opt.value); setDropdownOpen(false); }}
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2 text-xs font-medium transition-all cursor-pointer",
                     language === opt.value
@@ -543,6 +546,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             renderLineHighlight: 'gutter',
             automaticLayout: true,
             readOnly: isFinished,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any}
         />
       </div>

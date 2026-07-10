@@ -8,12 +8,14 @@ interface RouteProps {
 }
 
 export const ProtectedRoute: React.FC<RouteProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
+  // While the auth context is hydrating the session, render nothing so we
+  // don't flash-redirect to /login before the token has been validated.
+  if (loading) return null;
+
   if (!user) {
-    // Redirect them to the /login page, but save the current location they were
-    // trying to go to. This allows us to send them along after they log in.
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -21,7 +23,7 @@ export const ProtectedRoute: React.FC<RouteProps> = ({ children }) => {
 };
 
 export const AdminRoute: React.FC<RouteProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   const toast = useToast();
 
@@ -30,6 +32,8 @@ export const AdminRoute: React.FC<RouteProps> = ({ children }) => {
       toast.error('Access Denied: Admin role is required to access this area.');
     }
   }, [user, toast]);
+
+  if (loading) return null;
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -43,7 +47,9 @@ export const AdminRoute: React.FC<RouteProps> = ({ children }) => {
 };
 
 export const AnonymousRoute: React.FC<RouteProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
 
   if (user) {
     return <Navigate to="/problems" replace />;

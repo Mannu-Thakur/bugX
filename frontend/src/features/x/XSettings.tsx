@@ -36,7 +36,7 @@ export const XSettings: React.FC = () => {
   const [newPrompt, setNewPrompt] = useState('');
 
   const handleTestConnection = async (providerId: string) => {
-    const provider = getProviderById(providerId as any);
+    const provider = getProviderById(providerId as ProviderId);
     if (!provider) return;
 
     const enteredKey = tempKeys[providerId] || apiKeys[providerId as ProviderId];
@@ -46,18 +46,22 @@ export const XSettings: React.FC = () => {
     }
 
     setTestingProvider(providerId);
-    setTestResult(prev => ({ ...prev, [providerId]: undefined as any }));
+    setTestResult(prev => {
+      const next = { ...prev };
+      delete next[providerId];
+      return next;
+    });
 
     try {
       // Test key by requesting a minimal model completion
       const testModel = provider.models[0]?.id;
       if (!testModel) throw new Error('No test model available');
 
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
-      let body: any = {
+      let body: Record<string, unknown> = {
         model: testModel,
         messages: [{ role: 'user', content: 'Say OK' }],
         max_tokens: 5,
@@ -92,13 +96,14 @@ export const XSettings: React.FC = () => {
         [providerId]: { status: 'success', message: 'Verified' },
       }));
       // Auto save the verified key
-      setApiKey(providerId as any, enteredKey);
+      setApiKey(providerId as ProviderId, enteredKey);
       success(`${provider.name} API key verified and saved.`);
-    } catch (err: any) {
+    } catch (err) {
       let msg = 'Connection failed';
-      if (err?.message?.includes('Quota') || err?.message?.includes('insufficient_quota')) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('Quota') || errMsg.includes('insufficient_quota')) {
         msg = 'Quota exceeded';
-      } else if (err?.message?.includes('invalid_api_key') || err?.message?.includes('401')) {
+      } else if (errMsg.includes('invalid_api_key') || errMsg.includes('401')) {
         msg = 'Invalid API Key';
       }
       setTestResult(prev => ({

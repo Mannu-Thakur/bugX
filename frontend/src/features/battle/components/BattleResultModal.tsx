@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Medal, ArrowLeft, Sparkles, RefreshCw, AlertCircle, X } from 'lucide-react';
 import { cn } from '../../../shared/lib/cn';
 import { safeParseDate } from '../../../shared/lib/date';
 import type { BattlePlayerState } from '../types/battle.types';
-import { useX } from '../../x/XContext';
+import { XCtx } from '../../x/XContext';
 import { getModelById, PROVIDERS, type ProviderId } from '../../x/xModels';
 import hljs from 'highlight.js/lib/core';
 import cpp from 'highlight.js/lib/languages/cpp';
@@ -47,7 +47,7 @@ const PLAYER_COLORS = [
 
 // Simple markdown-to-html converter (no external deps needed)
 function parseMarkdown(text: string): string {
-  let html = text
+  const html = text
     // escape HTML first
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -136,7 +136,49 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
   const [showReportCard, setShowReportCard] = useState(true);
 
   // Retrieve X integration context for LLM credentials & model
-  const xCtx = (() => { try { return useX(); } catch { return null; } })();
+  const xCtx = useContext(XCtx);
+
+  const [matchDuration, setMatchDuration] = useState('N/A');
+  const [fastestSolve, setFastestSolve] = useState('N/A');
+
+  // Compute match duration and fastest solve time purely inside useEffect (where Date.now is allowed)
+  useEffect(() => {
+    if (!startTime) return;
+    const start = new Date(startTime).getTime();
+    const solvedPlayers = players.filter(p => p.solved && p.solved_at);
+    
+    let end: number;
+    if (players.length <= 2 && solvedPlayers.length > 0) {
+      const firstSolvedTime = Math.min(...solvedPlayers.map(p => new Date(p.solved_at!).getTime()));
+      end = firstSolvedTime;
+    } else {
+      if (timeLimit) {
+        end = start + timeLimit * 60 * 1000;
+        if (end > Date.now()) {
+          end = Date.now();
+        }
+      } else {
+        end = Date.now();
+      }
+    }
+    
+    const diffSeconds = Math.max(0, Math.round((end - start) / 1000));
+    const mins = Math.floor(diffSeconds / 60);
+    const secs = diffSeconds % 60;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMatchDuration(`${mins}m ${secs}s`);
+
+    if (solvedPlayers.length > 0) {
+      const solveTimes = solvedPlayers.map(p => {
+        const elapsed = new Date(p.solved_at!).getTime() - start;
+        return Math.max(0, Math.round(elapsed / 1000));
+      });
+      const fastest = Math.min(...solveTimes);
+      const fMins = Math.floor(fastest / 60);
+      const fSecs = fastest % 60;
+      setFastestSolve(`${fMins}m ${fSecs}s`);
+    }
+  }, [startTime, players, timeLimit]);
 
   // Loop through available providers to find the first one that has a verified key configured.
   // Falls back to active/default model if no keys are found.
@@ -173,6 +215,122 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
 
   const activeModelWithKey = getAvailableModelWithKey();
 
+  const getSuccessRate = () => {
+    const solved = players.filter(p => p.solved).length;
+    return `${solved}/${players.length}`;
+  };
+
+  const generateReportCard = async (provider: XProvider, model: XModel, apiKey: string) => {
+    setIsGenerating(true);
+    setGenerationError('');
+    setReportCardText('');
+
+    try {
+      const participantsDetails = players.map(p => {
+        return `Player: ${p.username}
+Solved: ${p.solved ? 'Yes' : 'No'}
+Score: ${p.score} PTS
+Attempts: ${p.attempts}
+Language: ${p.lang}
+Code submitted:
+\`\`\`${p.lang}
+${p.code || '// No code submitted or empty'}
+\`\`\``;
+      }).join('\n\n');
+
+      const systemPrompt = `You are the AI Arena Judge for bugX, a competitive coding platform.
+Analyze the competitive coding match results and generate a beautiful "AI Match Report Card" in markdown.
+Focus on comparing code structures, logic, efficiency (time/space complexity), and giving specific, high-value, constructive suggestions for improvement.`;
+
+      const prompt = `Analyze the following competitive coding match:
+
+Match Details:
+Problem: ${problemTitle}
+Duration: ${matchDuration}
+Success Rate: ${getSuccessRate()}
+Winner: ${winnerUsername || 'None'}
+
+Participants details & code submissions:
+${participantsDetails}
+
+Generate a concise report card. No intro/outro.`;
+
+      let response: Response;
+      if (provider.id === 'anthropic') {
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: model.id,
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: `${systemPrompt}\n\n${prompt}` }],
+            stream: true,
+          }),
+        });
+      } else {
+        response = await fetch(provider.apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model.id,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt },
+            ],
+            stream: true,
+          }),
+        });
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API returned ${response.status}: ${errText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response body is not readable');
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (!data || data === '[DONE]') continue;
+            try {
+              const json = JSON.parse(data);
+              const token =
+                json.choices?.[0]?.delta?.content ||
+                json.choices?.[0]?.text ||
+                '';
+              if (token) {
+                accumulated += token;
+                setReportCardText(accumulated);
+              }
+            } catch { /* ignore parse error */ }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Report card generation failed:', err);
+      setGenerationError(err instanceof Error ? err.message : 'Failed to generate report card.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Generate confetti and auto-trigger report card on mount
   useEffect(() => {
     const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'];
@@ -186,11 +344,13 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
       duration: Math.random() * 2.5 + 3,
       angle: Math.random() * 360,
     }));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConfetti(particles);
 
     if (activeModelWithKey) {
       generateReportCard(activeModelWithKey.provider, activeModelWithKey.model, activeModelWithKey.apiKey);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleTriggerAutoGeneration = () => {
@@ -217,149 +377,6 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
 
   const winner = sortedLeaderboard[0];
   const winnerUsername = (winner && (winner.solved || winner.score > 0)) ? winner.username : null;
-
-  const getMatchDuration = () => {
-    if (!startTime) return 'N/A';
-    const start = new Date(startTime).getTime();
-    const solvedPlayers = players.filter(p => p.solved && p.solved_at);
-    
-    let end: number;
-    if (players.length <= 2 && solvedPlayers.length > 0) {
-      const firstSolvedTime = Math.min(...solvedPlayers.map(p => new Date(p.solved_at!).getTime()));
-      end = firstSolvedTime;
-    } else {
-      if (timeLimit) {
-        end = start + timeLimit * 60 * 1000;
-        if (end > Date.now()) {
-          end = Date.now();
-        }
-      } else {
-        end = Date.now();
-      }
-    }
-    
-    const diffSeconds = Math.max(0, Math.round((end - start) / 1000));
-    const mins = Math.floor(diffSeconds / 60);
-    const secs = diffSeconds % 60;
-    return `${mins}m ${secs}s`;
-  };
-
-  const getFastestSolve = () => {
-    if (!startTime) return 'N/A';
-    const start = new Date(startTime).getTime();
-    const solvedPlayers = players.filter(p => p.solved && p.solved_at);
-    if (solvedPlayers.length === 0) return 'N/A';
-    
-    const solveTimes = solvedPlayers.map(p => {
-      const elapsed = new Date(p.solved_at!).getTime() - start;
-      return Math.max(0, Math.round(elapsed / 1000));
-    });
-    const fastest = Math.min(...solveTimes);
-    const mins = Math.floor(fastest / 60);
-    const secs = fastest % 60;
-    return `${mins}m ${secs}s`;
-  };
-
-  const getSuccessRate = () => {
-    const solved = players.filter(p => p.solved).length;
-    return `${solved}/${players.length}`;
-  };
-
-  const generateReportCard = async (provider: any, model: any, apiKey: string) => {
-    setIsGenerating(true);
-    setGenerationError('');
-    setReportCardText('');
-
-    try {
-      const participantsDetails = players.map(p => {
-        return `Player: ${p.username}
-Solved: ${p.solved ? 'Yes' : 'No'}
-Score: ${p.score} PTS
-Attempts: ${p.attempts}
-Language: ${p.lang}
-Code submitted:
-\`\`\`${p.lang}
-${p.code || '// No code submitted or empty'}
-\`\`\``;
-      }).join('\n\n');
-
-      const systemPrompt = `You are the AI Arena Judge for bugX, a competitive coding platform.
-Analyze the competitive coding match results and generate a beautiful "AI Match Report Card" in markdown.
-Focus on comparing code structures, logic, efficiency (time/space complexity), and giving specific, high-value, constructive suggestions for improvement.`;
-
-      const prompt = `Analyze the following competitive coding match:
-
-Match Details:
-Problem: ${problemTitle}
-Duration: ${getMatchDuration()}
-Success Rate: ${getSuccessRate()}
-Winner: ${winnerUsername || 'None'}
-
-Participants details & code submissions:
-${participantsDetails}
-
-Please generate an elegant and detailed "AI Match Report Card" using markdown format. Include these sections:
-1. **🏆 Match Recap**: A short summary of how the match went.
-2. **💻 Code Battle Analysis**: Technical comparison of the participants' approaches. Analyze complexity (Big O) and code quality/structure of the winner's code compared to others.
-3. **💡 Constructive Actionable Feedback**: Individual tips for each player. For players who solved it, how can they make it even better? For players who failed, look at their attempts and pinpoint the bugs, edge cases, or logic gaps they missed.
-Make the layout professional, with bullet points and code snippets where relevant. Do not include any meta-text or preambles, start directly with the markdown content.`;
-
-      const response = await fetch(provider.apiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          stream: true,
-          max_tokens: 2048,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API error ${response.status}: ${errText}`);
-      }
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (!data || data === '[DONE]') continue;
-            try {
-              const json = JSON.parse(data);
-              const token =
-                json.choices?.[0]?.delta?.content ||
-                json.choices?.[0]?.text ||
-                '';
-              if (token) {
-                accumulated += token;
-                setReportCardText(accumulated);
-              }
-            } catch {}
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error('Report card generation failed:', err);
-      setGenerationError(err.message || 'Failed to generate report card.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[#07090e] text-gray-250 flex flex-col items-center justify-center p-6 relative overflow-y-auto select-none">
@@ -428,11 +445,11 @@ Make the layout professional, with bullet points and code snippets where relevan
             <div className="grid grid-cols-3 gap-3 bg-[#131926] p-3.5 rounded-xl border border-[#1f2a3f]">
               <div className="text-center">
                 <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Duration</span>
-                <span className="text-xs font-bold text-gray-250 mt-1 block">{getMatchDuration()}</span>
+                <span className="text-xs font-bold text-gray-250 mt-1 block">{matchDuration}</span>
               </div>
               <div className="text-center border-x border-[#1f2a3f]">
                 <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Fastest Solve</span>
-                <span className="text-xs font-bold text-emerald-450 mt-1 block">{getFastestSolve()}</span>
+                <span className="text-xs font-bold text-emerald-450 mt-1 block">{fastestSolve}</span>
               </div>
               <div className="text-center">
                 <span className="block text-[9px] text-[#9CA3AF] uppercase font-sans font-bold">Success Rate</span>

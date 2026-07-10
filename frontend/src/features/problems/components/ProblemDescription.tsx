@@ -45,14 +45,14 @@ interface ProblemDetail {
 
 interface ProblemDescriptionProps {
   problem: ProblemDetail;
-  user?: any;
+  user?: { id: string; username: string } | null;
   focusMode?: boolean;
   notes?: string;
   onNotesChange?: (notes: string) => void;
   activeLanguage?: 'python' | 'javascript' | 'cpp' | 'java';
   isNotesExpanded?: boolean;
   onNotesExpandedChange?: (expanded: boolean) => void;
-  similarQuestions?: any[];
+  similarQuestions?: { id: string; title: string; slug: string; difficulty: string }[];
   hideHints?: boolean;
 }
 

@@ -5,6 +5,19 @@ import { TestCasePanel } from '../../problems/components/TestCasePanel';
 import { api } from '../../../shared/lib/api';
 import type { SubmissionResponse, SubmissionResultResponse } from '../../../shared/lib/api';
 
+interface Template {
+  language: string;
+  source_code?: string;
+  template_code?: string;
+}
+
+interface TestCase {
+  id: string;
+  input: string | null;
+  expected_output: string | null;
+  is_sample: boolean;
+}
+
 interface BattleEditorProps {
   slug: string;
   problemId: string;
@@ -12,8 +25,8 @@ interface BattleEditorProps {
   language: 'python' | 'javascript' | 'cpp' | 'java';
   onChangeCode: (code: string) => void;
   onChangeLanguage: (lang: 'python' | 'javascript' | 'cpp' | 'java') => void;
-  templates: any[];
-  testCases: any[];
+  templates: Template[];
+  testCases: TestCase[];
   isSolved: boolean;
   attempts: number;
   myPlayerIndex: number;
@@ -52,7 +65,7 @@ export const BattleEditor: React.FC<BattleEditorProps> = ({
   const playSound = (type: 'submit' | 'success' | 'fail') => {
     if (!soundEnabled) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = new (window.AudioContext || (window as unknown as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);

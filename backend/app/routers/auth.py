@@ -59,7 +59,7 @@ async def logout(
                 socket_timeout=2,
             )
             try:
-                await redis.setex(f"token_blocklist:{token}", remaining_ttl, "1")
+                await redis.set(f"token_blocklist:{token}", "1", ex=remaining_ttl)
             finally:
                 await redis.aclose()
     except (RedisError, Exception) as e:

@@ -41,7 +41,7 @@ class TopicService:
 
         if redis_client and "pytest" not in sys.modules:
             try:
-                await redis_client.setex("cache:topics:list", 3600, json.dumps(topics))
+                await redis_client.set("cache:topics:list", json.dumps(topics), ex=3600)
                 await redis_client.aclose()
             except Exception as e:
                 logger.debug(f"Redis cache write failed: {e}")

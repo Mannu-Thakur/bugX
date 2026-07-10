@@ -16,7 +16,7 @@ class LeaderboardService:
 
     async def _cache_setex(self, key: str, ttl: int, value: str):
         try:
-            await self.redis.setex(key, ttl, value)
+            await self.redis.set(key, value, ex=ttl)
         except Exception:
             return None
 

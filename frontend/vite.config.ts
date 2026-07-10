@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,        // bind 0.0.0.0 so Docker exposes the port
+    port: 5173,
     proxy: {
       '/proxy/groq': {
         target: 'https://api.groq.com',

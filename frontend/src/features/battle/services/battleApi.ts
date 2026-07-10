@@ -9,7 +9,9 @@ export const battleApi = {
     problem_source: string;
     selected_slug?: string | null;
     selected_slugs?: string[] | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     custom_problem?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     custom_problems?: any[] | null;
   }) => api.battle.create(body),
 

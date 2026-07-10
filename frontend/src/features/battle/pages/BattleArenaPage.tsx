@@ -15,6 +15,7 @@ import type { BattleProblem, BattlePlayerState, BattleStatus } from '../types/ba
 export const BattleArenaPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [config, setConfig] = useState<any>(null);
   const [problem, setProblem] = useState<BattleProblem | null>(null);
   const [players, setPlayers] = useState<BattlePlayerState[]>([]);
@@ -31,8 +32,10 @@ export const BattleArenaPage: React.FC = () => {
   useEffect(() => {
     if (problem && user) {
       const savedNotes = userStorage.getNote(user.id, problem.slug);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotes(savedNotes || '');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem?.slug, user?.id]);
 
   // Timer loop
@@ -56,6 +59,7 @@ export const BattleArenaPage: React.FC = () => {
         return;
       }
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setConfig(parsed);
       syncTime(parsed.timeLimit * 60);
       setStartTime(new Date().toISOString());
@@ -105,7 +109,7 @@ export const BattleArenaPage: React.FC = () => {
               { language: 'cpp', template_code: custom.cppTemplate },
               { language: 'java', template_code: custom.javaTemplate },
             ],
-            sample_test_cases: custom.testCases.map((tc: any, index: number) => ({
+            sample_test_cases: custom.testCases.map((tc: { input: string; expectedOutput: string }, index: number) => ({
               id: String(index),
               input: tc.input,
               expected_output: tc.expectedOutput,
@@ -125,12 +129,12 @@ export const BattleArenaPage: React.FC = () => {
               time_limit_ms: p.time_limit_ms || 2000,
               memory_limit_kb: p.memory_limit_kb || 262144,
               score_base: p.score_base || 100,
-              templates: p.templates.map((t: any) => ({
+              templates: p.templates.map((t: { language: string; template_code?: string; source_code?: string; function_name?: string }) => ({
                 language: t.language === 'js' ? 'javascript' : t.language,
                 template_code: t.template_code || t.source_code || '',
                 function_name: t.function_name,
               })),
-              sample_test_cases: (p.sample_test_cases || []).map((tc: any, index: number) => ({
+              sample_test_cases: (p.sample_test_cases || []).map((tc: { id?: string; input?: string; expected_output?: string }, index: number) => ({
                 id: tc.id || String(index),
                 input: tc.input || '',
                 expected_output: tc.expected_output || '',
@@ -149,12 +153,12 @@ export const BattleArenaPage: React.FC = () => {
               time_limit_ms: mock.time_limit_ms || 2000,
               memory_limit_kb: mock.memory_limit_kb || 262144,
               score_base: mock.score_base || 100,
-              templates: mock.templates.map((t: any) => ({
+              templates: mock.templates.map((t: { language: string; template_code?: string; source_code?: string; function_name?: string }) => ({
                 language: t.language === 'js' ? 'javascript' : t.language,
                 template_code: t.template_code || t.source_code || '',
                 function_name: t.function_name,
               })),
-              sample_test_cases: (mock.sample_test_cases || []).map((tc: any, index: number) => ({
+              sample_test_cases: (mock.sample_test_cases || []).map((tc: { id?: string; input?: string; expected_output?: string }, index: number) => ({
                 id: tc.id || String(index),
                 input: tc.input || '',
                 expected_output: tc.expected_output || '',
@@ -177,6 +181,7 @@ export const BattleArenaPage: React.FC = () => {
   // Set default templates for players once problem is loaded
   useEffect(() => {
     if (!problem || !players.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlayers(prev => prev.map(p => {
       if (!p.code) {
         const jsTpl = problem.templates.find(t => t.language === 'javascript');
@@ -188,11 +193,12 @@ export const BattleArenaPage: React.FC = () => {
       }
       return p;
     }));
-  }, [problem]);
+  }, [problem, players.length]);
 
   // Check end game condition (both players solved)
   useEffect(() => {
     if (players.length > 0 && players.every(p => p.solved) && status !== 'finished') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('finished');
     }
   }, [players, status]);

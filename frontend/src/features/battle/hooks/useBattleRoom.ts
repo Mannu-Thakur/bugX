@@ -18,8 +18,11 @@ export const useBattleRoom = (roomId: string | undefined) => {
   const [error, setError] = useState<string | null>(null);
   
   const [countdown, setCountdown] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const countdownIntervalRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sendRef = useRef<((msg: any) => void) | null>(null);
+  const startCountdownRef = useRef<(secs: number) => void>(() => {});
 
   const onTimerExpire = useCallback(() => {
     setRoom(prev => prev ? { ...prev, status: 'finished' } : null);
@@ -29,6 +32,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
   const { timeLeft, isTimeLow, syncTime, formatTime } = useBattleTimer(onTimerExpire);
 
   // Parse server player representation to frontend format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parsePlayers = useCallback((playersList: any[]): BattlePlayerState[] => {
     return playersList.map(p => ({
       player_index: p.player_index,
@@ -55,6 +59,8 @@ export const useBattleRoom = (roomId: string | undefined) => {
       setError(null);
 
       // Resolve my player index if I'm already in this room
+      // Resolve my player index if I'm already in this room
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const me = serverRoom.players.find((p: any) => p.username === user?.username);
       if (me) {
         setMyPlayerIndex(me.player_index);
@@ -85,11 +91,12 @@ export const useBattleRoom = (roomId: string | undefined) => {
       if (serverRoom.status === 'active' && serverRoom.time_left !== null) {
         syncTime(serverRoom.time_left);
       } else if (serverRoom.status === 'countdown' && serverRoom.time_left !== null && serverRoom.time_left > 0) {
-        startCountdown(serverRoom.time_left);
+        startCountdownRef.current(serverRoom.time_left);
       }
-    } catch (err: any) {
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       console.error('[useBattleRoom] Error fetching room:', err);
-      setError(err.message || 'Failed to load battle arena details.');
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -115,8 +122,13 @@ export const useBattleRoom = (roomId: string | undefined) => {
     }, 1000);
   }, [fetchRoomState]);
 
+  useEffect(() => {
+    startCountdownRef.current = startCountdown;
+  }, [startCountdown]);
+
   // Initial load
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRoomState();
   }, [fetchRoomState]);
 
@@ -129,13 +141,16 @@ export const useBattleRoom = (roomId: string | undefined) => {
     }, 3000);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, room?.status, fetchRoomState]);
 
   // WebSocket Message Dispatcher
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSocketMessage = useCallback((msg: any) => {
     switch (msg.type) {
       case BATTLE_EVENTS.ROOM_SNAPSHOT: {
         const snap = msg.room;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const me = snap.players.find((p: any) => p.username === user?.username);
         if (me) {
           setMyPlayerIndex(me.player_index);
@@ -164,7 +179,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
         if (snap.status === 'active' && snap.time_left !== null) {
           syncTime(snap.time_left);
         } else if (snap.status === 'countdown' && snap.time_left !== null && snap.time_left > 0) {
-          startCountdown(snap.time_left);
+          startCountdownRef.current(snap.time_left);
         }
         break;
       }
@@ -261,7 +276,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
             ...prev,
             status: 'finished',
             players: prev.players.map(p => {
-              const matched = msg.players?.find((x: any) => x.player_index === p.player_index);
+              const matched = msg.players?.find((x: { player_index: number; score: number; solved: boolean; attempts: number; solved_at: string | null }) => x.player_index === p.player_index);
               if (matched) {
                 return {
                   ...p,
@@ -284,7 +299,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
         break;
       }
     }
-  }, [user?.username, myPlayerIndex, parsePlayers, syncTime, fetchRoomState, startCountdown, queryClient]);
+  }, [user?.username, myPlayerIndex, parsePlayers, syncTime, startCountdown, queryClient]);
 
   const { isConnected, send } = useBattleSocket(roomId, myPlayerIndex, handleSocketMessage);
 
@@ -297,8 +312,9 @@ export const useBattleRoom = (roomId: string | undefined) => {
     if (!roomId) return;
     try {
       await battleApi.start(roomId);
-    } catch (err: any) {
-      alert(err.message || 'Failed to start battle.');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(errorMsg);
     }
   }, [roomId]);
 

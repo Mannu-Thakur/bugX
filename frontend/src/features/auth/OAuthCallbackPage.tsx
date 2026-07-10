@@ -19,6 +19,7 @@ export const OAuthCallbackPage: React.FC = () => {
     const errorParam = searchParams.get('error');
 
     if (errorParam) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(decodeURIComponent(errorParam));
       // Immediately sanitize history to remove error details from the address bar
       try {

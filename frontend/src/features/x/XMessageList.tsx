@@ -23,7 +23,7 @@ hljs.registerLanguage('ts', typescript);
 
 // Simple markdown-to-html converter (no external deps needed)
 function parseMarkdown(text: string): string {
-  let html = text
+  const html = text
     // escape HTML first
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -109,7 +109,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, onRegenerate }) =
       return;
     }
 
-    const editor = (window as any).bugxActiveEditor;
+    type CustomWindow = Window & {
+      bugxActiveEditor?: unknown;
+    };
+    const editor = (window as unknown as CustomWindow).bugxActiveEditor;
     if (!editor) {
       toast.error('No active editor instance is available.');
       return;

@@ -63,10 +63,11 @@ def create_app() -> FastAPI:
         await app.state.rate_limit_service.close()
 
     app = FastAPI(
-    title="bugX API",
-    description="bugX Backend API",
-    version="1.0.0",
-)
+        title="bugX API",
+        description="bugX Backend API",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
 
     app.add_middleware(
         CORSMiddleware,

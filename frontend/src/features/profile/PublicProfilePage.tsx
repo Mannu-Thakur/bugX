@@ -34,6 +34,7 @@ export function PublicProfilePage() {
 
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const heatmapRef = useRef<HTMLDivElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   /* Guard: feature flag */
   if (!FEATURES.PUBLIC_PROFILES) {
@@ -65,7 +66,6 @@ export function PublicProfilePage() {
   }
 
   const { user, stats, submissions } = profile;
-  const [isHovered, setIsHovered] = useState(false);
 
   const displayName = user.fullName || user.username;
   const bio = user.bio || 'No bio written yet.';

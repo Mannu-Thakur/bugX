@@ -89,8 +89,8 @@ export const ProblemListPage: React.FC = () => {
     const isGoogle = slugOrUrl.toLowerCase().includes('google') || slugOrUrl.startsWith('google:');
 
     let payload = slugOrUrl;
-    let platformName = 'LeetCode';
-    let stepTitle = 'online repository';
+    let platformName: string;
+    let stepTitle: string;
 
     if (isGfg) {
       platformName = 'GeeksforGeeks';
@@ -138,13 +138,14 @@ export const ProblemListPage: React.FC = () => {
       toast.success(`Successfully imported "${problem.title}" from ${platformName}! Redirecting...`);
       queryClient.invalidateQueries({ queryKey: ['problems'] });
       navigate(`/problems/${problem.slug}`);
-    } catch (err: any) {
-      const status: number = err?.status ?? 0;
-      const code: string = err?.code || '';
-      const rawMessage: string = err?.message || '';
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number; code?: string; message?: string; detail?: { candidates?: { title: string; slug: string }[] } };
+      const status: number = errorObj?.status ?? 0;
+      const code: string = errorObj?.code || '';
+      const rawMessage: string = errorObj?.message || '';
 
       if (code === 'AMBIGUOUS_MATCH') {
-        const candidates = err?.detail?.candidates || [];
+        const candidates = errorObj?.detail?.candidates || [];
         setAmbiguousCandidates(candidates);
         setShowAmbiguousModal(true);
       } else if (status === 0) {
@@ -193,10 +194,11 @@ export const ProblemListPage: React.FC = () => {
       toast.success(`Successfully imported "${problem.title}"! Redirecting...`);
       queryClient.invalidateQueries({ queryKey: ['problems'] });
       navigate(`/problems/${problem.slug}`);
-    } catch (err: any) {
-      const status: number = err?.status ?? 0;
-      const code: string = err?.code || '';
-      const rawMessage: string = err?.message || '';
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number; code?: string; message?: string };
+      const status: number = errorObj?.status ?? 0;
+      const code: string = errorObj?.code || '';
+      const rawMessage: string = errorObj?.message || '';
 
       if (status === 0) {
         setImportError({ type: 'network', message: 'Cannot reach the backend. Please make sure the server is running.' });
@@ -288,7 +290,7 @@ export const ProblemListPage: React.FC = () => {
       const problem = await api.problems.random(filters);
       toast.success(`Fetched random problem: ${problem.title}`);
       navigate(`/problems/${problem.slug}`);
-    } catch (err: any) {
+    } catch {
       const filteredMocks = MOCK_PROBLEMS.filter(p => {
         if (difficulty !== 'ALL' && p.difficulty !== difficulty) return false;
         if (tag !== 'ALL' && !p.tags.some(t => t.name === tag)) return false;

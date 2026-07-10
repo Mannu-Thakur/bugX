@@ -2,7 +2,7 @@ export interface UserState {
   prefLang?: string;
   notes?: Record<string, string>; // problemSlug -> notes text
   drafts?: Record<string, string>; // problemSlug_lang -> code draft
-  battleHistory?: any[];
+  battleHistory?: unknown[];
   editorFontSize?: number;
 }
 
@@ -62,10 +62,10 @@ export const userStorage = {
     }
   },
 
-  getBattleHistory: (userId: string): any[] => {
+  getBattleHistory: (userId: string): unknown[] => {
     return loadState(userId).battleHistory ?? [];
   },
-  setBattleHistory: (userId: string, history: any[]): void => {
+  setBattleHistory: (userId: string, history: unknown[]): void => {
     const state = loadState(userId);
     state.battleHistory = history;
     saveState(userId, state);

@@ -59,7 +59,7 @@ class ImportJobManager:
             try:
                 redis = cls._get_redis()
                 try:
-                    await redis.setex(f"import_job:{job_id}", 86400, json.dumps(job_data))
+                    await redis.set(f"import_job:{job_id}", json.dumps(job_data), ex=86400)
                     payload = json.dumps({
                         "job_id": job_id,
                         "url_or_slug": url_or_slug,
@@ -143,7 +143,7 @@ class ImportJobManager:
             try:
                 redis = cls._get_redis()
                 try:
-                    await redis.setex(f"import_job:{job_id}", 86400, json.dumps(job_data))
+                    await redis.set(f"import_job:{job_id}", json.dumps(job_data), ex=86400)
                     return
                 finally:
                     await redis.aclose()
@@ -169,7 +169,7 @@ class ImportJobManager:
             try:
                 redis = cls._get_redis()
                 try:
-                    await redis.setex(f"import_job:{job_id}", 86400, json.dumps(job_data))
+                    await redis.set(f"import_job:{job_id}", json.dumps(job_data), ex=86400)
                     return
                 finally:
                     await redis.aclose()
@@ -195,7 +195,7 @@ class ImportJobManager:
             try:
                 redis = cls._get_redis()
                 try:
-                    await redis.setex(f"import_job:{job_id}", 86400, json.dumps(job_data))
+                    await redis.set(f"import_job:{job_id}", json.dumps(job_data), ex=86400)
                     return
                 finally:
                     await redis.aclose()

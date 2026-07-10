@@ -129,11 +129,13 @@ export const SettingsPage: React.FC = () => {
     } else {
       try {
         const parsed = JSON.parse(localStorage.getItem('battle_history') || '[]');
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setBattleHistory(Array.isArray(parsed) ? parsed : []);
       } catch {
         setBattleHistory([]);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const loadStudyFiles = useCallback(async () => {
@@ -150,6 +152,7 @@ export const SettingsPage: React.FC = () => {
   }, [error]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadStudyFiles();
   }, [loadStudyFiles]);
 

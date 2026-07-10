@@ -82,8 +82,11 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
     };
     window.addEventListener('bugx-open-settings', handleOpenSettings);
 
-    // Also register as a direct window function for absolute robustness
-    (window as any).bugxOpenSettings = (tab?: 'timer' | 'editor' | 'shortcuts' | 'x') => {
+    type CustomWindow = Window & {
+      bugxOpenSettings?: (tab?: 'timer' | 'editor' | 'shortcuts' | 'x') => void;
+    };
+
+    (window as unknown as CustomWindow).bugxOpenSettings = (tab?: 'timer' | 'editor' | 'shortcuts' | 'x') => {
       if (tab) {
         setSettingsInitialTab(tab);
       }
@@ -92,7 +95,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
     return () => {
       window.removeEventListener('bugx-open-settings', handleOpenSettings);
-      delete (window as any).bugxOpenSettings;
+      delete (window as unknown as CustomWindow).bugxOpenSettings;
     };
   }, []);
 
@@ -115,6 +118,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
   useEffect(() => {
     if (user?.email) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmail(user.email);
     }
   }, [user]);
@@ -199,6 +203,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
 
   // Reset timer on path change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimerSeconds(0);
     setTimerIsActive(false);
     setTimerMode('stopwatch');

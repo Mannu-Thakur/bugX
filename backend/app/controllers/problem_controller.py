@@ -232,12 +232,12 @@ class ProblemController:
     async def create_problem(self, req: ProblemCreate) -> dict:
         # Validate slug unique
         if await ProblemRepo.slug_exists(self.db, req.slug):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="SLUG_TAKEN")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="SLUG_TAKEN")
 
         # Fetch tags by ID
         tags = await ProblemRepo.get_tags_by_ids(self.db, req.tag_ids)
         if len(tags) != len(req.tag_ids):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_TAG_ID")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_TAG_ID")
 
         # Create templates
         templates = []
@@ -364,7 +364,7 @@ class ProblemController:
         if req.tag_ids is not None:
             tags = await ProblemRepo.get_tags_by_ids(self.db, req.tag_ids)
             if len(tags) != len(req.tag_ids):
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_TAG_ID")
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="INVALID_TAG_ID")
             problem.tags = tags
 
         await self.db.commit()
@@ -396,7 +396,7 @@ class ProblemController:
         # Check if already exists
         existing = await ProblemRepo.get_tag_by_name(self.db, name)
         if existing:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="TAG_EXISTS")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="TAG_EXISTS")
 
         tag = await ProblemRepo.create_tag(self.db, name)
         await self.db.commit()

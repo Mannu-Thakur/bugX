@@ -35,7 +35,7 @@ class SubmissionController:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
 
         if len(payload.source_code.encode('utf-8')) > settings.MAX_SOURCE_BYTES:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Source code too large")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Source code too large")
 
         # Spectator / participant check if battle_id is present
         is_battle_submission = False
@@ -94,11 +94,11 @@ class SubmissionController:
         )
         template = (await session.execute(tpl_stmt)).scalar_one_or_none()
         if not template:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Language not supported for this problem")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Language not supported for this problem")
 
         # Admin guard for javascript kwargs
         if payload.language == "javascript" and template.arg_style == "kwargs":
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="javascript kwargs not supported")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="javascript kwargs not supported")
 
         # Create row
         submission = await SubmissionRepo.create(

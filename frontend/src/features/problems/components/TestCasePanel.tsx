@@ -59,6 +59,7 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
   // Auto-switch to result tab when execution starts
   useEffect(() => {
     if (isPolling) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab('result');
     }
   }, [isPolling]);

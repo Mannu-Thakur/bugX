@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createBrowserRouter } from 'react-router-dom';
 import { PageShell } from '../shared/ui/layout/PageShell';
 import { ProblemListPage } from '../features/problems/ProblemListPage';

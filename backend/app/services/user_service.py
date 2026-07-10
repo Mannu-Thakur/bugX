@@ -26,7 +26,7 @@ class UserService:
             existing = await self.user_repo.get_by_username(req.username)
             if existing:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="USERNAME_TAKEN"
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="USERNAME_TAKEN"
                 )
             current_user.username = req.username
 
@@ -47,7 +47,7 @@ class UserService:
         settings = get_settings()
         if not upload.content_type.startswith("image/"):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Avatar must be an image file",
             )
 
@@ -155,7 +155,7 @@ def _extension_for_content_type(content_type: str) -> str:
 
 def _validate_subject(subject: str) -> None:
     if subject not in {"dbms", "sql", "os", "cn", "oop", "dsa"}:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid subject")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid subject")
 
 
 def _file_response(record: UserFile) -> UserFileResponse:

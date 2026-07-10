@@ -332,37 +332,23 @@ class GFGParser:
                 "weight": 1
             })
 
-        # Fallback if no test cases parsed
-        if not test_cases_list:
-            gfg_sample = extra.get("input", "")
-            if gfg_sample:
-                parsed_in = cls._parse_gfg_input(gfg_sample)
-                if arg_style == "positional":
-                    in_str = json.dumps(parsed_in)
-                else:
-                    in_str = json.dumps(parsed_in[0] if parsed_in else None)
-            else:
-                in_str = "[]" if arg_style == "positional" else "null"
+        # Note: if no examples were parseable, we leave test_cases_list empty.
+        # A null-output placeholder would fail validation and produce wrong-answer verdicts,
+        # so we intentionally do NOT add a fallback here. The validation service will
+        # surface a clean error ("No sample test cases extracted.") instead.
 
-            test_cases_list.append({
-                "input": in_str,
-                "expected_output": "null",
-                "is_sample": True,
-                "order_index": 0,
-                "weight": 1
-            })
-
-        # Add 3 Hidden cases (duplicating samples)
+        # Add 3 hidden cases by duplicating samples (only when we have valid samples)
         sample_len = len(test_cases_list)
-        for h_idx in range(3):
-            ref_case = test_cases_list[h_idx % sample_len]
-            test_cases_list.append({
-                "input": ref_case["input"],
-                "expected_output": ref_case["expected_output"],
-                "is_sample": False,
-                "order_index": sample_len + h_idx,
-                "weight": 1
-            })
+        if sample_len > 0:
+            for h_idx in range(3):
+                ref_case = test_cases_list[h_idx % sample_len]
+                test_cases_list.append({
+                    "input": ref_case["input"],
+                    "expected_output": ref_case["expected_output"],
+                    "is_sample": False,
+                    "order_index": sample_len + h_idx,
+                    "weight": 1
+                })
 
         return {
             "slug": slug,

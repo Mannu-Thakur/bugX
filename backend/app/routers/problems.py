@@ -552,7 +552,7 @@ async def import_problem(
     except (ImportParserError, ImportValidationError, ImportDatabaseError) as parse_exc:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_type": "IMPORT_FAILED", "message": parse_exc.message}
         )
     except HTTPException:
@@ -562,7 +562,7 @@ async def import_problem(
         await db.rollback()
         logger.exception("[ImportEndpoint] Failed to import problem: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_type": "IMPORT_FAILED", "message": str(e)}
         )
 

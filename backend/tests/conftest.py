@@ -48,7 +48,7 @@ TestSessionLocal = async_sessionmaker(
 )
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def setup_db():
     """Create all tables before tests and drop them after."""
     async with test_engine.begin() as conn:

@@ -57,6 +57,8 @@ export const ProfilePage: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const heatmapRef = useRef<HTMLDivElement>(null);
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -132,8 +134,7 @@ export const ProfilePage: React.FC = () => {
     }
   }
 
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
-  const heatmapRef = useRef<HTMLDivElement>(null);
+
 
   const activeSubmissionsCount = stats?.submission_activity
     ? Object.values(stats.submission_activity).reduce((a, b) => a + b, 0)

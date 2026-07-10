@@ -462,12 +462,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...rest,
       headers,
     });
-  } catch (err: any) {
+  } catch (err) {
     const networkError: ApiError = {
       status: 0,
       code: 'NETWORK_ERROR',
       message: 'Backend Core: offline? The backend server is unreachable. Please verify it is running.',
-      detail: err?.message || String(err),
+      detail: err instanceof Error ? err.message : String(err),
     };
     throw networkError;
   }
@@ -601,7 +601,14 @@ export const api = {
       }).then(data => ({ ...data, user: normalizeUser(data.user) })),
 
     forgotPassword: (body: Record<string, unknown>) =>
-      request<{ message: string }>('/auth/forgot-password', {
+      request<{
+        message: string;
+        code_required: boolean;
+        email_sent: boolean;
+        /** Only present in ENV=development when SMTP is not configured */
+        dev_code?: string;
+        dev_note?: string;
+      }>('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -792,7 +799,9 @@ export const api = {
       problem_source: string;
       selected_slug?: string | null;
       selected_slugs?: string[] | null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       custom_problem?: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       custom_problems?: any[] | null;
     }) =>
       request<{ id: string }>('/battle/create', {
@@ -807,6 +816,7 @@ export const api = {
       }),
 
     get: (id: string, playerIndex?: number) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       request<any>(`/battle/${id}`, {
         method: 'GET',
         params: { player_index: playerIndex },
@@ -822,17 +832,20 @@ export const api = {
       active_problem_index?: number;
       problem_index?: number;
     }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       request<any>(`/battle/${id}/update`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
 
     start: (id: string) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       request<any>(`/battle/${id}/start`, {
         method: 'POST',
       }),
 
     getHistory: () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       request<any[]>('/battle/history', {
         method: 'GET',
       }),

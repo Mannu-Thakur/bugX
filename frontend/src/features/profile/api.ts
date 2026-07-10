@@ -110,7 +110,7 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
 
   const data = await res.json();
   if (data && data.submissions) {
-    data.submissions = data.submissions.map((sub: any) => ({
+    data.submissions = data.submissions.map((sub: { status?: string; [key: string]: unknown }) => ({
       ...sub,
       status: (sub.status || '').toLowerCase()
     }));

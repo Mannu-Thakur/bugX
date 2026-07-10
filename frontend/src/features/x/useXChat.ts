@@ -116,7 +116,7 @@ async function streamAnthropic(
           if (json.type === 'content_block_delta' && json.delta?.text) {
             onToken(json.delta.text);
           }
-        } catch {}
+        } catch { /* ignore parse errors */ }
       }
     }
   }
@@ -170,7 +170,7 @@ async function streamOpenAICompat(
             json.choices?.[0]?.text ||
             '';
           if (token) onToken(token);
-        } catch {}
+        } catch { /* ignore parse errors */ }
       }
     }
   }
@@ -231,7 +231,7 @@ export function useXChat() {
       }
 
       const { model, provider } = result;
-      let apiKey = getEffectiveKey(provider.id as ProviderId);
+      const apiKey = getEffectiveKey(provider.id as ProviderId);
 
       // Build conversation history (exclude current streaming placeholder)
       const history = messages.map(m => ({
@@ -283,14 +283,14 @@ export function useXChat() {
           throw new Error(`No API key available for ${provider.name}. Add your key in X Settings.`);
         }
         await tryStream(provider, model, apiKey);
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
           updateMessage(assistantId, { isStreaming: false });
           return;
         }
 
         // Fallback to Groq free model
-        const errMsg = err?.message || 'Unknown error';
+        const errMsg = err instanceof Error ? err.message : String(err);
         const groqProvider = PROVIDERS.find(p => p.id === 'groq')!;
         const fallbackModel = groqProvider.models[0];
         const groqKey = getEffectiveKey('groq');
@@ -314,11 +314,12 @@ export function useXChat() {
               controller.signal
             );
             updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
-          } catch (fallbackErr: any) {
+          } catch (fallbackErr) {
+            const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
             updateMessage(assistantId, {
-              content: `Failed to get a response. Please check your connection and try again.\n\nError: ${fallbackErr?.message}`,
+              content: `Failed to get a response. Please check your connection and try again.\n\nError: ${fallbackErrMsg}`,
               isStreaming: false,
-              error: fallbackErr?.message,
+              error: fallbackErrMsg,
             });
           }
         } else {

@@ -472,10 +472,10 @@ class ImportOrchestrator:
                     settings = get_settings()
                     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
                     try:
-                        await redis.setex(
+                        await redis.set(
                             f"import_cache:candidates:{norm_q}",
-                            settings.IMPORT_CACHE_TTL,
-                            json.dumps(candidates_list)
+                            json.dumps(candidates_list),
+                            ex=settings.IMPORT_CACHE_TTL
                         )
                     finally:
                         await redis.aclose()

@@ -23,7 +23,6 @@ export const BattleWaitingScreen: React.FC<BattleWaitingScreenProps> = ({
   roomId,
   players,
   maxPlayers,
-  myPlayerIndex: _myPlayerIndex,
   onStartRoom,
   isHost,
 }) => {
@@ -35,7 +34,7 @@ export const BattleWaitingScreen: React.FC<BattleWaitingScreenProps> = ({
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       alert('Please select and copy the link manually.');
     }
   };

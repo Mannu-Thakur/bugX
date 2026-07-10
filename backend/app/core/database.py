@@ -64,8 +64,9 @@ IS_TESTING = (
     or os.getenv("TESTING") == "1"
     or "PYTEST_CURRENT_TEST" in os.environ
 )
+IS_ALEMBIC = "alembic" in " ".join(sys.argv).lower()
 
-if IS_TESTING:
+if IS_TESTING or IS_ALEMBIC:
     db_url = settings.DATABASE_URL
     logger.info("[Database] Testing environment detected. Using database URL: %s", db_url)
 else:

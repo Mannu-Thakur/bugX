@@ -30,24 +30,23 @@ export function LanguageDonut({ languages }: LanguageDonutProps) {
     return <p className="text-gray-500 text-sm">No submissions yet</p>;
   }
 
-  // Build SVG donut segments
+  // Build SVG donut segments (pure computation, no mutation)
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
-  let cumulativeOffset = 0;
 
-  const segments = languages.map((lang) => {
+  const segments = languages.map((lang, i) => {
     const pct = lang.count / total;
     const dashLength = pct * circumference;
-    const dashOffset = -cumulativeOffset;
-    cumulativeOffset += dashLength;
-
+    const prevOffset = languages.slice(0, i).reduce((sum, prev) => {
+      return sum + (prev.count / total) * circumference;
+    }, 0);
     return {
       name: lang.name,
       count: lang.count,
       pct: Math.round(pct * 100),
       color: lang.color,
       dashArray: `${dashLength} ${circumference - dashLength}`,
-      dashOffset,
+      dashOffset: -prevOffset,
     };
   });
 
@@ -93,4 +92,5 @@ export function LanguageDonut({ languages }: LanguageDonutProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { getLanguageColor };

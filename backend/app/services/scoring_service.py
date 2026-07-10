@@ -402,7 +402,7 @@ class ScoringService:
                 logger.error(f"Failed to publish battle_finished to Redis: {e}")
             finally:
                 if local_redis:
-                    await redis_client.close()
+                    await redis_client.aclose()
         else:
             try:
                 from app.routers.battle import manager

@@ -235,6 +235,22 @@ async def test_battle_not_found(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_battle_history_endpoint(client: AsyncClient, db: AsyncSession):
+    # Seed a "two-sum" catalog problem first
+    from app.models.problem import Problem, DifficultyEnum
+    two_sum = Problem(
+        slug="two-sum",
+        title="Two Sum",
+        description="Find two numbers that add up to target.",
+        difficulty=DifficultyEnum.EASY,
+        time_limit_ms=2000,
+        memory_limit_kb=262144,
+        score_base=1,
+        runtime_bonus_max=20,
+        is_published=True
+    )
+    db.add(two_sum)
+    await db.commit()
+
     # Register and login Dave
     resp_dave = await client.post(
         "/api/v1/auth/register",

@@ -1012,7 +1012,7 @@ async def websocket_endpoint(
         async with AsyncSessionLocal() as db:
           await ScoringService.finish_battle(db, battle_uuid, redis_client=redis_client)
         if redis_client:
-          await redis_client.close()
+          await redis_client.aclose()
 
       elif msg_type == "ping":
         await websocket.send_json({"type": "pong"})
@@ -1101,4 +1101,4 @@ async def start_redis_listener(redis_url: str):
     logger.info("[RedisListener] Redis listener task cancelled.")
   finally:
     await pubsub.unsubscribe("battle_events")
-    await r.close()
+    await r.aclose()

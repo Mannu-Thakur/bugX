@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, {
   createContext,
   useContext,
@@ -140,7 +141,7 @@ interface XContextValue {
   resolveCommand: (trigger: string) => XCommand | null;
 }
 
-const XCtx = createContext<XContextValue | null>(null);
+export const XCtx = createContext<XContextValue | null>(null);
 
 export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [problemSlug, setProblemSlug] = useState<string | null>(null);
@@ -163,7 +164,7 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_ENABLED_PROVIDERS) || 'null');
       if (Array.isArray(saved)) return new Set(saved as ProviderId[]);
-    } catch {}
+    } catch { /* ignore */ }
     // Default: enable the three free platform providers
     return new Set<ProviderId>(['groq', 'gemini', 'deepseek']);
   });
@@ -180,7 +181,11 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 
   // Load conversation when problemSlug changes
   useEffect(() => {
-    if (!problemSlug) { setMessages([]); return; }
+    if (!problemSlug) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMessages([]);
+      return;
+    }
     try {
       const all: Record<string, XMessage[]> = JSON.parse(
         localStorage.getItem(STORAGE_KEY_MESSAGES) || '{}'
@@ -198,7 +203,7 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
       );
       all[problemSlug] = messages;
       localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(all));
-    } catch {}
+    } catch { /* ignore */ }
   }, [messages, problemSlug]);
 
   const addMessage = useCallback((msg: Omit<XMessage, 'id' | 'timestamp'>): string => {
@@ -252,7 +257,7 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 
   // Returns the effective key to use: user-provided key takes priority over platform key
   const getEffectiveKey = useCallback((provider: ProviderId): string | null => {
-    const p = PROVIDERS.find((pr: any) => pr.id === provider);
+    const p = PROVIDERS.find(pr => pr.id === provider);
     if (!p) return null;
     const userKey = apiKeys[provider];
     if (userKey && userKey.length > 0) return userKey;

@@ -4,11 +4,13 @@ import { BattleSocketService } from '../services/battleSocket';
 export const useBattleSocket = (
   roomId: string | undefined,
   playerIndex: number | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMessage: (message: any) => void
 ) => {
   const [isConnected, setIsConnected] = useState(false);
   const socketServiceRef = useRef<BattleSocketService | null>(null);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const send = useCallback((message: any) => {
     if (socketServiceRef.current) {
       socketServiceRef.current.send(message);
