@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, Key, ToggleLeft, ToggleRight, Trash2, Code, Info, RefreshCw } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, AlertTriangle, Key, ToggleLeft, ToggleRight, Trash2, Code, Info, RefreshCw } from 'lucide-react';
 import { useX } from './XContext';
 import { PROVIDERS, getProviderById, type ProviderId, CAPABILITY_COLORS } from './xModels';
 import { cn } from '../../shared/lib/cn';
@@ -21,13 +21,13 @@ export const XSettings: React.FC = () => {
     removeCustomCommand,
   } = useX();
 
-  const { success, error } = useToast();
+  const { success, error, warning } = useToast();
 
   const [activeSubTab, setActiveSubTab] = useState<'models' | 'api' | 'rules' | 'commands'>('models');
 
   // API Key verifying states
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'error'; message: string }>>({});
+  const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'warning' | 'error'; message: string }>>({});
   const [tempKeys, setTempKeys] = useState<Record<string, string>>({});
 
   // Custom command states
@@ -84,15 +84,22 @@ export const XSettings: React.FC = () => {
         }
       }
 
-      const res = await fetch(provider.apiEndpoint, {
-        method: 'POST',
+      const isGet = provider.id === 'openrouter';
+
+      // Use verifyEndpoint (always the real external URL) to bypass the Vite
+      // proxy — browser → API CORS works, but Node.js proxy can fail on
+      // certain OS/network configurations even when the browser has access.
+      const res = await fetch(provider.verifyEndpoint, {
+        method: isGet ? 'GET' : 'POST',
         headers,
-        body: JSON.stringify(body),
+        body: isGet ? undefined : JSON.stringify(body),
       });
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(errText || `API returned status ${res.status}`);
+        // Always embed the HTTP status so our pattern-matchers below can
+        // reliably detect 401 / 403 even when the body text is unexpected.
+        throw new Error(`[${res.status}] ${errText || `API returned status ${res.status}`}`);
       }
 
       setTestResult(prev => ({
@@ -103,44 +110,79 @@ export const XSettings: React.FC = () => {
       setApiKey(providerId as ProviderId, enteredKey);
       success(`${provider.name} API key verified and saved.`);
     } catch (err) {
-      let msg = 'Connection failed';
+      let msg = 'Network error — check your connection';
       const errMsg = err instanceof Error ? err.message : String(err);
       let lower = errMsg.toLowerCase();
 
-      // Attempt to extract structured error message if API returned JSON
-      try {
-        const parsed = JSON.parse(errMsg);
-        const nestedMsg = parsed?.error?.message || parsed?.message || '';
-        if (nestedMsg) {
-          lower += ' ' + nestedMsg.toLowerCase();
-        }
-      } catch {
-        // Not a JSON error string, continue with raw string matching
-      }
+      // ── Network / CORS / proxy errors ───────────────────────────────────
+      // TypeError means fetch() itself failed (CORS block, no internet, etc.)
+      const isNetworkError =
+        err instanceof TypeError ||
+        lower.includes('failed to fetch') ||
+        lower.includes('networkerror') ||
+        lower.includes('network error') ||
+        lower.includes('load failed') ||
+        lower.includes('econnrefused') ||
+        errMsg.includes('502') ||
+        errMsg.includes('503') ||
+        errMsg.includes('504');
 
-      // Quota / rate-limit errors — must be checked BEFORE invalid-key check
-      if (
-        lower.includes('resource_exhausted') ||
-        lower.includes('quota') ||
-        lower.includes('rate_limit') ||
-        lower.includes('insufficient_quota') ||
-        lower.includes('too many requests') ||
-        errMsg.includes('429')
-      ) {
-        msg = 'Quota exceeded — try again later';
-      } else if (
-        lower.includes('api_key_invalid') ||
-        lower.includes('invalid_api_key') ||
-        lower.includes('invalid api') ||
-        lower.includes('not valid') ||
-        lower.includes('bad_api_key') ||
-        lower.includes('invalidapikey') ||
-        lower.includes('unauthorized') ||
-        lower.includes('unauthenticated') ||
-        errMsg.includes('401') ||
-        errMsg.includes('403')
-      ) {
-        msg = 'Invalid API Key';
+      if (!isNetworkError) {
+        // Attempt to extract structured error message if API returned JSON.
+        // The JSON may be embedded after the [status] prefix we added above.
+        const jsonStart = errMsg.indexOf('{');
+        const rawJson = jsonStart >= 0 ? errMsg.slice(jsonStart) : errMsg;
+        try {
+          const parsed = JSON.parse(rawJson);
+          const nestedMsg = parsed?.error?.message || parsed?.message || '';
+          if (nestedMsg) {
+            lower += ' ' + nestedMsg.toLowerCase();
+          }
+        } catch {
+          // Not a JSON error string, continue with raw string matching
+        }
+
+        // ── Quota / rate-limit errors ────────────────────────────────────────
+        // A 429 means the provider ACCEPTED the key — it's valid, just
+        // rate-limited. Save it and show an amber warning instead of an error.
+        if (
+          lower.includes('resource_exhausted') ||
+          lower.includes('quota') ||
+          lower.includes('rate_limit') ||
+          lower.includes('insufficient_quota') ||
+          lower.includes('too many requests') ||
+          errMsg.includes('429')
+        ) {
+          // Key is valid — save it despite the quota error
+          setApiKey(providerId as ProviderId, enteredKey);
+          setTestResult(prev => ({
+            ...prev,
+            [providerId]: { status: 'warning', message: 'Quota exceeded — key saved' },
+          }));
+          warning(`${provider.name} key saved — quota currently exceeded, try again later.`);
+          setTestingProvider(null);
+          return;
+        } else if (
+          lower.includes('api_key_invalid') ||
+          lower.includes('invalid_api_key') ||
+          lower.includes('invalid api') ||
+          lower.includes('not valid') ||
+          lower.includes('bad_api_key') ||
+          lower.includes('invalidapikey') ||
+          lower.includes('unauthorized') ||
+          lower.includes('unauthenticated') ||
+          lower.includes('user not found') ||
+          lower.includes('permission denied') ||
+          lower.includes('invalid_argument') ||   // Gemini 400 for bad keys
+          lower.includes('api key') ||              // catches "API key not valid", "API key missing", etc.
+          lower.includes('authentication') ||
+          lower.includes('auth_error') ||
+          errMsg.includes('401') ||
+          errMsg.includes('403') ||
+          errMsg.includes('400')                    // Some providers (Gemini, Qwen) use 400 for bad keys
+        ) {
+          msg = 'Invalid API Key';
+        }
       }
 
       setTestResult(prev => ({
@@ -321,6 +363,12 @@ export const XSettings: React.FC = () => {
                   {result?.status === 'success' && (
                     <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                       <ShieldCheck className="w-4 h-4" />
+                      {result.message}
+                    </div>
+                  )}
+                  {result?.status === 'warning' && (
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                      <AlertTriangle className="w-4 h-4" />
                       {result.message}
                     </div>
                   )}

@@ -1,5 +1,47 @@
 import { ENV } from '../config/env';
 
+const getSessionId = (): string => {
+  try {
+    let tabId = window.name;
+    
+    // If window.name is empty or doesn't start with our key, this is a new/duplicated tab
+    if (!tabId || !tabId.startsWith('bugx_tab_')) {
+      tabId = 'bugx_tab_' + Math.random().toString(36).substring(2, 15);
+      window.name = tabId;
+      
+      const sid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      sessionStorage.setItem(tabId, sid);
+      return sid;
+    }
+    
+    let sid = sessionStorage.getItem(tabId);
+    if (!sid) {
+      sid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      sessionStorage.setItem(tabId, sid);
+    }
+    return sid;
+  } catch (e) {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
+};
+
+export const SESSION_ID = getSessionId();
+
+// Immediately notify backend when tab is closed to remove the session in real-time
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    try {
+      fetch(`${ENV.API_URL}/stats/online-users/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: SESSION_ID }),
+        keepalive: true,
+      });
+    } catch (e) {}
+  });
+}
+
+
 // Core Types
 export type Role = 'USER' | 'ADMIN';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
@@ -446,6 +488,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   const headers = new Headers(customHeaders);
+  headers.set('X-Session-ID', SESSION_ID);
   if (!headers.has('Content-Type') && !(rest.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
@@ -678,6 +721,7 @@ export const api = {
     download: async (fileId: string): Promise<{ blob: Blob; filename: string }> => {
       const response = await fetch(`${ENV.API_URL}/users/me/files/${fileId}/download`, {
         headers: {
+          'X-Session-ID': SESSION_ID,
           ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
         },
       });
@@ -878,6 +922,10 @@ export const api = {
   stats: {
     overview: () =>
       request<StatsOverview>('/stats/overview', {
+        method: 'GET',
+      }),
+    onlineUsers: () =>
+      request<{ online_users: number }>('/stats/online-users', {
         method: 'GET',
       }),
   },

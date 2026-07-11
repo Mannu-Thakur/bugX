@@ -3,7 +3,7 @@
  * Uses the same getToken/ENV pattern as the rest of the codebase.
  */
 import { useQuery } from '@tanstack/react-query';
-import { getToken } from '../../../shared/lib/api';
+import { getToken, SESSION_ID } from '../../../shared/lib/api';
 import { ENV } from '../../../shared/config/env';
 
 export interface UserStats {
@@ -34,6 +34,7 @@ async function resumeRequest<T>(path: string): Promise<T> {
   const res = await fetch(`${ENV.API_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      'X-Session-ID': SESSION_ID,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });

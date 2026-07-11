@@ -94,6 +94,20 @@ def create_app() -> FastAPI:
             rate_limiter = RateLimitService(settings.REDIS_URL)
             request.app.state.rate_limit_service = rate_limiter
 
+        # Track active users in real-time
+        import time
+        now = time.time()
+        app = request.app
+        if not hasattr(app.state, "active_users"):
+            app.state.active_users = {}
+        session_id = request.headers.get("x-session-id")
+        if session_id:
+            app.state.active_users[session_id] = now
+        app.state.active_users = {
+            sid: t for sid, t in app.state.active_users.items()
+            if now - t <= 30
+        }
+
         allowed = await rate_limiter.check_ip(
             client_ip,
             settings.MAX_REQUESTS_PER_MINUTE_IP,

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Code, Keyboard, Sparkles } from 'lucide-react';
+import { X, Clock, Code, Keyboard, Sparkles, Activity } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useAuth } from '../../../features/auth/useAuth';
 import { userStorage } from '../../lib/userState';
 import { XProvider } from '../../../features/x/XContext';
 import { XSettings } from '../../../features/x/XSettings';
+import { api, SESSION_ID } from '../../lib/api';
+import { ENV } from '../../config/env';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,11 +14,88 @@ interface SettingsModalProps {
   initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'timer' | 'editor' | 'shortcuts' | 'x';
+type SettingsTab = 'timer' | 'editor' | 'shortcuts' | 'x' | 'info';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, initialTab }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('timer');
+
+  const [onlineUsers, setOnlineUsers] = useState(1);
+
+  const [timeSpent, setTimeSpent] = useState(() => {
+    if (!user) return 0;
+    return Number(localStorage.getItem(`bugx_total_time_spent_${user.id}`) || '0');
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Initial fetch for immediate data
+    api.stats.onlineUsers()
+      .then(res => {
+        if (res && typeof res.online_users === 'number') {
+          setOnlineUsers(res.online_users);
+        }
+      })
+      .catch(err => console.error('Failed to fetch online users', err));
+
+    // Connect WebSocket for real-time updates
+    const apiURL = ENV.API_URL;
+    const host = apiURL.replace(/^https?:\/\//, '').split('/')[0];
+    const wsProtocol = apiURL.startsWith('https') ? 'wss' : 'ws';
+    const wsUrl = `${wsProtocol}://${host}/api/v1/stats/ws?session_id=${SESSION_ID}`;
+
+    let socket: WebSocket | null = null;
+    try {
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && typeof data.online_users === 'number') {
+            setOnlineUsers(data.online_users);
+          }
+        } catch (e) {
+          console.error('[StatsSocket] Failed to parse message', e);
+        }
+      };
+
+      socket.onerror = (err) => {
+        console.error('[StatsSocket] WebSocket error', err);
+      };
+    } catch (err) {
+      console.error('[StatsSocket] Failed to create WebSocket', err);
+    }
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!user) return;
+    const handleTimeSpentUpdate = (e: Event) => {
+      const ce = e as CustomEvent<{ userId: string }>;
+      if (ce.detail?.userId === user.id) {
+        setTimeSpent(Number(localStorage.getItem(`bugx_total_time_spent_${user.id}`) || '0'));
+      }
+    };
+    window.addEventListener('bugx-time-spent-updated', handleTimeSpentUpdate);
+    return () => window.removeEventListener('bugx-time-spent-updated', handleTimeSpentUpdate);
+  }, [user]);
+
+  const formatTimeSpent = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0 || h > 0) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(' ');
+  };
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -56,14 +135,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
     return () => window.removeEventListener('bugx-settings-changed', handleSync);
   }, [user]);
 
-  // Trap scroll when open
+  // Trap scroll and freeze background when open
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    if (!isOpen) return;
+
+    const handleScrollLock = (e: WheelEvent | TouchEvent) => {
+      const modalEl = document.getElementById('settings-modal-card');
+      if (modalEl && modalEl.contains(e.target as Node)) {
+        return;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('wheel', handleScrollLock, { passive: false });
+    window.addEventListener('touchmove', handleScrollLock, { passive: false });
+    document.body.style.overflow = 'hidden';
+
     return () => {
+      window.removeEventListener('wheel', handleScrollLock);
+      window.removeEventListener('touchmove', handleScrollLock);
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
@@ -118,6 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
 
       {/* Modal Card */}
       <div
+        id="settings-modal-card"
         className={cn(
           "relative z-10 max-w-[95vw] bg-dark-panel border border-dark-border rounded-2xl shadow-2xl flex flex-row overflow-hidden animate-scale-in transition-all duration-300",
           activeTab === 'x' ? 'w-[840px]' : 'w-[560px]'
@@ -179,6 +272,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
           >
             <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
             X Assistant
+          </button>
+          <button
+            onClick={() => setActiveTab('info')}
+            className={cn(
+              'w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 select-none',
+              activeTab === 'info'
+                ? 'bg-dark-hover text-dark-text shadow-sm'
+                : 'text-dark-text/60 hover:text-dark-text hover:bg-dark-hover/40'
+            )}
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            Platform Info
           </button>
         </div>
 
@@ -346,6 +451,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, i
                 <XProvider>
                   <XSettings />
                 </XProvider>
+              </div>
+            )}
+
+            {activeTab === 'info' && (
+              <div className="space-y-6">
+                {/* Active Users */}
+                <div className="flex items-center justify-between py-1.5 border-b border-dark-border/40">
+                  <div>
+                    <p className="text-sm font-semibold text-dark-text">Active Users Online</p>
+                    <p className="text-xs text-dark-text/50 mt-0.5">Real-time users currently active on bugX.</p>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-xs font-extrabold text-emerald-400">{onlineUsers} Online</span>
+                  </div>
+                </div>
+
+                {/* Time Spent */}
+                <div className="flex items-center justify-between py-1.5">
+                  <div>
+                    <p className="text-sm font-semibold text-dark-text">Your Time Spent</p>
+                    <p className="text-xs text-dark-text/50 mt-0.5">Total accumulated time you spent coding on bugX.</p>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-dark-text bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5">
+                    {formatTimeSpent(timeSpent)}
+                  </div>
+                </div>
               </div>
             )}
           </div>

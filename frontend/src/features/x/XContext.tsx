@@ -89,12 +89,21 @@ const BUILT_IN_COMMANDS: XCommand[] = [
   },
 ];
 
-const STORAGE_KEY_MESSAGES = 'x_conversations';
 const STORAGE_KEY_MODEL = 'x_selected_model';
 const STORAGE_KEY_RULES = 'x_rules';
 const STORAGE_KEY_COMMANDS = 'x_custom_commands';
 const STORAGE_KEY_API_KEYS = 'x_api_keys';
 const STORAGE_KEY_ENABLED_PROVIDERS = 'x_enabled_providers';
+const STORAGE_KEY_VERIFIED_PROVIDERS = 'x_verified_providers';
+
+export interface XConversation {
+  id: string;
+  problemSlug: string;
+  title: string;
+  messages: XMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
 
 interface XContextValue {
   // Conversation
@@ -102,8 +111,16 @@ interface XContextValue {
   addMessage: (msg: Omit<XMessage, 'id' | 'timestamp'>) => string;
   updateMessage: (id: string, updates: Partial<XMessage>) => void;
   clearMessages: () => void;
+  truncateMessages: (id: string, newContent?: string) => void;
   problemSlug: string | null;
   setProblemSlug: (slug: string | null) => void;
+
+  // History
+  conversations: XConversation[];
+  activeConversationId: string | null;
+  startNewConversation: () => void;
+  selectConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
 
   // Model
   selectedModelId: string;
@@ -129,6 +146,7 @@ interface XContextValue {
   // Enabled providers
   enabledProviders: Set<ProviderId>;
   toggleProvider: (id: ProviderId) => void;
+  isProviderVerified: (provider: ProviderId) => boolean;
 
   // Rules
   rules: XRules;
@@ -169,6 +187,31 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     return new Set<ProviderId>(['groq', 'gemini', 'deepseek']);
   });
 
+  const [verifiedProviders, setVerifiedProviders] = useState<Set<ProviderId>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_VERIFIED_PROVIDERS) || 'null');
+      if (Array.isArray(saved)) return new Set(saved as ProviderId[]);
+    } catch { /* ignore */ }
+    
+    // Fallback: If we have previously saved custom keys, consider those providers verified
+    try {
+      const savedKeys = JSON.parse(localStorage.getItem(STORAGE_KEY_API_KEYS) || '{}');
+      const keysWithValues = Object.keys(savedKeys).filter(k => !!savedKeys[k]);
+      if (keysWithValues.length > 0) {
+        return new Set<ProviderId>(keysWithValues as ProviderId[]);
+      }
+    } catch { /* ignore */ }
+
+    return new Set<ProviderId>();
+  });
+
+  const isProviderVerified = useCallback((provider: ProviderId): boolean => {
+    const p = PROVIDERS.find(pr => pr.id === provider);
+    if (!p) return false;
+    if (p.platformApiKey && !p.platformApiKey.startsWith('YOUR_')) return true;
+    return verifiedProviders.has(provider);
+  }, [verifiedProviders]);
+
   const [rules, setRulesState] = useState<XRules>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY_RULES) || '{"text":""}'); }
     catch { return { text: '' }; }
@@ -179,32 +222,143 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     catch { return []; }
   });
 
+  const [conversations, setConversations] = useState<XConversation[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('x_conversations_list') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
+    return localStorage.getItem('x_active_conversation_id');
+  });
+
+  const selectConversation = useCallback((id: string) => {
+    const conv = conversations.find(c => c.id === id);
+    if (!conv) return;
+    setActiveConversationId(id);
+    localStorage.setItem('x_active_conversation_id', id);
+    setMessages(conv.messages);
+  }, [conversations]);
+
+  const startNewConversation = useCallback(() => {
+    if (!problemSlug) return;
+    const newId = Math.random().toString(36).slice(2);
+    const newConv: XConversation = {
+      id: newId,
+      problemSlug,
+      title: 'New Chat',
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setConversations(prev => {
+      const next = [newConv, ...prev];
+      localStorage.setItem('x_conversations_list', JSON.stringify(next));
+      return next;
+    });
+    setActiveConversationId(newId);
+    localStorage.setItem('x_active_conversation_id', newId);
+    setMessages([]);
+  }, [problemSlug]);
+
+  const deleteConversation = useCallback((id: string) => {
+    setConversations(prev => {
+      const next = prev.filter(c => c.id !== id);
+      localStorage.setItem('x_conversations_list', JSON.stringify(next));
+      return next;
+    });
+    if (activeConversationId === id) {
+      const remaining = conversations.filter(c => c.id !== id && c.problemSlug === problemSlug);
+      if (remaining.length > 0) {
+        selectConversation(remaining[0].id);
+      } else {
+        const newId = Math.random().toString(36).slice(2);
+        const newConv: XConversation = {
+          id: newId,
+          problemSlug: problemSlug || '',
+          title: 'New Chat',
+          messages: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        setConversations(prev => {
+          const next = [newConv, ...prev.filter(c => c.id !== id)];
+          localStorage.setItem('x_conversations_list', JSON.stringify(next));
+          return next;
+        });
+        setActiveConversationId(newId);
+        localStorage.setItem('x_active_conversation_id', newId);
+        setMessages([]);
+      }
+    }
+  }, [activeConversationId, conversations, problemSlug, selectConversation]);
+
   // Load conversation when problemSlug changes
   useEffect(() => {
     if (!problemSlug) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages([]);
+      setActiveConversationId(null);
       return;
     }
-    try {
-      const all: Record<string, XMessage[]> = JSON.parse(
-        localStorage.getItem(STORAGE_KEY_MESSAGES) || '{}'
-      );
-      setMessages(all[problemSlug] || []);
-    } catch { setMessages([]); }
+    const slugConvs = conversations.filter(c => c.problemSlug === problemSlug);
+    if (slugConvs.length === 0) {
+      const newId = Math.random().toString(36).slice(2);
+      const defaultConv: XConversation = {
+        id: newId,
+        problemSlug,
+        title: 'New Chat',
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setConversations(prev => {
+        const next = [defaultConv, ...prev];
+        localStorage.setItem('x_conversations_list', JSON.stringify(next));
+        return next;
+      });
+      setActiveConversationId(newId);
+      localStorage.setItem('x_active_conversation_id', newId);
+      setMessages([]);
+    } else {
+      const active = slugConvs.find(c => c.id === activeConversationId);
+      if (active) {
+        setMessages(active.messages);
+      } else {
+        const sorted = [...slugConvs].sort((a, b) => b.updatedAt - a.updatedAt);
+        setActiveConversationId(sorted[0].id);
+        localStorage.setItem('x_active_conversation_id', sorted[0].id);
+        setMessages(sorted[0].messages);
+      }
+    }
   }, [problemSlug]);
 
-  // Persist messages
+  // Sync active conversation when messages changes
   useEffect(() => {
-    if (!problemSlug) return;
-    try {
-      const all: Record<string, XMessage[]> = JSON.parse(
-        localStorage.getItem(STORAGE_KEY_MESSAGES) || '{}'
-      );
-      all[problemSlug] = messages;
-      localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(all));
-    } catch { /* ignore */ }
-  }, [messages, problemSlug]);
+    if (!activeConversationId) return;
+    setConversations(prev => {
+      const next = prev.map(c => {
+        if (c.id === activeConversationId) {
+          let title = c.title;
+          if (title === 'New Chat' || title === 'New Conversation') {
+            const firstUser = messages.find(m => m.role === 'user');
+            if (firstUser) {
+              title = firstUser.content.slice(0, 30) + (firstUser.content.length > 30 ? '...' : '');
+            }
+          }
+          return {
+            ...c,
+            messages,
+            title,
+            updatedAt: Date.now()
+          };
+        }
+        return c;
+      });
+      localStorage.setItem('x_conversations_list', JSON.stringify(next));
+      return next;
+    });
+  }, [messages, activeConversationId]);
 
   const addMessage = useCallback((msg: Omit<XMessage, 'id' | 'timestamp'>): string => {
     const id = Math.random().toString(36).slice(2);
@@ -218,6 +372,19 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   }, []);
 
   const clearMessages = useCallback(() => setMessages([]), []);
+
+  const truncateMessages = useCallback((id: string, newContent?: string) => {
+    setMessages(prev => {
+      const idx = prev.findIndex(m => m.id === id);
+      if (idx === -1) return prev;
+      const sub = prev.slice(0, idx + 1);
+      if (newContent !== undefined) {
+        // Create a copy of the target message to update its content
+        sub[idx] = { ...sub[idx], content: newContent };
+      }
+      return sub;
+    });
+  }, []);
 
   const setSelectedModelId = useCallback((id: string) => {
     setSelectedModelIdState(id);
@@ -244,6 +411,12 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
       localStorage.setItem(STORAGE_KEY_API_KEYS, JSON.stringify(next));
       return next;
     });
+    setVerifiedProviders(prev => {
+      const next = new Set(prev);
+      next.add(provider);
+      localStorage.setItem(STORAGE_KEY_VERIFIED_PROVIDERS, JSON.stringify([...next]));
+      return next;
+    });
   }, []);
 
   const removeApiKey = useCallback((provider: ProviderId) => {
@@ -251,6 +424,12 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
       const next = { ...prev };
       delete next[provider];
       localStorage.setItem(STORAGE_KEY_API_KEYS, JSON.stringify(next));
+      return next;
+    });
+    setVerifiedProviders(prev => {
+      const next = new Set(prev);
+      next.delete(provider);
+      localStorage.setItem(STORAGE_KEY_VERIFIED_PROVIDERS, JSON.stringify([...next]));
       return next;
     });
   }, []);
@@ -303,13 +482,14 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 
   return (
     <XCtx.Provider value={{
-      messages, addMessage, updateMessage, clearMessages,
+      messages, addMessage, updateMessage, clearMessages, truncateMessages,
       problemSlug, setProblemSlug,
+      conversations, activeConversationId, startNewConversation, selectConversation, deleteConversation,
       selectedModelId, setSelectedModelId,
       isOpen, togglePanel, openPanel, closePanel,
       isStreaming, setIsStreaming, abortControllerRef,
       apiKeys, setApiKey, removeApiKey, getEffectiveKey,
-      enabledProviders, toggleProvider,
+      enabledProviders, toggleProvider, isProviderVerified,
       rules, setRules,
       commands: [...BUILT_IN_COMMANDS, ...customCommands],
       addCustomCommand, removeCustomCommand, resolveCommand,

@@ -5,7 +5,7 @@ import { useX } from './XContext';
 import { cn } from '../../shared/lib/cn';
 
 export const ModelSwitcher: React.FC = () => {
-  const { selectedModelId, setSelectedModelId, enabledProviders, getEffectiveKey } = useX();
+  const { selectedModelId, setSelectedModelId, enabledProviders, getEffectiveKey, isProviderVerified } = useX();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -20,7 +20,7 @@ export const ModelSwitcher: React.FC = () => {
   }, []);
 
   const availableProviders = PROVIDERS.filter(
-    p => enabledProviders.has(p.id) && !!getEffectiveKey(p.id)
+    p => enabledProviders.has(p.id) && isProviderVerified(p.id)
   );
 
   return (

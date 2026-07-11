@@ -33,6 +33,21 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/proxy\/openrouter/, ''),
       },
+      '/proxy/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/openai/, ''),
+      },
+      '/proxy/moonshot': {
+        target: 'https://api.moonshot.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/moonshot/, ''),
+      },
+      '/proxy/bytedance': {
+        target: 'https://ark.cn-beijing.volces.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/bytedance/, ''),
+      },
     },
   },
 })

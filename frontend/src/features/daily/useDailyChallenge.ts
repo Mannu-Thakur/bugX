@@ -3,7 +3,7 @@
  * Separate React Query cache keys to never collide with other queries.
  */
 import { useQuery } from '@tanstack/react-query';
-import { getToken } from '../../shared/lib/api';
+import { getToken, SESSION_ID } from '../../shared/lib/api';
 import { ENV } from '../../shared/config/env';
 
 export interface DailyProblem {
@@ -32,6 +32,7 @@ async function dailyRequest<T>(path: string): Promise<T> {
   const res = await fetch(`${ENV.API_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      'X-Session-ID': SESSION_ID,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });

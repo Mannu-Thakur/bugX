@@ -54,26 +54,33 @@ const [isRunning, setIsRunning] = useState(false);
   const [prevHeight, setPrevHeight] = useState(340);
 
   const handleCollapse = () => {
+    let nextHeight = 340;
     if (testPanelHeight > 40) {
       setPrevHeight(testPanelHeight);
-      setTestPanelHeight(40);
+      nextHeight = 40;
     } else {
-      setTestPanelHeight(prevHeight > 40 ? prevHeight : 340);
+      nextHeight = prevHeight > 40 ? prevHeight : 340;
     }
+    setTestPanelHeight(nextHeight);
+    currentHeightRef.current = nextHeight;
   };
 
   const handleMaximize = () => {
-    const containerHeight = workspaceRef.current ? workspaceRef.current.offsetHeight : 600;
+    const parent = testPanelRef.current?.parentElement;
+    const containerHeight = parent ? parent.offsetHeight : 600;
     const editorMinHeight = 120;
     const handleHeight = 12;
     const maxTestHeight = Math.max(200, containerHeight - editorMinHeight - handleHeight);
 
+    let nextHeight = 340;
     if (testPanelHeight >= maxTestHeight - 10) {
-      setTestPanelHeight(prevHeight < maxTestHeight - 10 && prevHeight > 40 ? prevHeight : 340);
+      nextHeight = prevHeight < maxTestHeight - 10 && prevHeight > 40 ? prevHeight : 340;
     } else {
       setPrevHeight(testPanelHeight);
-      setTestPanelHeight(maxTestHeight);
+      nextHeight = maxTestHeight;
     }
+    setTestPanelHeight(nextHeight);
+    currentHeightRef.current = nextHeight;
   };
 
   const [isResizing, setIsResizing] = useState(false);
@@ -135,7 +142,8 @@ const [isRunning, setIsRunning] = useState(false);
     }
 
     const newHeight = startHeightRef.current - deltaY;
-    const containerHeight = workspaceRef.current ? workspaceRef.current.offsetHeight : window.innerHeight - 200;
+    const parent = testPanelRef.current?.parentElement;
+    const containerHeight = parent ? parent.offsetHeight : window.innerHeight - 200;
 
     const editorMinHeight = 120;
     const handleHeight = 12;
@@ -339,26 +347,31 @@ const [isRunning, setIsRunning] = useState(false);
   // Persisted settings (reactive to global settings modal changes)
   const [autoReset, setAutoReset] = useState(() => localStorage.getItem('bugx_autoReset') === 'true');
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('bugx_focusMode') === 'true');
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [isExitTransitioning, setIsExitTransitioning] = useState(false);
+  // Cinematic transition states
+  const [enterOverlay, setEnterOverlay] = useState(false);
+  const [exitOverlay, setExitOverlay] = useState(false);
 
   useEffect(() => {
     const handleSyncSettings = () => {
       setAutoReset(localStorage.getItem('bugx_autoReset') === 'true');
       const newFocusMode = localStorage.getItem('bugx_focusMode') === 'true';
-      
+
       if (newFocusMode && !focusMode) {
-        setIsTransitioning(true);
+        // Enter: Show overlay immediately, swap layout underneath, dissolve overlay slowly
+        setEnterOverlay(true);
         setFocusMode(true);
         setTimeout(() => {
-          setIsTransitioning(false);
-        }, 2500);
+          setEnterOverlay(false);
+        }, 1500);
       } else if (!newFocusMode && focusMode) {
-        setIsExitTransitioning(true);
+        // Exit: Show exit overlay, wait for opacity peak, swap layout, dissolve overlay
+        setExitOverlay(true);
         setTimeout(() => {
           setFocusMode(false);
-          setIsExitTransitioning(false);
-        }, 2500);
+        }, 450);
+        setTimeout(() => {
+          setExitOverlay(false);
+        }, 1200);
       }
     };
     window.addEventListener('bugx-settings-changed', handleSyncSettings);
@@ -1150,7 +1163,11 @@ const [isRunning, setIsRunning] = useState(false);
 
 
   return (
-    <div className={cn("w-full flex flex-col overflow-hidden", focusMode ? "h-screen p-0 bg-dark-bg" : "h-full p-1.5 pt-0", isResizing && "select-none")}>
+    <div className={cn(
+      "w-full flex flex-col overflow-hidden focus-mode-container",
+      focusMode ? "h-screen p-0 bg-dark-bg" : "h-full p-1.5 pt-0",
+      isResizing && "select-none"
+    )}>
       {/* Focus Mode Top Bar */}
       {focusMode && (
         <div
@@ -1457,38 +1474,36 @@ const [isRunning, setIsRunning] = useState(false);
         </div>
       )}
 
-      {isTransitioning && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#05070a]/80 backdrop-blur-xl select-none" style={{ animation: 'fadeIn 0.4s ease-out' }}>
-          <div className="flex flex-col items-center gap-5 text-center">
-            <div className="w-20 h-20 flex items-center justify-center" style={{ animation: 'pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}>
-              <BugXLogo className="w-full h-full text-blue-500 fill-current drop-shadow-[0_0_20px_rgba(79,125,255,0.3)]" />
+      {/* Enter Cinematic Overlay */}
+      {enterOverlay && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#05070a] select-none pointer-events-none"
+          style={{ animation: 'focusModeEnterOverlay 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards' }}
+        >
+          <div className="flex flex-col items-center gap-4 text-center" style={{ animation: 'focusModeLogoFade 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards' }}>
+            <div className="w-16 h-16 flex items-center justify-center text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+              <BugXLogo className="w-full h-full text-amber-500 fill-current" />
             </div>
-            <p className="text-sm font-semibold text-gray-300 tracking-widest uppercase mt-2" style={{ animation: 'fadeIn 1s ease-in 0.3s both' }}>
-              Switching to Focus Mode
+            <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">
+              Focus Mode
             </p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '0s' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '0.3s' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '0.6s' }} />
-            </div>
           </div>
         </div>
       )}
 
-      {isExitTransitioning && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#05070a] select-none" style={{ animation: 'fadeOut 2.5s cubic-bezier(0.25, 1, 0.5, 1) forwards' }}>
-          <div className="flex flex-col items-center gap-5 text-center" style={{ animation: 'fadeOut 2.2s ease-in forwards' }}>
-            <div className="w-20 h-20 flex items-center justify-center animate-pulse">
-              <BugXLogo className="w-full h-full text-amber-500 fill-current drop-shadow-[0_0_20px_rgba(245,158,11,0.3)]" />
+      {/* Exit Cinematic Overlay */}
+      {exitOverlay && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#05070a] select-none pointer-events-none"
+          style={{ animation: 'focusModeExitOverlay 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards' }}
+        >
+          <div className="flex flex-col items-center gap-4 text-center" style={{ animation: 'focusModeLogoFade 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards' }}>
+            <div className="w-16 h-16 flex items-center justify-center text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+              <BugXLogo className="w-full h-full text-amber-500 fill-current" />
             </div>
-            <p className="text-sm font-semibold text-gray-300 tracking-widest uppercase mt-2">
-              Exiting Focus Mode
+            <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">
+              Normal Mode
             </p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" style={{ animationDelay: '0s' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" style={{ animationDelay: '0.3s' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" style={{ animationDelay: '0.6s' }} />
-            </div>
           </div>
         </div>
       )}

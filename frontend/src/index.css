@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -34,7 +34,7 @@ html.light {
 html.light ::-webkit-scrollbar-track { background: var(--color-bg); }
 html.light ::-webkit-scrollbar-thumb { background: var(--color-border); }
 
-/* ── Light Mode Background Remappings ── */
+/* â”€â”€ Light Mode Background Remappings â”€â”€ */
 html.light .bg-\[\#05070A\], html.light .bg-\[\#05070a\] { background-color: var(--color-bg) !important; }
 html.light .bg-\[\#07090e\], html.light .bg-\[\#07090E\] { background-color: var(--color-bg) !important; }
 html.light .bg-\[\#0A0D14\], html.light .bg-\[\#0a0d14\] { background-color: var(--color-panel) !important; }
@@ -125,7 +125,7 @@ html.light .hover\:bg-white\/\[0\.1\]:hover {
   background-color: rgba(0, 0, 0, 0.04) !important;
 }
 
-/* ── Light Mode Border Remappings ── */
+/* â”€â”€ Light Mode Border Remappings â”€â”€ */
 html.light .border-white\/5,
 html.light .border-white\/10,
 html.light .border-white\/\[0\.03\],
@@ -147,7 +147,7 @@ html.light .border-dark-border\/10 {
   border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
-/* ── Light Mode Text Color Remappings ── */
+/* â”€â”€ Light Mode Text Color Remappings â”€â”€ */
 html.light .text-white { color: #0f172a !important; }
 html.light .text-white\/95 { color: rgba(15, 23, 42, 0.95) !important; }
 html.light .text-white\/90 { color: rgba(15, 23, 42, 0.9) !important; }
@@ -292,7 +292,7 @@ html.light .border-\[\#5B9BFF\]\/40, html.light .border-\[\#5b9bff\]\/40 { borde
 html.light .border-\[\#5B9BFF\]\/20, html.light .border-\[\#5b9bff\]\/20 { border-color: rgba(37, 99, 235, 0.15) !important; }
 
 
-/* ── Light Mode: Additional Background Hex Overrides ── */
+/* â”€â”€ Light Mode: Additional Background Hex Overrides â”€â”€ */
 html.light .bg-\[\#151515\] { background-color: var(--color-panel) !important; }
 html.light .bg-\[\#1a1a1a\], html.light .bg-\[\#1A1A1A\] { background-color: var(--color-bg) !important; }
 html.light .bg-\[\#1e1e1e\], html.light .bg-\[\#1E1E1E\] { background-color: var(--color-bg) !important; }
@@ -311,7 +311,7 @@ html.light .bg-\[\#ffffff10\],
 html.light .bg-\[\#ffffff14\],
 html.light .bg-\[\#ffffff1f\] { background-color: rgba(0,0,0,0.03) !important; }
 
-/* ── Light Mode: text-[#eff1f6xx] custom muted text ── */
+/* â”€â”€ Light Mode: text-[#eff1f6xx] custom muted text â”€â”€ */
 html.light .text-\[\#eff1f640\] { color: rgba(100,116,139,0.4) !important; }
 html.light .text-\[\#eff1f650\] { color: rgba(100,116,139,0.5) !important; }
 html.light .text-\[\#eff1f660\] { color: rgba(71,85,105,0.6) !important; }
@@ -336,7 +336,7 @@ html.light .text-\[\#B9C8FF\] { color: #1e40af !important; }
 html.light .text-\[\#5B9BFF\], html.light .text-\[\#5b9bff\] { color: #2563eb !important; }
 html.light .text-\[\#5B9BFF\]\/60, html.light .text-\[\#5b9bff\]\/60 { color: rgba(37, 99, 235, 0.6) !important; }
 
-/* ── Light Mode: accent/brand colors stay same but adjust opacity ── */
+/* â”€â”€ Light Mode: accent/brand colors stay same but adjust opacity â”€â”€ */
 html.light .bg-\[\#4F7DFF\]\/5 { background-color: rgba(79,125,255,0.06) !important; }
 html.light .bg-\[\#4F7DFF\]\/10 { background-color: rgba(79,125,255,0.08) !important; }
 html.light .bg-\[\#4F7DFF\]\/15 { background-color: rgba(79,125,255,0.1) !important; }
@@ -347,7 +347,7 @@ html.light .bg-\[\#7A5FFF\]\/20 { background-color: rgba(122,95,255,0.12) !impor
 html.light .bg-\[\#FFA116\]\/10 { background-color: rgba(255,161,22,0.1) !important; }
 html.light .bg-\[\#FFA116\]\/5  { background-color: rgba(255,161,22,0.06) !important; }
 
-/* ── Light Mode: border hex overrides ── */
+/* â”€â”€ Light Mode: border hex overrides â”€â”€ */
 html.light .border-\[\#05070A\], html.light .border-\[\#05070a\] { border-color: var(--color-border) !important; }
 html.light .border-\[\#3e3e3e\], html.light .border-\[\#3E3E3E\] { border-color: #e2e8f0 !important; }
 html.light .border-\[\#ffffff14\] { border-color: rgba(0,0,0,0.06) !important; }
@@ -357,7 +357,7 @@ html.light .border-\[\#10b981\] { border-color: rgba(16, 185, 129, 0.25) !import
 html.light .border-zinc-800,
 html.light .border-zinc-800\/60 { border-color: var(--color-border) !important; }
 
-/* ── Light Mode: ring colors ── */
+/* â”€â”€ Light Mode: ring colors â”€â”€ */
 html.light .ring-white\/\[0\.04\],
 html.light .ring-white\/\[0\.06\],
 html.light .ring-white\/\[0\.08\],
@@ -371,7 +371,7 @@ html.light .ring-1.ring-white\/\[0\.06\] {
   --tw-ring-color: rgba(0,0,0,0.08) !important;
 }
 
-/* ── Light Mode: shadow overrides ── */
+/* â”€â”€ Light Mode: shadow overrides â”€â”€ */
 html.light .shadow-black\/40,
 html.light .shadow-black\/30,
 html.light .shadow-black\/20,
@@ -382,7 +382,7 @@ html.light .shadow-2xl {
   --tw-shadow: 0 25px 50px -12px rgba(0,0,0,0.1) !important;
 }
 
-/* ── Light Mode: from-/to- gradient overrides ── */
+/* â”€â”€ Light Mode: from-/to- gradient overrides â”€â”€ */
 html.light .from-\[\#05070A\] { --tw-gradient-from: #f8fafc !important; }
 html.light .from-\[\#0B0E14\] { --tw-gradient-from: #f1f5f9 !important; }
 html.light .from-\[\#0A0D14\] { --tw-gradient-from: #f1f5f9 !important; }
@@ -394,7 +394,7 @@ html.light .from-black\/60 { --tw-gradient-from: rgba(248,250,252,0.6) !importan
 html.light .from-black { --tw-gradient-from: #f8fafc !important; }
 html.light .via-transparent { --tw-gradient-via: transparent !important; }
 
-/* ── Light Mode: Glass Card ── */
+/* â”€â”€ Light Mode: Glass Card â”€â”€ */
 html.light .glass-card {
   background: rgba(255, 255, 255, 0.7) !important;
   border-color: rgba(0, 0, 0, 0.06) !important;
@@ -404,29 +404,29 @@ html.light .glass-card-hover:hover {
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* ── Light Mode: Heatmap colors for profile ── */
+/* â”€â”€ Light Mode: Heatmap colors for profile â”€â”€ */
 html.light .bg-\[\#161b22\]\/50 { background-color: rgba(226,232,240,0.5) !important; }
 html.light .bg-emerald-900\/70 { background-color: rgba(6,95,70,0.2) !important; }
 html.light .bg-emerald-700\/70 { background-color: rgba(4,120,87,0.35) !important; }
 html.light .bg-emerald-500\/80 { background-color: rgba(16,185,129,0.5) !important; }
 
-/* ── Light Mode: Online pulse border override ── */
+/* â”€â”€ Light Mode: Online pulse border override â”€â”€ */
 html.light .border-\[\#05070A\] { border-color: #f8fafc !important; }
 html.light .border-2.border-\[\#05070A\] { border-color: #f8fafc !important; }
 
-/* ── Light Mode: grid-bg utility ── */
+/* â”€â”€ Light Mode: grid-bg utility â”€â”€ */
 html.light .grid-bg {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px) !important;
 }
 
-/* ── Light Mode: Focus ring offsets ── */
+/* â”€â”€ Light Mode: Focus ring offsets â”€â”€ */
 html.light .focus-visible\:ring-offset-\[\#05070A\] {
   --tw-ring-offset-color: #f8fafc !important;
 }
 
-/* ── Light Mode: Popover/dropdown menus ── */
+/* â”€â”€ Light Mode: Popover/dropdown menus â”€â”€ */
 html.light .bg-\[\#05070a\]\/95,
 html.light .bg-\[\#05070A\]\/95 {
   background-color: rgba(255,255,255,0.97) !important;
@@ -436,7 +436,7 @@ html.light .bg-\[\#05070A\]\/95 {
   color: var(--color-text);
 }
 
-/* ── Light Mode: Additional dark panel/bg composites ── */
+/* â”€â”€ Light Mode: Additional dark panel/bg composites â”€â”€ */
 html.light .bg-dark-panel { background-color: var(--color-panel) !important; }
 html.light .bg-dark-bg { background-color: var(--color-bg) !important; }
 html.light .text-dark-text { color: var(--color-text) !important; }
@@ -444,7 +444,7 @@ html.light .border-dark-border { border-color: var(--color-border) !important; }
 html.light .bg-dark-hover { background-color: var(--color-hover) !important; }
 html.light .bg-dark-input { background-color: var(--color-input) !important; }
 
-/* ── Light Mode: Hover states for interactive elements ── */
+/* â”€â”€ Light Mode: Hover states for interactive elements â”€â”€ */
 html.light .hover\:bg-\[\#ffffff10\]:hover,
 html.light .hover\:bg-\[\#ffffff08\]:hover {
   background-color: rgba(0,0,0,0.05) !important;
@@ -457,25 +457,25 @@ html.light .hover\:border-white\/\[0\.12\]:hover {
   border-color: rgba(0,0,0,0.1) !important;
 }
 
-/* ── Light Mode: bg-black used in some overlays ── */
+/* â”€â”€ Light Mode: bg-black used in some overlays â”€â”€ */
 html.light .bg-black\/50 { background-color: rgba(0,0,0,0.3) !important; }
 html.light .bg-black\/60 { background-color: rgba(0,0,0,0.35) !important; }
 html.light .bg-black\/80 { background-color: rgba(0,0,0,0.5) !important; }
 
-/* ── Light Mode: specific text visibility fixes ── */
+/* â”€â”€ Light Mode: specific text visibility fixes â”€â”€ */
 html.light .text-gray-100 { color: #1e293b !important; }
 html.light .text-gray-200 { color: #334155 !important; }
 html.light .text-gray-300 { color: #475569 !important; }
 html.light .hover\:text-gray-200:hover { color: #1e293b !important; }
 
-/* ── Light Mode: Navbar specific fixes ── */
+/* â”€â”€ Light Mode: Navbar specific fixes â”€â”€ */
 html.light header.sticky { 
   background-color: rgba(248,250,252,0.85) !important;
   border-bottom-color: rgba(0,0,0,0.06) !important;
 }
 html.light .bg-\[\#05070A\]\/80 { background-color: rgba(248,250,252,0.85) !important; }
 
-/* ── Light Mode: white/[0.xx] used for subtle UI surfaces ── */
+/* â”€â”€ Light Mode: white/[0.xx] used for subtle UI surfaces â”€â”€ */
 html.light .bg-white\/\[0\.015\] { background-color: rgba(0,0,0,0.015) !important; }
 html.light .bg-white\/\[0\.02\] { background-color: rgba(0,0,0,0.02) !important; }
 html.light .bg-white\/\[0\.03\] { background-color: rgba(0,0,0,0.025) !important; }
@@ -483,9 +483,9 @@ html.light .bg-white\/\[0\.04\] { background-color: rgba(0,0,0,0.03) !important;
 html.light .bg-white\/5 { background-color: rgba(0,0,0,0.03) !important; }
 html.light .bg-\[\#ffffff05\] { background-color: rgba(0,0,0,0.03) !important; }
 
-/* ─────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Base layer
-───────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @layer base {
   html {
     /* Smooth theme transitions */
@@ -534,9 +534,9 @@ html.light .bg-\[\#ffffff05\] { background-color: rgba(0,0,0,0.03) !important; }
   }
 }
 
-/* ─────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Animations
-───────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
@@ -672,7 +672,7 @@ html.light .problem-description-content pre code {
   margin-bottom: 0.75rem;
 }
 
-/* ── Code Highlighting for Problem Descriptions ─────────────────────────────── */
+/* â”€â”€ Code Highlighting for Problem Descriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .problem-description-content pre {
   background: #1e1e1e;
   border: none;
@@ -842,9 +842,9 @@ html.light .problem-description-content pre i {
   color: #79c0ff;
 }
 
-/* ─────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Premium Animations & Utilities
-───────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-12px); }
@@ -898,7 +898,7 @@ html.light .problem-description-content pre i {
 .animate-scale-in { animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-orbit { animation: orbit 20s linear infinite; }
 
-/* ── Custom Overhaul Animations ── */
+/* â”€â”€ Custom Overhaul Animations â”€â”€ */
 @property --border-angle {
   syntax: '<angle>';
   inherits: false;
@@ -1067,7 +1067,7 @@ html.light .problem-description-content pre i {
 .stagger-4 { animation-delay: 0.4s; opacity: 0; }
 .stagger-5 { animation-delay: 0.5s; opacity: 0; }
 
-/* Editor Focus Glow — removed colored border, use neutral outline only */
+/* Editor Focus Glow â€” removed colored border, use neutral outline only */
 .editor-glow {
   position: relative;
 }
@@ -1150,9 +1150,9 @@ html.light .problem-description-content pre i {
   animation: spin-slow 12s linear infinite;
 }
 
-/* ─────────────────────────────────────────────────
-   Battle Arena — Shared Utilities
-───────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Battle Arena â€” Shared Utilities
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Generic text input / select for battle setup forms */
 .battle-input {
@@ -1182,7 +1182,7 @@ html.light .battle-input:focus {
   box-shadow: 0 0 0 3px rgba(79, 125, 255, 0.08);
 }
 
-/* Primary CTA — blue/indigo gradient */
+/* Primary CTA â€” blue/indigo gradient */
 .battle-btn-primary {
   display: inline-flex;
   align-items: center;
@@ -1204,7 +1204,7 @@ html.light .battle-input:focus {
 .battle-btn-primary:active { transform: scale(0.97); }
 .battle-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Secondary CTA — subtle violet */
+/* Secondary CTA â€” subtle violet */
 .battle-btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -1302,9 +1302,39 @@ html.light .battle-input:focus {
   }
 }
 
-/* ─────────────────────────────────────────────────────────
+/* Cinematic Focus Mode Enter Overlay */
+@keyframes focusModeEnterOverlay {
+  0% { opacity: 1; background: #05070a; }
+  30% { opacity: 1; background: #05070a; }
+  100% { opacity: 0; background: rgba(5, 7, 10, 0); }
+}
+
+/* Cinematic Focus Mode Exit Overlay */
+@keyframes focusModeExitOverlay {
+  0% { opacity: 0; background: #05070a; }
+  35% { opacity: 1; background: #05070a; }
+  65% { opacity: 1; background: #05070a; }
+  100% { opacity: 0; background: rgba(5, 7, 10, 0); }
+}
+
+/* Premium Logo Centered Fade In & Out */
+@keyframes focusModeLogoFade {
+  0% { opacity: 0; transform: scale(0.92); filter: blur(4px); }
+  25% { opacity: 1; transform: scale(1); filter: blur(0); }
+  75% { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.05); filter: blur(8px); }
+}
+
+/* Focus mode layout container â€” smooth resize on enter/exit */
+.focus-mode-container {
+  transition:
+    padding 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+    height  0.45s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    X AI Assistant Styles
-   ───────────────────────────────────────────────────────── */
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Slide-in transition for X panel */
 .x-panel {
@@ -1370,100 +1400,135 @@ html.light .battle-input:focus {
   }
 }
 
-/* Inline code tags inside AI response */
+
+/* ============================================================
+   X ASSISTANT — MESSAGE TYPOGRAPHY & CODE BLOCKS
+   ============================================================ */
+
+/* Inline code */
 .x-inline-code {
   font-family: 'Fira Code', 'JetBrains Mono', monospace;
-  font-size: 0.825em;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.125rem 0.325rem;
-  border-radius: 0.25rem;
-  color: #fbbf24;
+  font-size: 0.82em;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 0.1rem 0.38rem;
+  border-radius: 0.3rem;
+  color: #d4d8f0;
 }
 
-/* Headers inside assistant markdown block */
-.x-h1 {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #ffffff;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-}
+/* Headings */
 .x-h2 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #ffffff;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-}
-.x-h3 {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #eff1f6;
-  margin-top: 0.75rem;
-  margin-bottom: 0.375rem;
+  color: #ffffff;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.01em;
+}
+.x-h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #e2e4f0;
+  margin-top: 1rem;
+  margin-bottom: 0.3rem;
 }
 
-/* List items inside markdown */
+/* Lists */
+.x-ul, .x-ol {
+  margin: 0.5rem 0 0.75rem 0;
+  padding: 0;
+}
 .x-li {
   list-style-type: disc;
-  margin-left: 1.25rem;
-  margin-top: 0.325rem;
-  margin-bottom: 0.325rem;
+  margin-left: 1.35rem;
+  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
+  line-height: 1.65;
+  color: #c8cce0;
 }
 .x-li-num {
   list-style-type: decimal;
-  margin-left: 1.25rem;
-  margin-top: 0.325rem;
-  margin-bottom: 0.325rem;
+  margin-left: 1.35rem;
+  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
+  line-height: 1.65;
+  color: #c8cce0;
+}
+.x-li-nested {
+  list-style-type: circle;
+  margin-left: 2.5rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+  line-height: 1.6;
+  color: #a8acc4;
+  font-size: 0.93em;
+}
+
+/* Paragraph */
+.x-p {
+  margin: 0 0 0.65rem 0;
+  line-height: 1.7;
+  color: #c8cce0;
+}
+.x-p:last-child { margin-bottom: 0; }
+
+/* Spacer between paragraphs */
+.x-spacer { height: 0.55rem; }
+
+/* Blockquote */
+.x-blockquote {
+  border-left: 3px solid rgba(249, 115, 22, 0.5);
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.875rem;
+  background: rgba(249, 115, 22, 0.05);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #b0b4cc;
+  font-style: italic;
 }
 
 /* Horizontal rule */
 .x-hr {
   border: 0;
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
   margin: 1rem 0;
 }
 
-/* Utility to hide scrollbar in action bars */
-.x-scroll-hide::-webkit-scrollbar {
-  display: none;
-}
-.x-scroll-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+/* Scrollbar hiders */
+.x-scroll-hide::-webkit-scrollbar { display: none; }
+.x-scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Text blocks styling */
+/* Text block wrapper */
 .x-text-block {
-  margin-bottom: 0.75rem;
+  font-size: 13px;
+  color: #c8cce0;
+  line-height: 1.7;
 }
-.x-text-block:last-child {
-  margin-bottom: 0;
-}
+.x-text-block strong { color: #ffffff; font-weight: 600; }
+.x-text-block em { color: #d4d8f0; }
 
-/* Premium code blocks action bar and body */
+/* Code block shell */
 .x-code-block {
   background-color: #0e0e10;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
-.x-code-content {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-.x-code-content::-webkit-scrollbar {
-  height: 6px;
-}
-.x-code-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 99px;
-}
-.x-code-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
+.x-code-content { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+.x-code-content::-webkit-scrollbar { height: 5px; }
+.x-code-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 99px; }
+.x-code-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+.x-code-content code.hljs { background: transparent; padding: 0; }
 
-/* Override highlight.js theme background to use our own */
-.x-code-content code.hljs {
-  background: transparent;
-  padding: 0;
+/* KaTeX math */
+.x-text-block .katex { font-size: 1em; color: #e8eaf6; }
+.x-math-display {
+  display: block;
+  overflow-x: auto;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  margin: 0.75rem 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.625rem;
 }
+.x-math-display .katex-display { margin: 0; }
+.x-math-display .katex { font-size: 1.05em; color: #e8eaf6; }

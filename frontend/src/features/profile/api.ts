@@ -1,6 +1,6 @@
 // Phase 5 — Profile API: stats + submission history
 import { ENV } from '../../shared/config/env';
-import { getToken } from '../../shared/lib/api';
+import { getToken, SESSION_ID } from '../../shared/lib/api';
 import type { Paginated } from '../../shared/lib/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ async function profileRequest<T>(path: string): Promise<T> {
   const res = await fetch(`${ENV.API_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      'X-Session-ID': SESSION_ID,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
@@ -96,6 +97,7 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
   const res = await fetch(`${ENV.API_URL}/users/profile/${username}`, {
     headers: {
       'Content-Type': 'application/json',
+      'X-Session-ID': SESSION_ID,
     },
   });
 

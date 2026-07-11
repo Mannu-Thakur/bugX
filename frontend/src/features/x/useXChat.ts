@@ -26,6 +26,9 @@ function buildSystemPrompt(ctx: ChatContext, rulesText: string): string {
     `- Prefer code over prose when the user needs help`,
     `- For hints, give the key insight without spoiling the full implementation`,
     ``,
+    `## Code Generation Requirements`,
+    `- IMPORTANT: You MUST retain the exact class names, function names, parameter names/types, and return types from the user's template/starter code. Do not rename functions or alter signatures, so that the code remains fully compatible and ready to compile when the user clicks 'Apply'.`,
+    ``,
     `## Current Context`,
     `- Problem: ${ctx.problemTitle || 'Unknown'}`,
     `- Language: ${ctx.language || 'Unknown'}`,
@@ -47,7 +50,23 @@ function buildSystemPrompt(ctx: ChatContext, rulesText: string): string {
     parts.push(`\n## Runtime Error\n\`\`\`\n${ctx.runtimeError.slice(0, 1000)}\n\`\`\``);
   }
 
-  parts.push(`\n## Response Format`, `- Use markdown with fenced code blocks`, `- Keep responses focused and scannable`);
+  parts.push(`
+## Response Format
+Follow these rules for every response — they control how your output is rendered:
+
+1. **Prose vs Code**: Write explanations in clean prose paragraphs. Separate each paragraph with a blank line. Never dump blocks of text without breaks.
+2. **Code blocks**: ALWAYS wrap code (including pseudocode, algorithms, and step-by-step procedures) in fenced code blocks with the correct language tag. Example:
+   \`\`\`python
+   # code here
+   \`\`\`
+   For pseudocode use the tag \`pseudocode\`, for shell use \`bash\`, etc.
+3. **Never** mix code and prose in the same block. If you explain a step then show code, put each in its own block with text between them.
+4. **Headings**: Use ## for section headings, ### for subsections. Never use # (top-level h1).
+5. **Lists**: Use \`-\` for unordered lists, \`1.\` for ordered lists. Indent nested items with 2 spaces.
+6. **Bold**: Use **bold** for key terms, variable names, and important concepts. Use \`inline code\` for identifiers, function names, and values.
+7. **Math**: Use \\( ... \\) for inline math and \\[ ... \\] for display math.
+8. **Spacing**: Always add a blank line before and after code blocks, headings, and lists.
+9. Keep responses focused and concise — every sentence should add value.`);
 
   if (rulesText.trim()) {
     parts.push(`\n## User's Custom Rules (follow these strictly)\n${rulesText}`);
@@ -218,6 +237,7 @@ export function useXChat() {
     messages,
     addMessage,
     updateMessage,
+    truncateMessages,
     selectedModelId,
     isStreaming,
     setIsStreaming,
@@ -312,10 +332,16 @@ export function useXChat() {
             // Use the next two models in the provider list as fallbacks
             const orModels = p.models.map(mo => mo.id);
             const primaryIdx = orModels.indexOf(m.id);
-            // Provide all other OR models as ordered fallbacks
-            fallbackModels.push(
-              ...orModels.filter((_, idx) => idx !== primaryIdx)
-            );
+            if (primaryIdx !== -1) {
+              const nextModels: string[] = [];
+              for (let i = 1; i < orModels.length && nextModels.length < 2; i++) {
+                const nextModel = orModels[(primaryIdx + i) % orModels.length];
+                if (nextModel !== m.id && !nextModels.includes(nextModel)) {
+                  nextModels.push(nextModel);
+                }
+              }
+              fallbackModels.push(...nextModels);
+            }
           }
 
           await streamOpenAICompat(
@@ -403,10 +429,208 @@ export function useXChat() {
     ]
   );
 
+  const resubmitActiveChat = useCallback(
+    async (chatCtx: ChatContext, targetMessageId?: string, newContent?: string): Promise<void> => {
+      if (isStreaming) return;
+
+      let targetIdx = -1;
+      if (targetMessageId) {
+        targetIdx = messages.findIndex(m => m.id === targetMessageId);
+      } else {
+        targetIdx = [...messages].reverse().findIndex(m => m.role === 'user');
+        if (targetIdx !== -1) {
+          targetIdx = messages.length - 1 - targetIdx;
+        }
+      }
+
+      if (targetIdx === -1) return;
+      const targetUserMsg = messages[targetIdx];
+      const userText = newContent !== undefined ? newContent : targetUserMsg.content;
+      truncateMessages(targetUserMsg.id, userText);
+
+      let finalText = userText;
+      const commandMatch = userText.match(/^(\/\w+)/);
+      if (commandMatch) {
+        const cmd = resolveCommand(commandMatch[1]);
+        if (cmd) {
+          finalText = expandCommandTemplate(cmd.prompt, chatCtx);
+        }
+      }
+
+      const history = messages.slice(0, targetIdx).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+      history.push({ role: 'user', content: finalText });
+
+      const assistantId = addMessage({
+        role: 'assistant',
+        content: '',
+        modelId: selectedModelId,
+        isStreaming: true,
+      });
+
+      setIsStreaming(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const result = getModelById(selectedModelId);
+      if (!result) {
+        updateMessage(assistantId, {
+          content: 'Model not found. Please select a different model.',
+          isStreaming: false,
+          error: 'Model not found',
+        });
+        setIsStreaming(false);
+        return;
+      }
+
+      const { model, provider } = result;
+      const apiKey = getEffectiveKey(provider.id as ProviderId);
+      const systemPrompt = buildSystemPrompt(chatCtx, rules.text);
+
+      const tryStream = async (p: typeof provider, m: typeof model, key: string) => {
+        let accumulated = '';
+        const onToken = (token: string) => {
+          accumulated += token;
+          updateMessage(assistantId, { content: accumulated, isStreaming: true });
+        };
+
+        if (p.id === 'anthropic') {
+          await streamAnthropic(
+            history,
+            systemPrompt,
+            m.id,
+            key,
+            onToken,
+            controller.signal
+          );
+        } else {
+          const extraHeaders: Record<string, string> = {};
+          const fallbackModels: string[] = [];
+
+          if (p.id === 'openrouter') {
+            extraHeaders['HTTP-Referer'] = 'https://bugx.dev';
+            extraHeaders['X-Title'] = 'BugX';
+            const orModels = p.models.map(mo => mo.id);
+            const primaryIdx = orModels.indexOf(m.id);
+            if (primaryIdx !== -1) {
+              const nextModels: string[] = [];
+              for (let i = 1; i < orModels.length && nextModels.length < 2; i++) {
+                const nextModel = orModels[(primaryIdx + i) % orModels.length];
+                if (nextModel !== m.id && !nextModels.includes(nextModel)) {
+                  nextModels.push(nextModel);
+                }
+              }
+              fallbackModels.push(...nextModels);
+            }
+          }
+
+          await streamOpenAICompat(
+            p.apiEndpoint,
+            [
+              { role: 'system', content: systemPrompt },
+              ...history,
+            ],
+            m.id,
+            key,
+            onToken,
+            controller.signal,
+            extraHeaders,
+            fallbackModels
+          );
+        }
+
+        updateMessage(assistantId, { content: accumulated, isStreaming: false, modelId: m.id });
+      };
+
+      try {
+        if (!apiKey) {
+          throw new Error(`No API key available for ${provider.name}. Add your key in X Settings.`);
+        }
+        await tryStream(provider, model, apiKey);
+      } catch (err) {
+        if (controller.signal.aborted) {
+          updateMessage(assistantId, { isStreaming: false });
+        } else {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const isNetworkError =
+            err instanceof TypeError ||
+            errMsg.includes('failed to fetch') ||
+            errMsg.includes('NetworkError') ||
+            errMsg.includes('econnrefused');
+
+          const hasFallback = provider.id === 'gemini' && getEffectiveKey('groq');
+
+          if (hasFallback && isNetworkError) {
+            updateMessage(assistantId, {
+              content: 'Gemini failed. Falling back to Llama 3.3 (Groq)...',
+              isStreaming: true,
+            });
+
+            try {
+              const fallbackProvider = PROVIDERS.find(pr => pr.id === 'groq')!;
+              const fallbackModel = fallbackProvider.models.find(mo => mo.id === 'llama-3.3-70b-versatile')!;
+              const fallbackKey = getEffectiveKey('groq')!;
+
+              let acc2 = '';
+              const onToken2 = (token: string) => {
+                acc2 += token;
+                updateMessage(assistantId, { content: acc2, isStreaming: true });
+              };
+
+              await streamOpenAICompat(
+                fallbackProvider.apiEndpoint,
+                [
+                  { role: 'system', content: systemPrompt },
+                  ...history,
+                ],
+                fallbackModel.id,
+                fallbackKey,
+                onToken2,
+                controller.signal
+              );
+              updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
+            } catch (fallbackErr) {
+              const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+              updateMessage(assistantId, {
+                content: `Failed to get a response. Please check your connection and try again.\n\nError: ${fallbackErrMsg}`,
+                isStreaming: false,
+                error: fallbackErrMsg,
+              });
+            }
+          } else {
+            updateMessage(assistantId, {
+              content: `Failed to get a response.\n\n**Error:** ${errMsg}`,
+              isStreaming: false,
+              error: errMsg,
+            });
+          }
+        }
+      } finally {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+      }
+    },
+    [
+      messages,
+      addMessage,
+      updateMessage,
+      truncateMessages,
+      selectedModelId,
+      isStreaming,
+      setIsStreaming,
+      abortControllerRef,
+      getEffectiveKey,
+      rules,
+      resolveCommand,
+    ]
+  );
+
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     setIsStreaming(false);
   }, [abortControllerRef, setIsStreaming]);
 
-  return { sendMessage, stopStreaming };
+  return { sendMessage, resubmitActiveChat, stopStreaming };
 }

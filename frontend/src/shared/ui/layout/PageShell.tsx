@@ -69,8 +69,45 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
       setFocusMode(localStorage.getItem('bugx_focusMode') === 'true');
     };
     window.addEventListener('bugx-settings-changed', handleSync);
-    return () => window.removeEventListener('bugx-settings-changed', handleSync);
-  }, []);
+
+    if (!user) {
+      return () => {
+        window.removeEventListener('bugx-settings-changed', handleSync);
+      };
+    }
+
+    const storageKey = `bugx_total_time_spent_${user.id}`;
+    let lastActive = Date.now();
+    const handleActivity = () => {
+      lastActive = Date.now();
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    const timer = setInterval(() => {
+      const isVisible = document.visibilityState === 'visible';
+      const hasFocus = document.hasFocus();
+      const isIdle = Date.now() - lastActive > 60_000; // 1 minute idle limit
+
+      if (isVisible && hasFocus && !isIdle) {
+        const current = Number(localStorage.getItem(storageKey) || '0');
+        localStorage.setItem(storageKey, String(current + 1));
+        window.dispatchEvent(new CustomEvent('bugx-time-spent-updated', { detail: { userId: user.id } }));
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('bugx-settings-changed', handleSync);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      clearInterval(timer);
+    };
+  }, [user]);
 
   useEffect(() => {
     const handleOpenSettings = (e: Event) => {

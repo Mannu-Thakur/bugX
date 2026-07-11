@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Plus, Trash2, ChevronLeft, Settings, Square, Send,
+  Plus, Trash2, ChevronLeft, Settings, Square, Send, History, Clock, X,
 } from 'lucide-react';
 import { useX } from './XContext';
 import { useXChat, type ChatContext } from './useXChat';
@@ -54,12 +54,65 @@ export const XPanel: React.FC<XPanelProps> = ({
 }) => {
   const {
     messages,
-    clearMessages,
     isStreaming,
     selectedModelId,
     setProblemSlug,
+    conversations,
+    activeConversationId,
+    startNewConversation,
+    selectConversation,
+    deleteConversation,
   } = useX();
-  const { sendMessage, stopStreaming } = useXChat();
+  const { sendMessage, resubmitActiveChat, stopStreaming } = useXChat();
+  const [showHistory, setShowHistory] = useState(false);
+
+  const handleEditMessage = useCallback(async (msgId: string, newContent: string) => {
+    const chatCtx: ChatContext = {
+      code,
+      language,
+      problemTitle,
+      problemStatement,
+      constraints,
+      compilerError,
+      runtimeError,
+      sampleInput,
+    };
+    await resubmitActiveChat(chatCtx, msgId, newContent);
+  }, [
+    resubmitActiveChat,
+    code,
+    language,
+    problemTitle,
+    problemStatement,
+    constraints,
+    compilerError,
+    runtimeError,
+    sampleInput,
+  ]);
+
+  const handleRegenerate = useCallback(async () => {
+    const chatCtx: ChatContext = {
+      code,
+      language,
+      problemTitle,
+      problemStatement,
+      constraints,
+      compilerError,
+      runtimeError,
+      sampleInput,
+    };
+    await resubmitActiveChat(chatCtx);
+  }, [
+    resubmitActiveChat,
+    code,
+    language,
+    problemTitle,
+    problemStatement,
+    constraints,
+    compilerError,
+    runtimeError,
+    sampleInput,
+  ]);
 
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -149,14 +202,14 @@ export const XPanel: React.FC<XPanelProps> = ({
       >
         {/* Top: X logo */}
         <div className="flex flex-col items-center gap-4">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-600/40 to-amber-600/25 border border-orange-500/25 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-            <span className="text-[12px] font-black text-white">X</span>
+          <div className="w-7 h-7 flex items-center justify-center group-hover:scale-105 transition-transform text-gray-300">
+            <span className="text-[15px] font-black tracking-wider">X</span>
           </div>
           <span className="text-[10px] font-bold text-gray-500 tracking-widest [writing-mode:vertical-lr] uppercase whitespace-nowrap">
             X AI Panel
           </span>
         </div>
-
+        
         {/* Bottom: Expand Chevron */}
         <div className="flex flex-col items-center gap-2 mb-2">
           <div className="w-7 h-7 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-400 group-hover:text-white group-hover:bg-white/[0.08] transition-all">
@@ -176,18 +229,15 @@ export const XPanel: React.FC<XPanelProps> = ({
         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
       >
         {/* Left: X logo + model badge */}
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-600/40 to-amber-600/25 border border-orange-500/25 flex items-center justify-center">
-            <span className="text-[11px] font-black text-white">X</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 flex items-center justify-center text-gray-300">
+            <span className="text-[14px] font-black tracking-wider">X</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-bold text-white">X</span>
-            {!isCompact && !isIconOnly && currentModel && (
-              <span className="text-[10px] font-semibold text-gray-500 truncate max-w-[80px]">
-                · {currentModel.model.displayName}
-              </span>
-            )}
-          </div>
+          {!isCompact && !isIconOnly && currentModel && (
+            <span className="text-[10px] font-semibold text-gray-500 truncate max-w-[100px]">
+              · {currentModel.model.displayName}
+            </span>
+          )}
 
           {/* Status dot */}
           <span className={cn(
@@ -201,18 +251,24 @@ export const XPanel: React.FC<XPanelProps> = ({
           {!isIconOnly ? (
             <>
               <button
-                onClick={clearMessages}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-all cursor-pointer"
+                onClick={() => {
+                  if (!isStreaming) startNewConversation();
+                }}
+                disabled={isStreaming}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 title="New chat"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={clearMessages}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-all cursor-pointer"
-                title="Clear chat"
+                onClick={() => setShowHistory(prev => !prev)}
+                className={cn(
+                  "w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer",
+                  showHistory ? "text-orange-400 bg-orange-500/10" : "text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
+                )}
+                title="Chat History"
               >
-                <Trash2 className="w-3 h-3" />
+                <History className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => {
@@ -231,8 +287,11 @@ export const XPanel: React.FC<XPanelProps> = ({
             </>
           ) : (
             <button
-              onClick={clearMessages}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-all cursor-pointer"
+              onClick={() => {
+                if (!isStreaming) startNewConversation();
+              }}
+              disabled={isStreaming}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="New chat"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -261,119 +320,187 @@ export const XPanel: React.FC<XPanelProps> = ({
         </div>
       )}
 
-      {/* ── MESSAGES or EMPTY STATE ── */}
-      {messages.length === 0 ? (
-        <XEmptyState onSuggestion={(prompt) => handleSend(prompt)} isCompact={isCompact} isIconOnly={isIconOnly} />
-      ) : (
-        <XMessageList
-          messages={messages}
-          onRegenerate={() => {
-            // Regenerate: resend the last user message
-            const lastUser = [...messages].reverse().find(m => m.role === 'user');
-            if (lastUser) {
-              handleSend(lastUser.content);
-            }
-          }}
-        />
-      )}
+      {showHistory ? (
+        <div className="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden select-none z-10">
+          <div className="flex items-center justify-between px-4 py-3 bg-[#252526] border-b border-white/[0.04] shrink-0">
+            <span className="text-[13px] font-bold text-gray-200 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-orange-500" />
+              Chat History
+            </span>
+            <button
+              onClick={() => setShowHistory(false)}
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-      {/* ── QUICK ACTIONS ── */}
-      {messages.length > 0 && !isIconOnly && (
-        <div
-          className="shrink-0 px-3 py-2"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <div className="flex gap-1.5 overflow-x-auto x-scroll-hide pb-0.5">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.label}
-                onClick={() => handleSend(action.prompt)}
-                disabled={isStreaming}
-                title={action.label}
-                className={cn(
-                  "flex items-center justify-center rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-orange-500/30 text-gray-400 hover:text-gray-200 transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
-                  isCompact ? "w-7 h-7 p-0" : "gap-1 px-2.5 py-1.5 text-[11px] font-medium"
-                )}
-              >
-                <span className="text-[12px] leading-none">{action.icon}</span>
-                {!isCompact && action.label}
-              </button>
-            ))}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <button
+              onClick={() => {
+                startNewConversation();
+                setShowHistory(false);
+              }}
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-white/[0.12] hover:border-orange-500/40 text-[12px] font-bold text-gray-400 hover:text-orange-400 bg-white/[0.02] hover:bg-orange-500/5 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Start New Chat
+            </button>
+
+            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pt-2 pl-1">
+              Conversations ({conversations.filter(c => c.problemSlug === problemSlug).length})
+            </div>
+
+            {conversations
+              .filter(c => c.problemSlug === problemSlug)
+              .map(conv => {
+                const isActive = conv.id === activeConversationId;
+                return (
+                  <div
+                    key={conv.id}
+                    className={cn(
+                      "group flex items-center justify-between p-2 rounded-lg transition-all cursor-pointer border text-[12px]",
+                      isActive
+                        ? "bg-orange-500/10 border-orange-500/20 text-orange-400"
+                        : "bg-white/[0.01] border-white/[0.04] text-gray-300 hover:bg-white/[0.04] hover:text-white"
+                    )}
+                    onClick={() => {
+                      selectConversation(conv.id);
+                      setShowHistory(false);
+                    }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Clock className="w-3.5 h-3.5 shrink-0 opacity-40 group-hover:opacity-75" />
+                      <span className="truncate font-medium">{conv.title}</span>
+                    </div>
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteConversation(conv.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
           </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* ── MESSAGES or EMPTY STATE ── */}
+          {messages.length === 0 ? (
+            <XEmptyState onSuggestion={(prompt) => handleSend(prompt)} isCompact={isCompact} isIconOnly={isIconOnly} />
+          ) : (
+            <XMessageList
+              messages={messages}
+              onRegenerate={handleRegenerate}
+              onEditMessage={handleEditMessage}
+            />
+          )}
 
-      {/* ── COMPOSER ── */}
-      <div
-        className="shrink-0 px-3 pb-3 pt-2"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
-      >
-        <div
-          className="rounded-xl transition-all"
-          style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isStreaming 
-                ? 'X is thinking...' 
-                : isIconOnly 
-                ? 'Ask X...' 
-                : 'Ask X anything... (Shift+Enter for newline)'
-            }
-            disabled={isStreaming}
-            rows={1}
-            className="w-full bg-transparent px-3 pt-3 pb-1 text-[13px] text-gray-200 placeholder-gray-600 resize-none outline-none leading-relaxed disabled:opacity-60"
-            style={{ maxHeight: '120px', boxShadow: 'none', outline: 'none' }}
-          />
+          {/* ── QUICK ACTIONS ── */}
+          {messages.length > 0 && !isIconOnly && (
+            <div
+              className="shrink-0 px-3 py-2"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
+            >
+              <div className="flex gap-1.5 overflow-x-auto x-scroll-hide pb-0.5">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => handleSend(action.prompt)}
+                    disabled={isStreaming}
+                    title={action.label}
+                    className={cn(
+                      "flex items-center justify-center rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-orange-500/30 text-gray-400 hover:text-gray-200 transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                      isCompact ? "w-7 h-7 p-0" : "gap-1 px-2.5 py-1.5 text-[11px] font-medium"
+                    )}
+                  >
+                    <span className="text-[12px] leading-none">{action.icon}</span>
+                    {!isCompact && action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Composer footer */}
-          <div className="flex items-center justify-between px-2 pb-2">
-            {!isIconOnly ? (
-              <ModelSwitcher />
-            ) : (
-              <div className="w-1" />
-            )}
+          {/* ── COMPOSER ── */}
+          <div
+            className="shrink-0 px-3 pb-3 pt-2"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
+          >
+            <div
+              className="rounded-xl transition-all"
+              style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+            >
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isStreaming 
+                    ? 'X is thinking...' 
+                    : isIconOnly 
+                    ? 'Ask X...' 
+                    : 'Ask X anything... (Shift+Enter for newline)'
+                }
+                disabled={isStreaming}
+                rows={1}
+                className="w-full bg-transparent px-3 pt-3 pb-1 text-[13px] text-gray-200 placeholder-gray-600 resize-none outline-none leading-relaxed disabled:opacity-60"
+                style={{ maxHeight: '120px', boxShadow: 'none', outline: 'none' }}
+              />
 
-            <div className="flex items-center gap-1.5">
-              {/* Hint: Shift+Enter for newline */}
-              {!isCompact && !isIconOnly && (
-                <span className="text-[10px] text-gray-600 hidden sm:block">⏎ Send</span>
-              )}
+              {/* Composer footer */}
+              <div className="flex items-center justify-between px-2 pb-2">
+                {!isIconOnly ? (
+                  <ModelSwitcher />
+                ) : (
+                  <div className="w-1" />
+                )}
 
-              {isStreaming ? (
-                <button
-                  onClick={stopStreaming}
-                  className={cn(
-                    "flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400 transition-all cursor-pointer",
-                    isIconOnly ? "w-7 h-7 rounded-lg" : "gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                <div className="flex items-center gap-1.5">
+                  {/* Hint: Shift+Enter for newline */}
+                  {!isCompact && !isIconOnly && (
+                    <span className="text-[10px] text-gray-600 hidden sm:block">⏎ Send</span>
                   )}
-                  title="Stop streaming"
-                >
-                  <Square className="w-3 h-3" />
-                  {!isIconOnly && 'Stop'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleSend()}
-                  disabled={!input.trim()}
-                  className={cn(
-                    "flex items-center justify-center bg-orange-600 hover:bg-orange-500 disabled:bg-gray-700 disabled:opacity-50 text-white transition-all cursor-pointer disabled:cursor-not-allowed active:scale-[0.97]",
-                    isIconOnly ? "w-7 h-7 rounded-lg" : "gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+
+                  {isStreaming ? (
+                    <button
+                      onClick={stopStreaming}
+                      className={cn(
+                        "flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400 transition-all cursor-pointer",
+                        isIconOnly ? "w-7 h-7 rounded-lg" : "gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                      )}
+                      title="Stop streaming"
+                    >
+                      <Square className="w-3 h-3" />
+                      {!isIconOnly && 'Stop'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSend()}
+                      disabled={!input.trim()}
+                      className={cn(
+                        "flex items-center justify-center bg-orange-600 hover:bg-orange-500 disabled:bg-gray-700 disabled:opacity-50 text-white transition-all cursor-pointer disabled:cursor-not-allowed active:scale-[0.97]",
+                        isIconOnly ? "w-7 h-7 rounded-lg" : "gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold"
+                      )}
+                      title="Send message"
+                    >
+                      <Send className="w-3 h-3" />
+                      {!isIconOnly && 'Send'}
+                    </button>
                   )}
-                  title="Send message"
-                >
-                  <Send className="w-3 h-3" />
-                  {!isIconOnly && 'Send'}
-                </button>
-              )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

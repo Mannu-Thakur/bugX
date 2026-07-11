@@ -184,7 +184,36 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
   // Falls back to active/default model if no keys are found.
   const getAvailableModelWithKey = () => {
     if (!xCtx) return null;
-    const preferredProviders: ProviderId[] = ['gemini', 'groq', 'deepseek', 'openai', 'anthropic'];
+
+    // 1. Prioritize the user's currently selected model if they have a key configured for its provider
+    const activeModelId = xCtx.selectedModelId;
+    if (activeModelId) {
+      const activeModel = getModelById(activeModelId);
+      if (activeModel) {
+        const activePid = activeModel.provider.id;
+        const key = xCtx.getEffectiveKey(activePid);
+        if (key && key.trim() !== '' && !key.startsWith('YOUR_')) {
+          return {
+            provider: activeModel.provider,
+            model: activeModel.model,
+            apiKey: key.trim()
+          };
+        }
+      }
+    }
+
+    // 2. Loop through preferred providers to find the first one that has a key configured
+    const preferredProviders: ProviderId[] = [
+      'gemini',
+      'groq',
+      'deepseek',
+      'openai',
+      'anthropic',
+      'openrouter',
+      'qwen',
+      'moonshot',
+      'bytedance'
+    ];
     for (const pid of preferredProviders) {
       const key = xCtx.getEffectiveKey(pid);
       if (key && key.trim() !== '' && !key.startsWith('YOUR_')) {
@@ -201,8 +230,8 @@ export const BattleResultModal: React.FC<BattleResultModalProps> = ({
     }
 
     // Fallback: If no provider has a custom key, use the active model anyway
-    const activeModelId = xCtx.selectedModelId || 'gemini-2.0-flash';
-    const fallback = getModelById(activeModelId) || getModelById('gemini-2.0-flash');
+    const activeModelIdFallback = xCtx.selectedModelId || 'gemini-2.0-flash';
+    const fallback = getModelById(activeModelIdFallback) || getModelById('gemini-2.0-flash');
     if (fallback) {
       return {
         provider: fallback.provider,
@@ -273,12 +302,17 @@ Generate a concise report card. No intro/outro.`;
           }),
         });
       } else {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        };
+        if (provider.id === 'openrouter') {
+          headers['HTTP-Referer'] = 'https://bugx.dev';
+          headers['X-Title'] = 'BugX';
+        }
         response = await fetch(provider.apiEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers,
           body: JSON.stringify({
             model: model.id,
             messages: [
