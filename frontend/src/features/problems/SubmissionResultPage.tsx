@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -17,8 +17,7 @@ import {
   Timer,
   Sparkles,
   Brain,
-  Lock,
-  Zap
+  Lock
 } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import { Button } from '../../shared/ui/button/Button';

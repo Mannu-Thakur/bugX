@@ -139,7 +139,7 @@ export const ProblemListPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['problems'] });
       navigate(`/problems/${problem.slug}`);
     } catch (err: unknown) {
-      const errorObj = err as { status?: number; code?: string; message?: string; detail?: { candidates?: { title: string; slug: string }[] } };
+      const errorObj = err as { status?: number; code?: string; message?: string; detail?: { candidates?: Candidate[] } };
       const status: number = errorObj?.status ?? 0;
       const code: string = errorObj?.code || '';
       const rawMessage: string = errorObj?.message || '';

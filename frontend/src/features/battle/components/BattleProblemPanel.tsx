@@ -9,7 +9,7 @@ interface BattleProblemPanelProps {
   width: number;
   onResize: (newWidth: number) => void;
   onClose: () => void;
-  user?: unknown;
+  user?: any;
   activeLanguage?: 'python' | 'javascript' | 'cpp' | 'java';
   notes?: string;
   onNotesChange?: (notes: string) => void;

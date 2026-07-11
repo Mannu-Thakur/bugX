@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2, Code, ArrowUpRight } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2, Code } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';

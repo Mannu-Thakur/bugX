@@ -52,11 +52,19 @@ async function callAI(
     const data = await response.json();
     resultText = data.content?.[0]?.text || '';
   } else {
+    // Build provider-specific extra headers
+    const extraHeaders: Record<string, string> = {};
+    if (provider.id === 'openrouter') {
+      extraHeaders['HTTP-Referer'] = 'https://bugx.dev';
+      extraHeaders['X-Title'] = 'BugX';
+    }
+
     const response = await fetch(provider.apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
       },
       body: JSON.stringify({
         model: model.id,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useInterview } from '../InterviewContext';
 import { useInterviewAI } from '../useInterviewAI';
 import { QuestionCard } from '../components/QuestionCard';
@@ -35,6 +35,13 @@ export const InterviewScreen: React.FC<InterviewScreenProps> = ({ onComplete }) 
   const [confidence, setConfidence] = useState(70);
 
   if (!session) return null;
+
+  // Keep a ref to always have the latest session — avoids stale closure
+  // when handleNextQuestion fires after async evaluations update state
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  });
 
   const currentQuestion: InterviewQuestion | undefined = session.questions[currentQuestionIndex];
   const totalQuestions = session.questions.length;
@@ -108,11 +115,15 @@ export const InterviewScreen: React.FC<InterviewScreenProps> = ({ onComplete }) 
     setCurrentAnswer(null);
     setDurationSec(0);
 
+    // Use the ref to get the LIVE session (avoids stale closure after addEvaluation)
+    const liveSession = sessionRef.current;
+    const liveTotalQuestions = liveSession.questions.length;
+
     // If no more questions left, build the final report
-    if (currentQuestionIndex >= totalQuestions) {
+    if (currentQuestionIndex >= liveTotalQuestions) {
       setIsAiThinking(true);
       try {
-        const report = await generateReport(session);
+        const report = await generateReport(liveSession);
         completeInterview(report);
         onComplete(report);
       } catch (err: any) {

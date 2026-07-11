@@ -5,7 +5,7 @@ import { cn } from '../../../shared/lib/cn';
 import { safeParseDate } from '../../../shared/lib/date';
 import type { BattlePlayerState } from '../types/battle.types';
 import { XCtx } from '../../x/XContext';
-import { getModelById, PROVIDERS, type ProviderId } from '../../x/xModels';
+import { getModelById, PROVIDERS, type ProviderId, type XProvider, type XModel } from '../../x/xModels';
 import hljs from 'highlight.js/lib/core';
 import cpp from 'highlight.js/lib/languages/cpp';
 import python from 'highlight.js/lib/languages/python';

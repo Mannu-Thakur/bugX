@@ -134,7 +134,7 @@ export const BattleArenaPage: React.FC = () => {
                 template_code: t.template_code || t.source_code || '',
                 function_name: t.function_name,
               })),
-              sample_test_cases: (p.sample_test_cases || []).map((tc: { id?: string; input?: string; expected_output?: string }, index: number) => ({
+              sample_test_cases: (p.sample_test_cases || []).map((tc: any, index: number) => ({
                 id: tc.id || String(index),
                 input: tc.input || '',
                 expected_output: tc.expected_output || '',
@@ -158,7 +158,7 @@ export const BattleArenaPage: React.FC = () => {
                 template_code: t.template_code || t.source_code || '',
                 function_name: t.function_name,
               })),
-              sample_test_cases: (mock.sample_test_cases || []).map((tc: { id?: string; input?: string; expected_output?: string }, index: number) => ({
+              sample_test_cases: (mock.sample_test_cases || []).map((tc: any, index: number) => ({
                 id: tc.id || String(index),
                 input: tc.input || '',
                 expected_output: tc.expected_output || '',
