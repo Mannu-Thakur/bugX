@@ -79,10 +79,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const wasHandled = handledSubmissionsRef.current.has(id);
 
           if (!userIsStillOnPage && !wasHandled) {
-            if (sub.status === 'ACCEPTED') {
-              toast(`Solution ACCEPTED for problem: "${problemTitle}"! +${sub.score} pts awarded.`, 'success', 6000);
+            if (isRunOnly) {
+              if (sub.status === 'ACCEPTED') {
+                toast(`Run completed successfully on problem: "${problemTitle}"!`, 'success', 6000);
+              } else {
+                toast(`Run finished with status: ${sub.status.replace('_', ' ')} on problem: "${problemTitle}"`, 'warning', 6000);
+              }
             } else {
-              toast(`Solution failed with status: ${sub.status.replace('_', ' ')} on problem: "${problemTitle}"`, 'error', 6000);
+              if (sub.status === 'ACCEPTED') {
+                toast(`Solution ACCEPTED for problem: "${problemTitle}"! +${sub.score} pts awarded.`, 'success', 6000);
+              } else {
+                toast(`Solution failed with status: ${sub.status.replace('_', ' ')} on problem: "${problemTitle}"`, 'error', 6000);
+              }
             }
           }
         }

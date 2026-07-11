@@ -31,6 +31,7 @@ const BattleRoomPage = lazy(() => import('../features/battle/pages/BattleRoomPag
 const ResumePreviewPage = lazy(() => import('../features/resume/ResumePreviewPage').then(module => ({ default: module.ResumePreviewPage })));
 const AnalyticsPage = lazy(() => import('../features/analytics/AnalyticsPage').then(module => ({ default: module.AnalyticsPage })));
 const PublicProfilePage = lazy(() => import('../features/profile/PublicProfilePage').then(module => ({ default: module.PublicProfilePage })));
+const InterviewDashboard = lazy(() => import('../features/interview/InterviewDashboard').then(module => ({ default: module.InterviewDashboard })));
 
 export const router = createBrowserRouter([
   {
@@ -257,6 +258,22 @@ export const router = createBrowserRouter([
             </div>
           }>
             <AnalyticsPage />
+          </Suspense>
+        </PageShell>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/interview',
+    element: (
+      <ProtectedRoute>
+        <PageShell fullWidth>
+          <Suspense fallback={
+            <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-xs font-bold text-gray-500">
+              Loading Interview Dashboard...
+            </div>
+          }>
+            <InterviewDashboard />
           </Suspense>
         </PageShell>
       </ProtectedRoute>

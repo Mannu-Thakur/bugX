@@ -80,7 +80,7 @@ interface CodeBlockProps {
   onRegenerate?: () => void;
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, onRegenerate }) => {
+const CodeBlock: React.FC<CodeBlockProps> = React.memo(({ code, language, onRegenerate }) => {
   const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLElement>(null);
   const toast = useToast();
@@ -171,7 +171,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, onRegenerate }) =
       </pre>
     </div>
   );
-};
+}, (prev, next) => prev.code === next.code && prev.language === next.language);
 
 interface XMessageBubbleProps {
   message: XMessage;
@@ -186,7 +186,7 @@ const XMessageBubble: React.FC<XMessageBubbleProps> = ({ message, onRegenerate }
     return (
       <div className="flex justify-end mb-3">
         <div
-          className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm text-[13px] text-white leading-relaxed"
+          className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm text-[13px] text-white leading-relaxed whitespace-pre-wrap break-words"
           style={{ background: 'rgba(249, 115, 22, 0.15)', border: '1px solid rgba(249, 115, 22, 0.25)' }}
         >
           {message.content}
@@ -260,7 +260,7 @@ export const XMessageList: React.FC<XMessageListProps> = ({ messages, onRegenera
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
 
   return (

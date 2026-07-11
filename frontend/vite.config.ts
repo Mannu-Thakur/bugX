@@ -23,6 +23,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/proxy\/deepseek/, ''),
       },
+      '/proxy/qwen': {
+        target: 'https://dashscope.aliyuncs.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/qwen/, ''),
+      },
+      '/proxy/openrouter': {
+        target: 'https://openrouter.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/openrouter/, ''),
+      },
     },
   },
 })

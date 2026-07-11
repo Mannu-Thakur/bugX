@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2, Code } from 'lucide-react';
+import { Menu, X, Terminal, Award, ShieldAlert, LogOut, User, BookOpen, Swords, Flame, Palette, Settings, Play, Pause, RotateCcw, ChevronLeft, Clock, Sparkles, Brain, Cpu, MessageSquare, CheckCircle2, Code, ArrowUpRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../button/IconButton';
 import { useAuth } from '../../../features/auth/useAuth';
@@ -110,7 +110,6 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
   const [timerPopoverOpen, setTimerPopoverOpen] = useState(false);
   const [tempHours, setTempHours] = useState(1);
   const [tempMinutes, setTempMinutes] = useState(0);
-  const [activeProblem, setActiveProblem] = useState<{ title: string; slug: string } | null>(null);
   const [timerCollapsing, setTimerCollapsing] = useState(false);
 
   const popoverRef = React.useRef<HTMLDivElement>(null);
@@ -132,30 +131,14 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
   };
 
   useEffect(() => {
-    const handleProblemLoaded = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail) {
-        setActiveProblem({ title: detail.title, slug: detail.slug });
-      }
-    };
-    const handleProblemUnloaded = () => {
-      setActiveProblem(null);
-      setTimerIsActive(false);
-      setTimerSeconds(0);
-      setTimerPopoverOpen(false);
-    };
     const handleTimerResetSignal = () => {
       setTimerIsActive(false);
       setTimerSeconds(0);
     };
 
-    window.addEventListener('bugx-problem-loaded', handleProblemLoaded);
-    window.addEventListener('bugx-problem-unloaded', handleProblemUnloaded);
     window.addEventListener('bugx-timer-reset-signal', handleTimerResetSignal);
 
     return () => {
-      window.removeEventListener('bugx-problem-loaded', handleProblemLoaded);
-      window.removeEventListener('bugx-problem-unloaded', handleProblemUnloaded);
       window.removeEventListener('bugx-timer-reset-signal', handleTimerResetSignal);
     };
   }, []);
@@ -224,7 +207,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
   // };
 
   const renderTimerWidget = () => {
-    if (!activeProblem) return null;
+    if (!isProblemPage) return null;
 
     const pad2 = (n: number) => String(n).padStart(2, '0');
     const h = Math.floor(timerSeconds / 3600);
@@ -279,7 +262,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
               "flex items-center justify-center w-8 h-8 rounded-lg border border-dark-border bg-dark-panel",
               "text-dark-text/50 hover:text-amber-500 hover:bg-dark-hover transition-colors cursor-pointer select-none"
             )}
-            title={`Timer – ${activeProblem.title}`}
+            title="Timer"
           >
             <Clock className="w-4 h-4" />
           </button>
@@ -740,6 +723,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                   </span>
                 </Link>
               )}
+
               {/* Timer Widget */}
               {renderTimerWidget()}
 
@@ -758,8 +742,7 @@ export const PageShell: React.FC<{ children: React.ReactNode; fullWidth?: boolea
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               />
             </div>
-
-          </div>
+        </div>
         </div>
 
         {/* Mobile Navigation Drawer */}

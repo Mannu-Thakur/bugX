@@ -13,11 +13,20 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
   left,
   right,
   initialLeftWidthPercent = 50,
-  minLeftWidthPercent = 20,
-  maxLeftWidthPercent = 80,
+  minLeftWidthPercent = 0,
+  maxLeftWidthPercent = 100,
   id,
 }) => {
-  const [leftWidth, setLeftWidth] = useState(initialLeftWidthPercent);
+  const [leftWidth, setLeftWidth] = useState(() => {
+    if (id) {
+      const saved = localStorage.getItem(`split_pane_width_${id}`);
+      if (saved !== null) {
+        const val = parseFloat(saved);
+        if (!isNaN(val)) return val;
+      }
+    }
+    return initialLeftWidthPercent;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
@@ -26,6 +35,7 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
 
     const handleExpand = () => {
       setLeftWidth(initialLeftWidthPercent);
+      localStorage.setItem(`split_pane_width_${id}`, String(initialLeftWidthPercent));
     };
     window.addEventListener('bugx-expand-x-panel', handleExpand);
     return () => {
@@ -53,6 +63,9 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       if (newWidthPercent > maxLeftWidthPercent) newWidthPercent = maxLeftWidthPercent;
 
       setLeftWidth(newWidthPercent);
+      if (id) {
+        localStorage.setItem(`split_pane_width_${id}`, String(newWidthPercent));
+      }
     };
 
     const handleStop = () => {

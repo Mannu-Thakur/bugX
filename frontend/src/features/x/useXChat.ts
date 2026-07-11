@@ -102,6 +102,14 @@ async function streamAnthropic(
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
 
+  // RAF-throttle: buffer tokens and flush at ~60fps for smooth streaming
+  let buffer = '';
+  let rafId: number | null = null;
+  const flush = () => {
+    if (buffer) { onToken(buffer); buffer = ''; }
+    rafId = null;
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -114,35 +122,50 @@ async function streamAnthropic(
         try {
           const json = JSON.parse(data);
           if (json.type === 'content_block_delta' && json.delta?.text) {
-            onToken(json.delta.text);
+            buffer += json.delta.text;
+            if (rafId === null) rafId = requestAnimationFrame(flush);
           }
         } catch { /* ignore parse errors */ }
       }
     }
   }
+  // Flush any remaining buffered tokens
+  if (buffer) onToken(buffer);
+  if (rafId !== null) cancelAnimationFrame(rafId);
 }
 
-// OpenAI-compatible streaming (Groq, OpenAI, Gemini OpenAI-compat, DeepSeek, Qwen, etc.)
+// OpenAI-compatible streaming (Groq, OpenAI, Gemini OpenAI-compat, DeepSeek, Qwen, OpenRouter, etc.)
 async function streamOpenAICompat(
   endpoint: string,
   messages: { role: string; content: string }[],
   modelId: string,
   apiKey: string,
   onToken: (token: string) => void,
-  signal: AbortSignal
+  signal: AbortSignal,
+  extraHeaders?: Record<string, string>,
+  fallbackModels?: string[]
 ): Promise<void> {
+  const body: Record<string, unknown> = {
+    model: modelId,
+    messages,
+    stream: true,
+    max_tokens: 4096,
+  };
+
+  // OpenRouter native model fallback — pass a models[] array so OpenRouter
+  // automatically retries the next model if the primary is unavailable
+  if (fallbackModels && fallbackModels.length > 0) {
+    body.models = [modelId, ...fallbackModels];
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
+      ...extraHeaders,
     },
-    body: JSON.stringify({
-      model: modelId,
-      messages,
-      stream: true,
-      max_tokens: 4096,
-    }),
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -153,6 +176,14 @@ async function streamOpenAICompat(
 
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
+
+  // RAF-throttle: buffer tokens and flush at ~60fps for smooth streaming
+  let buffer = '';
+  let rafId: number | null = null;
+  const flush = () => {
+    if (buffer) { onToken(buffer); buffer = ''; }
+    rafId = null;
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -169,11 +200,17 @@ async function streamOpenAICompat(
             json.choices?.[0]?.delta?.content ||
             json.choices?.[0]?.text ||
             '';
-          if (token) onToken(token);
+          if (token) {
+            buffer += token;
+            if (rafId === null) rafId = requestAnimationFrame(flush);
+          }
         } catch { /* ignore parse errors */ }
       }
     }
   }
+  // Flush any remaining buffered tokens
+  if (buffer) onToken(buffer);
+  if (rafId !== null) cancelAnimationFrame(rafId);
 }
 
 export function useXChat() {
@@ -265,13 +302,31 @@ export function useXChat() {
             controller.signal
           );
         } else {
+          // Build OpenRouter-specific extras
+          const extraHeaders: Record<string, string> = {};
+          const fallbackModels: string[] = [];
+
+          if (p.id === 'openrouter') {
+            extraHeaders['HTTP-Referer'] = 'https://bugx.dev';
+            extraHeaders['X-Title'] = 'BugX';
+            // Use the next two models in the provider list as fallbacks
+            const orModels = p.models.map(mo => mo.id);
+            const primaryIdx = orModels.indexOf(m.id);
+            // Provide all other OR models as ordered fallbacks
+            fallbackModels.push(
+              ...orModels.filter((_, idx) => idx !== primaryIdx)
+            );
+          }
+
           await streamOpenAICompat(
             p.apiEndpoint,
             messagesWithSystem,
             m.id,
             key,
             onToken,
-            controller.signal
+            controller.signal,
+            extraHeaders,
+            fallbackModels
           );
         }
 

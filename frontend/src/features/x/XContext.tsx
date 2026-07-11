@@ -149,10 +149,10 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [selectedModelId, setSelectedModelIdState] = useState<string>(
     () => localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL_ID
   );
-  // Always start closed — the panel should only open when the user explicitly
-  // clicks the X button. We deliberately do NOT restore the persisted value here
-  // so that navigating to a new problem never auto-opens the panel.
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  // Restore the persisted panel open state from localStorage
+  const [isOpen, setIsOpen] = useState<boolean>(
+    () => localStorage.getItem('x_panel_open') === 'true'
+  );
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 

@@ -20,6 +20,7 @@ export type ProviderId =
   | 'anthropic'
   | 'deepseek'
   | 'qwen'
+  | 'openrouter'
   | 'moonshot'
   | 'bytedance';
 
@@ -230,7 +231,9 @@ export const PROVIDERS: XProvider[] = [
     description: 'Alibaba\'s Qwen models via personal API key.',
     color: '#6366f1',
     requiresKey: true,
-    apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    apiEndpoint: IS_DEV
+      ? '/proxy/qwen/compatible-mode/v1/chat/completions'
+      : 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     models: [
       {
         id: 'qwen-turbo',
@@ -248,6 +251,72 @@ export const PROVIDERS: XProvider[] = [
         displayName: 'Qwen Plus',
         capabilities: ['Personal API', 'Coding', 'Long Context'],
         contextWindow: 131072,
+        speed: 'fast',
+      },
+    ],
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    description: 'Access 200+ models via one API key. Includes free models with automatic fallback.',
+    color: '#7c3aed',
+    requiresKey: true,
+    apiEndpoint: IS_DEV
+      ? '/proxy/openrouter/api/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions',
+    models: [
+      {
+        id: 'meta-llama/llama-3.1-8b-instruct:free',
+        name: 'meta-llama/llama-3.1-8b-instruct:free',
+        provider: 'openrouter',
+        displayName: 'Llama 3.1 8B (Free)',
+        capabilities: ['Personal API', 'Free', 'Fast', 'Coding'],
+        contextWindow: 131072,
+        speed: 'ultra',
+      },
+      {
+        id: 'google/gemma-2-9b-it:free',
+        name: 'google/gemma-2-9b-it:free',
+        provider: 'openrouter',
+        displayName: 'Gemma 2 9B (Free)',
+        capabilities: ['Personal API', 'Free', 'Fast'],
+        contextWindow: 8192,
+        speed: 'ultra',
+      },
+      {
+        id: 'mistralai/mistral-7b-instruct:free',
+        name: 'mistralai/mistral-7b-instruct:free',
+        provider: 'openrouter',
+        displayName: 'Mistral 7B (Free)',
+        capabilities: ['Personal API', 'Free', 'Fast', 'Coding'],
+        contextWindow: 32768,
+        speed: 'fast',
+      },
+      {
+        id: 'anthropic/claude-3.5-haiku',
+        name: 'anthropic/claude-3.5-haiku',
+        provider: 'openrouter',
+        displayName: 'Claude 3.5 Haiku',
+        capabilities: ['Personal API', 'Fast', 'Coding'],
+        contextWindow: 200000,
+        speed: 'fast',
+      },
+      {
+        id: 'openai/gpt-4o-mini',
+        name: 'openai/gpt-4o-mini',
+        provider: 'openrouter',
+        displayName: 'GPT-4o Mini',
+        capabilities: ['Personal API', 'Fast', 'Coding'],
+        contextWindow: 128000,
+        speed: 'fast',
+      },
+      {
+        id: 'deepseek/deepseek-chat',
+        name: 'deepseek/deepseek-chat',
+        provider: 'openrouter',
+        displayName: 'DeepSeek V3 (via OR)',
+        capabilities: ['Personal API', 'Coding', 'Reasoning'],
+        contextWindow: 64000,
         speed: 'fast',
       },
     ],

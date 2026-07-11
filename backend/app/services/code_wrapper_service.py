@@ -1058,6 +1058,11 @@ try {{
 #include <cmath>
 #include <numeric>
 #include <functional>
+#include <cstring>
+#include <cassert>
+#include <tuple>
+#include <array>
+#include <bitset>
 #include <stdexcept>
 using namespace std;
 

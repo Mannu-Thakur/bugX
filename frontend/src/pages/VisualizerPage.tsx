@@ -31,7 +31,7 @@ export const VisualizerPage: React.FC = () => {
         <div className="space-y-1">
           <p className="font-bold text-dark-text">How to use the Visualizer:</p>
           <ul className="list-disc pl-4 space-y-1 text-dark-text/50">
-            <li>Choose an algorithm from the selection dropdown (e.g. Linked List Reversal, Binary Search, Bubble Sort).</li>
+            <li>Choose an algorithm from the selection dropdown — Linked List Reversal, Binary Search, Bubble Sort, Merge Sort, Quick Sort, Stack Operations, Queue Operations, or Fibonacci DP.</li>
             <li>Type custom numbers into the input field to test different array inputs.</li>
             <li>Use the playback controls at the bottom to step forward/backward, auto-play, or adjust execution speeds.</li>
           </ul>

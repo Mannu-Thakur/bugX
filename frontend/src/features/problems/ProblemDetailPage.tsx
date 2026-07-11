@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle, Terminal, Lightbulb, Clock, ChevronRight, ChevronLeft, Lock, BookOpen, Layout } from 'lucide-react';
@@ -82,8 +82,24 @@ const [isRunning, setIsRunning] = useState(false);
   const hasDraggedRef = useRef<boolean>(false);
 
   // Lifted Editor States & Tab States
-  const [isDescOpen, setIsDescOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'description' | 'submissions'>('description');
+  const [isDescOpen, setIsDescOpenState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bugx_desc_open');
+    return saved !== 'false';
+  });
+  const setIsDescOpen = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
+    setIsDescOpenState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      localStorage.setItem('bugx_desc_open', String(next));
+      return next;
+    });
+  }, []);
+  const [activeTab, setActiveTabState] = useState<'description' | 'submissions'>(() => {
+    return (localStorage.getItem('bugx_active_tab') as 'description' | 'submissions') || 'description';
+  });
+  const setActiveTab = useCallback((tab: 'description' | 'submissions') => {
+    setActiveTabState(tab);
+    localStorage.setItem('bugx_active_tab', tab);
+  }, []);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [comingSoonFeature, setComingSoonFeature] = useState('');
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
@@ -318,17 +334,7 @@ const [isRunning, setIsRunning] = useState(false);
     }
   }, [submissionCooldown]);
 
-  // Dispatch event on problem load/unload
-  useEffect(() => {
-    if (problem) {
-      window.dispatchEvent(new CustomEvent('bugx-problem-loaded', {
-        detail: { title: problem.title, slug: problem.slug }
-      }));
-    }
-    return () => {
-      window.dispatchEvent(new CustomEvent('bugx-problem-unloaded'));
-    };
-  }, [problem]);
+
 
   // Persisted settings (reactive to global settings modal changes)
   const [autoReset, setAutoReset] = useState(() => localStorage.getItem('bugx_autoReset') === 'true');
@@ -375,7 +381,17 @@ const [isRunning, setIsRunning] = useState(false);
 
   // Responsive state
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
-  const [mobileTab, setMobileTab] = useState<'description' | 'submissions' | 'editor' | 'x'>('description');
+  const [mobileTab, setMobileTabState] = useState<'description' | 'submissions' | 'editor' | 'x'>(() => {
+    const saved = localStorage.getItem('bugx_mobile_tab');
+    if (saved === 'description' || saved === 'submissions' || saved === 'editor' || saved === 'x') {
+      return saved;
+    }
+    return 'description';
+  });
+  const setMobileTab = useCallback((tab: 'description' | 'submissions' | 'editor' | 'x') => {
+    setMobileTabState(tab);
+    localStorage.setItem('bugx_mobile_tab', tab);
+  }, []);
 
   const handleToggleNotes = () => {
     if (isLargeScreen) {
@@ -560,10 +576,15 @@ const [isRunning, setIsRunning] = useState(false);
         run_samples_only: true,
       });
 
+      setActivePageSubmissionId(response.id);
+      registerBackgroundSubmission(response.id, problem.title, true);
+
       const cleanup = pollSubmission(response.id, true, async (finalSub) => {
         setActiveSubmission(finalSub);
         setIsPolling(false);
         setIsRunning(false);
+        // Mark handled so background poller won't fire a duplicate toast
+        markSubmissionHandled(response.id);
 
         try {
           const resDetails = await api.submissions.getResults(response.id);
@@ -1274,6 +1295,7 @@ const [isRunning, setIsRunning] = useState(false);
           isDescOpen ? (
             !isXOpen ? (
               <SplitPane
+                id="description-editor-split"
                 left={renderDescriptionPane()}
                 right={renderEditorWorkspace()}
                 initialLeftWidthPercent={42}
@@ -1283,6 +1305,7 @@ const [isRunning, setIsRunning] = useState(false);
                 id="x-panel-split"
                 left={
                   <SplitPane
+                    id="description-editor-split"
                     left={renderDescriptionPane()}
                     right={renderEditorWorkspace()}
                     initialLeftWidthPercent={42}
@@ -1308,8 +1331,6 @@ const [isRunning, setIsRunning] = useState(false);
                   </div>
                 }
                 initialLeftWidthPercent={75}
-                minLeftWidthPercent={50}
-                maxLeftWidthPercent={98}
               />
             )
           ) : (
@@ -1341,8 +1362,6 @@ const [isRunning, setIsRunning] = useState(false);
                   </div>
                 }
                 initialLeftWidthPercent={70}
-                minLeftWidthPercent={40}
-                maxLeftWidthPercent={98}
               />
             )
           )

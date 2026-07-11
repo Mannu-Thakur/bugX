@@ -78,6 +78,10 @@ export const XSettings: React.FC = () => {
         };
       } else {
         headers['Authorization'] = `Bearer ${enteredKey}`;
+        if (provider.id === 'openrouter') {
+          headers['HTTP-Referer'] = 'https://bugx.dev';
+          headers['X-Title'] = 'BugX';
+        }
       }
 
       const res = await fetch(provider.apiEndpoint, {
@@ -101,11 +105,44 @@ export const XSettings: React.FC = () => {
     } catch (err) {
       let msg = 'Connection failed';
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes('Quota') || errMsg.includes('insufficient_quota')) {
-        msg = 'Quota exceeded';
-      } else if (errMsg.includes('invalid_api_key') || errMsg.includes('401')) {
+      let lower = errMsg.toLowerCase();
+
+      // Attempt to extract structured error message if API returned JSON
+      try {
+        const parsed = JSON.parse(errMsg);
+        const nestedMsg = parsed?.error?.message || parsed?.message || '';
+        if (nestedMsg) {
+          lower += ' ' + nestedMsg.toLowerCase();
+        }
+      } catch {
+        // Not a JSON error string, continue with raw string matching
+      }
+
+      // Quota / rate-limit errors — must be checked BEFORE invalid-key check
+      if (
+        lower.includes('resource_exhausted') ||
+        lower.includes('quota') ||
+        lower.includes('rate_limit') ||
+        lower.includes('insufficient_quota') ||
+        lower.includes('too many requests') ||
+        errMsg.includes('429')
+      ) {
+        msg = 'Quota exceeded — try again later';
+      } else if (
+        lower.includes('api_key_invalid') ||
+        lower.includes('invalid_api_key') ||
+        lower.includes('invalid api') ||
+        lower.includes('not valid') ||
+        lower.includes('bad_api_key') ||
+        lower.includes('invalidapikey') ||
+        lower.includes('unauthorized') ||
+        lower.includes('unauthenticated') ||
+        errMsg.includes('401') ||
+        errMsg.includes('403')
+      ) {
         msg = 'Invalid API Key';
       }
+
       setTestResult(prev => ({
         ...prev,
         [providerId]: { status: 'error', message: msg },

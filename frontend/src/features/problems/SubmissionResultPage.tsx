@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -27,6 +27,21 @@ import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { useX } from '../x/XContext';
 import { getModelById, type ProviderId } from '../x/xModels';
 import { cn } from '../../shared/lib/cn';
+import { InterviewModal } from '../interview/InterviewModal';
+import hljs from 'highlight.js/lib/core';
+import cpp from 'highlight.js/lib/languages/cpp';
+import python from 'highlight.js/lib/languages/python';
+import java from 'highlight.js/lib/languages/java';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import 'highlight.js/styles/atom-one-dark.css';
+
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('c', cpp);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
 
 /* ─────────────────────────────────────────────────
    Main Page
@@ -39,6 +54,7 @@ export const SubmissionResultPage: React.FC = () => {
 
   const [copied, setCopied] = useState(false);
   const [errorCopied, setErrorCopied] = useState(false);
+  const [isInterviewOpen, setIsInterviewOpen] = useState(false);
 
   // AI Insights State
   const { selectedModelId, getEffectiveKey } = useX();
@@ -384,7 +400,7 @@ Error Message: ${submission.error_message || 'None'}
     >
 
       {/* ── Nav row ── */}
-      <div className="flex items-center justify-between select-none">
+      <div className="flex items-center select-none">
         <Link
           to={`/problems/${slug}`}
           className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium"
@@ -392,46 +408,57 @@ Error Message: ${submission.error_message || 'None'}
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Problem
         </Link>
-        <span className="font-mono text-[10px] text-zinc-700 tracking-wider">
-          #{id?.substring(0, 8).toUpperCase()}
-        </span>
       </div>
 
       {/* ── Status banner ── */}
-      <div className={`relative overflow-hidden rounded-2xl border ${theme.border} ${theme.bg} shadow-sm`}>
+      <div className={`relative overflow-hidden rounded-xl border ${theme.border} ${theme.bg} shadow-sm`}>
         <div className={`absolute inset-0 bg-gradient-to-b ${theme.glow} to-transparent pointer-events-none`} />
 
-        <div className="relative px-5 py-4 sm:px-6 sm:py-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="relative px-4 py-3 sm:px-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
 
             {/* Status */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-black/20 border border-white/[0.05] shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-1.5 rounded-lg bg-black/35 border border-white/[0.03] shrink-0">
                 {theme.icon}
               </div>
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-600 mb-0.5">
+              <div className="min-w-0">
+                <p className="text-[8px] font-extrabold uppercase tracking-[0.2em] text-zinc-500 leading-none mb-1">
                   Submission Status
                 </p>
-                <h1 className={`text-xl font-extrabold tracking-tight leading-none ${theme.color}`}>
-                  {theme.label}
-                </h1>
-                {problem?.title && (
-                  <p className="text-[11px] text-zinc-600 mt-1 truncate max-w-[240px]">{problem.title}</p>
-                )}
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h1 className={`text-base font-black tracking-tight leading-none ${theme.color}`}>
+                    {theme.label}
+                  </h1>
+                  {problem?.title && (
+                    <span className="text-[10px] text-zinc-550 font-medium truncate max-w-[200px] border-l border-zinc-800 pl-2 leading-none">
+                      {problem.title}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Actions */}
             {!isPending && (
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+                {isAccepted && !submission.run_samples_only && (
+                  <Button
+                    size="sm"
+                    onClick={() => setIsInterviewOpen(true)}
+                    className="text-[11px] font-bold h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-550 border-indigo-600 hover:border-indigo-550 text-white flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md shadow-indigo-600/10 active:scale-[0.97] transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Start AI Interview</span>
+                  </Button>
+                )}
                 <Link to={`/problems/${slug}`}>
-                  <Button size="sm" variant={isAccepted ? 'secondary' : 'primary'} className="text-xs font-semibold px-3 py-1.5 rounded-lg">
+                  <Button size="sm" variant={isAccepted ? 'secondary' : 'primary'} className="h-8 px-3 text-[11px] font-bold rounded-lg transition-all duration-155">
                     {isAccepted ? 'Modify' : 'Try Again'}
                   </Button>
                 </Link>
                 <Link to="/problems">
-                  <Button size="sm" variant="outline" className="text-xs font-semibold px-3 py-1.5 rounded-lg">
+                  <Button size="sm" variant="outline" className="h-8 px-3 text-[11px] font-bold rounded-lg transition-all duration-155">
                     Catalog
                   </Button>
                 </Link>
@@ -466,20 +493,20 @@ Error Message: ${submission.error_message || 'None'}
         </div>
       </div>
 
-      {/* ── Stats row (2-col on mobile, 4-col on sm+) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* ── Stats row ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
 
         {/* Score */}
-        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+        <div className="rounded-lg border border-zinc-800/80 bg-[#111113] px-4 py-3 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Score</span>
-            <Award className="w-3.5 h-3.5 text-zinc-700" />
+            <span className="text-[8px] font-extrabold uppercase tracking-[0.15em] text-zinc-600">Score</span>
+            <Award className="w-3 h-3 text-zinc-700" />
           </div>
           <div className="font-mono">
-            <span className="text-2xl font-black text-amber-400">+{displayScore}</span>
-            <span className="text-xs font-bold text-zinc-600 ml-1">pts</span>
+            <span className="text-xl font-black text-amber-400">+{displayScore}</span>
+            <span className="text-[10px] font-bold text-zinc-600 ml-1">pts</span>
           </div>
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-zinc-600 leading-none">
             {isScoreSyncing ? 'Syncing…' : problem?.difficulty
               ? problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1).toLowerCase()
               : 'Reward'}
@@ -487,31 +514,31 @@ Error Message: ${submission.error_message || 'None'}
         </div>
 
         {/* Total Points */}
-        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+        <div className="rounded-lg border border-zinc-800/80 bg-[#111113] px-4 py-3 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Total</span>
-            <TrendingUp className="w-3.5 h-3.5 text-zinc-700" />
+            <span className="text-[8px] font-extrabold uppercase tracking-[0.15em] text-zinc-600">Total</span>
+            <TrendingUp className="w-3 h-3 text-zinc-700" />
           </div>
           <div className="font-mono">
-            <span className="text-2xl font-black text-gray-200">
+            <span className="text-xl font-black text-gray-200">
               {userStats?.total_score ?? submission.score ?? 0}
             </span>
-            <span className="text-xs font-bold text-zinc-600 ml-1">pts</span>
+            <span className="text-[10px] font-bold text-zinc-600 ml-1">pts</span>
           </div>
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-zinc-600 leading-none">
             {isScoreSyncing ? 'Updating…' : 'All-time score'}
           </p>
         </div>
 
         {/* Tests */}
-        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+        <div className="rounded-lg border border-zinc-800/80 bg-[#111113] px-4 py-3 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Tests</span>
+            <span className="text-[8px] font-extrabold uppercase tracking-[0.15em] text-zinc-600">Tests</span>
             {isAccepted
-              ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60" />
+              ? <CheckCircle className="w-3 h-3 text-emerald-500/60" />
               : isTLE
-              ? <Timer className="w-3.5 h-3.5 text-amber-500/60" />
-              : <XCircle className="w-3.5 h-3.5 text-rose-500/60" />
+              ? <Timer className="w-3 h-3 text-amber-500/60" />
+              : <XCircle className="w-3 h-3 text-rose-500/60" />
             }
           </div>
           <div>
@@ -519,26 +546,25 @@ Error Message: ${submission.error_message || 'None'}
               {isAccepted ? 'All Passed' : isTLE ? 'TLE' : isSamplePassed ? 'Sample OK' : 'Failed'}
             </span>
           </div>
-          {/* Mini bar */}
-          <div className="w-full h-[3px] rounded-full bg-white/[0.04] overflow-hidden">
+          <div className="w-full h-[2px] rounded-full bg-white/[0.04] overflow-hidden">
             <div className={`h-full rounded-full ${isAccepted ? 'bg-emerald-500/70 w-full' : isTLE ? 'bg-amber-500/60 w-full' : isSamplePassed ? 'bg-cyan-500/60 w-full' : 'bg-rose-500/60 w-1/2'}`} />
           </div>
         </div>
 
         {/* Runtime */}
-        <div className="rounded-xl border border-zinc-800 bg-[#131316] px-4 py-3.5 space-y-1.5">
+        <div className="rounded-lg border border-zinc-800/80 bg-[#111113] px-4 py-3 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Runtime</span>
-            <Clock className="w-3.5 h-3.5 text-zinc-700" />
+            <span className="text-[8px] font-extrabold uppercase tracking-[0.15em] text-zinc-600">Runtime</span>
+            <Clock className="w-3 h-3 text-zinc-700" />
           </div>
           <div className="font-mono">
             {isTLE
               ? <span className="text-sm font-extrabold text-amber-400">TLE</span>
-              : <><span className="text-2xl font-black text-blue-400">{submission.runtime_ms !== null ? submission.runtime_ms : '—'}</span>
-                {submission.runtime_ms !== null && <span className="text-xs font-bold text-zinc-600 ml-1">ms</span>}</>
+              : <><span className="text-xl font-black text-blue-400">{submission.runtime_ms !== null ? submission.runtime_ms : '—'}</span>
+                {submission.runtime_ms !== null && <span className="text-[10px] font-bold text-zinc-600 ml-1">ms</span>}</>
             }
           </div>
-          <p className="text-[10px] text-zinc-600">Limit: {problem?.time_limit_ms ?? 2000} ms</p>
+          <p className="text-[10px] text-zinc-600 leading-none">Limit: {problem?.time_limit_ms ?? 2000} ms</p>
         </div>
       </div>
 
@@ -791,21 +817,25 @@ Error Message: ${submission.error_message || 'None'}
       )}
 
       {/* ── Code viewer ── */}
-      <div className="rounded-xl border border-zinc-800 bg-[#131316] overflow-hidden">
+      <div className="rounded-xl border border-zinc-800/80 bg-[#0d0d10] overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-zinc-800/60 bg-black/15">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60 bg-black/20">
           <div className="flex items-center gap-2 select-none">
-            <Zap className="w-3.5 h-3.5 text-blue-400/60" />
-            <span className="text-xs font-semibold text-zinc-400">Submitted Code</span>
-            <span className="font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-blue-500/20 bg-blue-500/[0.07] text-blue-400">
+            <div className="flex gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-700/80" />
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-700/80" />
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-700/80" />
+            </div>
+            <span className="text-[10px] font-semibold text-zinc-500 ml-1">solution.{submission.language?.toLowerCase() === 'python' ? 'py' : submission.language?.toLowerCase() === 'java' ? 'java' : submission.language?.toLowerCase() === 'javascript' ? 'js' : submission.language?.toLowerCase() === 'typescript' ? 'ts' : 'cpp'}</span>
+            <span className="font-mono text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-zinc-700/60 bg-zinc-800/60 text-zinc-500">
               {submission.language}
             </span>
           </div>
           {submission?.source_code && (
             <button
               onClick={copyToClipboard}
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-600 hover:text-zinc-200 transition-colors rounded px-2 py-1 hover:bg-white/[0.05] cursor-pointer"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-600 hover:text-zinc-300 transition-colors rounded px-2 py-1 hover:bg-white/[0.04] cursor-pointer"
             >
               {copied
                 ? <><Check className="w-3 h-3 text-emerald-400" /><span className="text-emerald-400">Copied!</span></>
@@ -815,12 +845,34 @@ Error Message: ${submission.error_message || 'None'}
           )}
         </div>
 
-        {/* Code */}
-        <div className="overflow-auto p-5 bg-[#0d0d0f] max-h-[480px]">
+        {/* Code with syntax highlighting */}
+        <div className="overflow-auto max-h-[500px] bg-[#0d0d10]">
           {submission?.source_code ? (
-            <pre className="font-mono text-[12px] leading-[1.75] text-zinc-300 whitespace-pre overflow-x-auto select-text">
-              <code>{submission.source_code}</code>
-            </pre>
+            <div className="flex text-[12px] leading-[1.75] font-mono">
+              {/* Line numbers */}
+              <div className="select-none shrink-0 px-3 pt-4 pb-4 text-right text-zinc-700 border-r border-zinc-800/50 bg-black/20 min-w-[3rem]">
+                {submission.source_code.split('\n').map((_: string, i: number) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+              {/* Highlighted code */}
+              <pre
+                className="flex-1 px-5 pt-4 pb-4 overflow-x-auto select-text hljs"
+                style={{ background: 'transparent', margin: 0, padding: '1rem 1.25rem' }}
+                dangerouslySetInnerHTML={{
+                  __html: (() => {
+                    const lang = submission.language?.toLowerCase();
+                    const supported = ['cpp', 'c', 'python', 'java', 'javascript', 'typescript'];
+                    const useLang = supported.includes(lang) ? lang : 'cpp';
+                    try {
+                      return hljs.highlight(submission.source_code, { language: useLang }).value;
+                    } catch {
+                      return hljs.highlightAuto(submission.source_code).value;
+                    }
+                  })()
+                }}
+              />
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-zinc-700 text-xs">
               <Code className="w-5 h-5" />
@@ -829,6 +881,25 @@ Error Message: ${submission.error_message || 'None'}
           )}
         </div>
       </div>
+
+      {isInterviewOpen && submission && problem && (
+        <InterviewModal
+          isOpen={isInterviewOpen}
+          onClose={() => setIsInterviewOpen(false)}
+          submissionContext={{
+            problemTitle: problem.title || '',
+            problemDescription: problem.description || '',
+            constraints: problem.constraints || '',
+            sourceCode: submission.source_code || '',
+            language: submission.language || '',
+            runtimeMs: submission.runtime_ms !== undefined ? submission.runtime_ms : null,
+            memoryKb: submission.memory_kb !== undefined ? submission.memory_kb : null,
+            difficulty: problem.difficulty || 'medium',
+            slug: slug || '',
+            submissionId: id || '',
+          }}
+        />
+      )}
 
     </div>
   );
