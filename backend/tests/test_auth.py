@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock, patch
 
 from app.models.user import User
 
@@ -94,29 +95,46 @@ async def test_forgot_password_success(client: AsyncClient, db: AsyncSession):
         "/api/v1/auth/register",
         json={"email": "reset@example.com", "username": "resetuser", "password": "Password123"}
     )
-    # Step 1: Request OTP
-    resp_step1 = await client.post(
-        "/api/v1/auth/forgot-password",
-        json={"email": "reset@example.com", "username": "resetuser"}
-    )
-    assert resp_step1.status_code == 200
-    res_data1 = resp_step1.json()
-    assert res_data1["code_required"] is True
-    assert "code" in res_data1
-    otp = res_data1["code"]
 
-    # Step 2: Reset password using OTP
-    resp_step2 = await client.post(
-        "/api/v1/auth/forgot-password",
-        json={
-            "email": "reset@example.com",
-            "username": "resetuser",
-            "code": otp,
-            "new_password": "NewPassword789"
-        }
-    )
-    assert resp_step2.status_code == 200
-    assert resp_step2.json()["message"] == "Password has been reset successfully."
+    # Use an in-memory store to simulate Redis OTP operations
+    _otp_store: dict = {}
+
+    async def fake_store_otp(key: str, otp: str, settings) -> bool:
+        _otp_store[key] = otp
+        return True
+
+    async def fake_retrieve_and_delete_otp(key: str, settings) -> str | None:
+        return _otp_store.pop(key, None)
+
+    with patch("app.services.auth_service._store_otp", side_effect=fake_store_otp), \
+         patch("app.services.auth_service._retrieve_and_delete_otp", side_effect=fake_retrieve_and_delete_otp):
+
+        # Step 1: Request OTP
+        resp_step1 = await client.post(
+            "/api/v1/auth/forgot-password",
+            json={"email": "reset@example.com", "username": "resetuser"}
+        )
+        assert resp_step1.status_code == 200
+        res_data1 = resp_step1.json()
+        assert res_data1["code_required"] is True
+
+        # Grab OTP directly from our in-memory store (works regardless of SMTP config)
+        otp_key = "reset_otp:reset@example.com:resetuser"
+        assert otp_key in _otp_store, "OTP was not stored in fake Redis"
+        otp = _otp_store[otp_key]
+
+        # Step 2: Reset password using OTP
+        resp_step2 = await client.post(
+            "/api/v1/auth/forgot-password",
+            json={
+                "email": "reset@example.com",
+                "username": "resetuser",
+                "code": otp,
+                "new_password": "NewPassword789"
+            }
+        )
+        assert resp_step2.status_code == 200
+        assert resp_step2.json()["message"] == "Password has been reset successfully."
 
     # Login with new password
     login_resp = await client.post(

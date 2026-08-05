@@ -1,4 +1,5 @@
 import uuid
+import logging
 from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy import select
@@ -13,6 +14,8 @@ from app.repositories.submission_result_repo import SubmissionResultRepo
 from app.services.code_wrapper_service import CodeWrapperService
 from app.services.judge0_client import Judge0Client
 from app.services.output_compare_service import OutputCompareService
+
+logger = logging.getLogger(__name__)
 
 class JudgeService:
     def __init__(self, judge0_client: Judge0Client):
@@ -125,13 +128,8 @@ class JudgeService:
         for tc, judge_res, exc in executed_results:
             if exc:
                 import traceback
-                import sys
                 tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-                try:
-                    sys.stdout.buffer.write(f"DEBUG EXCEPTION IN JUDGE SERVICE:\n{tb}\n".encode('utf-8'))
-                    sys.stdout.flush()
-                except Exception:
-                    pass
+                logger.error("Exception in JudgeService while processing test case: %s\n%s", repr(exc), tb)
                 await self._set_terminal_error(session, submission, SubmissionStatus.RUNTIME_ERROR, f"Judge unavailable: {repr(exc)}\n{tb}")
                 return
 

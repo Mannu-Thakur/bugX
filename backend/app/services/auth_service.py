@@ -27,11 +27,11 @@ class AuthService:
     async def register(self, req: RegisterRequest) -> Token:
         if await self.user_repo.get_by_email(req.email):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="EMAIL_TAKEN"
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="EMAIL_TAKEN"
             )
         if await self.user_repo.get_by_username(req.username):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="USERNAME_TAKEN"
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="USERNAME_TAKEN"
             )
 
         hashed_password = hash_password(req.password)

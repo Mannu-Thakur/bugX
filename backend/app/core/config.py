@@ -117,13 +117,13 @@ def get_settings() -> Settings:
     if not settings.is_development and settings.SECRET_KEY == "change-me-32-chars-min":
         raise ValueError("SECRET_KEY must be set in production.")
     if not settings.is_development and settings.ENABLE_MOCK_OAUTH:
-        raise ValueError("ENABLE_MOCK_OAUTH must be disabled in production.")
+        raise ValueError("ENABLE_MOCK_OAUTH must be disabled outside development.")
     if not settings.is_development and settings.USE_LOCAL_JUDGE:
         raise ValueError(
-            "USE_LOCAL_JUDGE must be disabled in production — use a real Judge0 instance."
+            "USE_LOCAL_JUDGE must be disabled outside development — use a real Judge0 instance."
         )
     if not settings.is_development and settings.RATE_LIMIT_FAIL_OPEN:
         raise ValueError(
-            "RATE_LIMIT_FAIL_OPEN must be False in production for strict enforcement."
+            "RATE_LIMIT_FAIL_OPEN must be False outside development for strict enforcement."
         )
     return settings

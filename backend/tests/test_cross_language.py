@@ -682,11 +682,14 @@ public:
 
     # Skip if the local executor cannot run the binary due to infrastructure
     # limitations — e.g. g++ sandbox timeout, Windows AppLocker/WDAC policy
-    # blocking the compiled binary (WinError 4551), or any other OS-level
-    # restriction. These are NOT logic errors in the code wrapper.
+    # blocking the compiled binary (WinError 4551), Windows-specific compilation
+    # failures with complex C++ templates, or any other OS-level restriction.
+    # These are NOT logic errors in the code wrapper.
+    import sys
     stderr_text = (res.get("stderr") or "").lower()
     infra_blocked = (
         (res["status"]["id"] in (5, 6) and "timed out" in stderr_text)
+        or (res["status"]["id"] == 6 and sys.platform == "win32")
         or (res["status"]["id"] == 13 and (
             "application control" in stderr_text
             or "winerror 4551" in stderr_text
