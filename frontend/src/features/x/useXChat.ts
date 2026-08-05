@@ -86,67 +86,78 @@ function expandCommandTemplate(template: string, ctx: ChatContext): string {
     .replace('{sampleInput}', ctx.sampleInput || 'No sample input');
 }
 
-// Extract a clean, human-readable message from raw API error responses
-function parseApiErrorResponse(status: number, errBody: string): string {
-  let message = '';
+// Ultra-minimal error summarizer that distills raw errors into short, clean phrases
+export function summarizeError(errInput: unknown, status?: number): string {
+  const raw = errInput instanceof Error ? errInput.message : String(errInput || '');
+  let msg = raw;
 
-  if (errBody) {
-    // Avoid dumping HTML error pages (e.g. 502/503 Cloudflare pages)
-    if (errBody.trim().startsWith('<') || errBody.includes('<html')) {
-      if (status === 502) return 'Bad Gateway — model provider unreachable (HTTP 502)';
-      if (status === 503) return 'Service Unavailable — provider overloaded (HTTP 503)';
-      if (status === 504) return 'Gateway Timeout (HTTP 504)';
-      return `Provider returned an HTML error page (HTTP ${status})`;
-    }
-
+  // If raw string contains JSON, try to extract error.message
+  if (raw.includes('{') && raw.includes('}')) {
     try {
-      const parsed = JSON.parse(errBody);
-      if (typeof parsed.error?.message === 'string') {
-        message = parsed.error.message;
-      } else if (typeof parsed.error === 'string') {
-        message = parsed.error;
-      } else if (typeof parsed.message === 'string') {
-        message = parsed.message;
-      } else if (typeof parsed.detail === 'string') {
-        message = parsed.detail;
-      }
-    } catch {
-      if (errBody.length < 300) {
-        message = errBody.trim();
-      }
-    }
-  }
-
-  // If message extracted still contains raw JSON object string, attempt to unwrap
-  if (message.includes('{"error":') || message.includes('{"message":')) {
-    try {
-      const match = message.match(/\{[\s\S]+\}/);
+      const match = raw.match(/\{[\s\S]+\}/);
       if (match) {
-        const inner = JSON.parse(match[0]);
-        message = inner.error?.message || inner.message || message;
+        const parsed = JSON.parse(match[0]);
+        msg = parsed.error?.message || (typeof parsed.error === 'string' ? parsed.error : null) || parsed.message || parsed.detail || raw;
       }
     } catch { /* ignore */ }
   }
 
-  // Remove noisy repetitive prefixes
-  message = message.replace(/^API error \d+:\s*/i, '').trim();
+  const lower = msg.toLowerCase();
 
-  // Provide clear human-readable fallbacks for empty messages
-  if (!message) {
-    if (status === 402) message = 'Insufficient API credits or payment required.';
-    else if (status === 401) message = 'Invalid or expired API key.';
-    else if (status === 429) message = 'Rate limit exceeded.';
-    else if (status === 404) message = 'Requested model or endpoint not found.';
-    else if (status >= 500) message = 'Provider server error.';
-    else message = `Request failed with HTTP status ${status}.`;
+  // 1. Credits / Payment (402)
+  if (status === 402 || lower.includes('credit') || lower.includes('afford') || lower.includes('payment') || lower.includes('quota')) {
+    return 'Insufficient credits';
   }
 
-  // Truncate excessively long error strings
-  if (message.length > 280) {
-    message = message.slice(0, 277) + '...';
+  // 2. Rate limit (429)
+  if (status === 429 || lower.includes('rate limit') || lower.includes('tpd') || lower.includes('tpm') || lower.includes('too many requests')) {
+    const timeMatch = msg.match(/try again in ([0-9]+m[0-9.]*s?|[0-9]+\s*seconds?|[0-9]+\s*minutes?)/i);
+    if (timeMatch) {
+      const cleanTime = timeMatch[1].replace(/m[0-9.]*s/i, 'm');
+      return `Rate limit reached (Retry in ~${cleanTime})`;
+    }
+    return 'Rate limit exceeded';
   }
 
-  return `${message} (HTTP ${status})`;
+  // 3. API Key / Unauthorized (401 / 403)
+  if (status === 401 || status === 403 || lower.includes('api key') || lower.includes('unauthorized') || lower.includes('forbidden')) {
+    return 'Invalid or missing API key';
+  }
+
+  // 4. Model not found (404)
+  if (status === 404 || lower.includes('not found') || lower.includes('does not exist')) {
+    return 'Model unavailable';
+  }
+
+  // 5. Server error (500, 502, 503, 504)
+  if ((status && status >= 500) || lower.includes('bad gateway') || lower.includes('service unavailable') || lower.includes('overloaded')) {
+    return 'Provider server unavailable';
+  }
+
+  // 6. Network error
+  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('econnrefused')) {
+    return 'Network connection failed';
+  }
+
+  // 7. General cleanup: strip technical jargon, org IDs, URLs, token counts
+  let clean = msg
+    .replace(/API error \d+:\s*/gi, '')
+    .replace(/in organization `?org_\w+`?/gi, '')
+    .replace(/service tier `?\w+`?/gi, '')
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/`[^`]+`/g, '')
+    .replace(/on tokens per day \(TPD\):.*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!clean) return 'Request failed';
+  if (clean.length > 60) clean = clean.slice(0, 57) + '...';
+  return clean;
+}
+
+// Extract a clean, human-readable message from raw API error responses
+function parseApiErrorResponse(status: number, errBody: string): string {
+  return summarizeError(errBody, status);
 }
 
 // Anthropic uses a different API format — handle it separately
@@ -435,14 +446,13 @@ export function useXChat() {
           return;
         }
 
-        // Fallback to Groq free model
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const primarySummary = summarizeError(err);
         const groqProvider = PROVIDERS.find(p => p.id === 'groq')!;
         const fallbackModel = groqProvider.models[0];
         const groqKey = getEffectiveKey('groq');
 
         if (groqKey && selectedModelId !== fallbackModel.id) {
-          const fallbackNotice = `> ⚠️ **${provider.name} request failed:** ${errMsg}\n> *Falling back to ${fallbackModel.displayName}...*\n\n`;
+          const fallbackNotice = `> ⚡ *${provider.name} (${primarySummary}). Switched to ${fallbackModel.displayName}...*\n\n`;
           updateMessage(assistantId, {
             content: fallbackNotice,
             isStreaming: true,
@@ -467,18 +477,18 @@ export function useXChat() {
             );
             updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
           } catch (fallbackErr) {
-            const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+            const fallbackSummary = summarizeError(fallbackErr);
             updateMessage(assistantId, {
-              content: `> ⚠️ **Both ${provider.name} and Fallback (${fallbackModel.displayName}) failed.**\n> **Primary:** ${errMsg}\n> **Fallback:** ${fallbackErrMsg}\n\nPlease check your API key and credits in **X Settings**.`,
+              content: '',
               isStreaming: false,
-              error: fallbackErrMsg,
+              error: `${provider.name}: ${primarySummary} · ${fallbackModel.displayName}: ${fallbackSummary}`,
             });
           }
         } else {
           updateMessage(assistantId, {
-            content: `> ⚠️ **${provider.name} Request Failed**\n> ${errMsg}\n\nPlease check your API key / credits in **X Settings** or select a different model.`,
+            content: '',
             isStreaming: false,
-            error: errMsg,
+            error: `${provider.name}: ${primarySummary}`,
           });
         }
       } finally {
@@ -626,14 +636,13 @@ export function useXChat() {
           return;
         }
 
-        // Fallback to Groq free model
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const primarySummary = summarizeError(err);
         const groqProvider = PROVIDERS.find(p => p.id === 'groq')!;
         const fallbackModel = groqProvider.models[0];
         const groqKey = getEffectiveKey('groq');
 
         if (groqKey && selectedModelId !== fallbackModel.id) {
-          const fallbackNotice = `> ⚠️ **${provider.name} request failed:** ${errMsg}\n> *Falling back to ${fallbackModel.displayName}...*\n\n`;
+          const fallbackNotice = `> ⚡ *${provider.name} (${primarySummary}). Switched to ${fallbackModel.displayName}...*\n\n`;
           updateMessage(assistantId, {
             content: fallbackNotice,
             isStreaming: true,
@@ -657,18 +666,18 @@ export function useXChat() {
             );
             updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
           } catch (fallbackErr) {
-            const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+            const fallbackSummary = summarizeError(fallbackErr);
             updateMessage(assistantId, {
-              content: `> ⚠️ **Both ${provider.name} and Fallback (${fallbackModel.displayName}) failed.**\n> **Primary:** ${errMsg}\n> **Fallback:** ${fallbackErrMsg}\n\nPlease check your API key and credits in **X Settings**.`,
+              content: '',
               isStreaming: false,
-              error: fallbackErrMsg,
+              error: `${provider.name}: ${primarySummary} · ${fallbackModel.displayName}: ${fallbackSummary}`,
             });
           }
         } else {
           updateMessage(assistantId, {
-            content: `> ⚠️ **${provider.name} Request Failed**\n> ${errMsg}\n\nPlease check your API key / credits in **X Settings** or select a different model.`,
+            content: '',
             isStreaming: false,
-            error: errMsg,
+            error: `${provider.name}: ${primarySummary}`,
           });
         }
       } finally {
