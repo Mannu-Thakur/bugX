@@ -86,6 +86,69 @@ function expandCommandTemplate(template: string, ctx: ChatContext): string {
     .replace('{sampleInput}', ctx.sampleInput || 'No sample input');
 }
 
+// Extract a clean, human-readable message from raw API error responses
+function parseApiErrorResponse(status: number, errBody: string): string {
+  let message = '';
+
+  if (errBody) {
+    // Avoid dumping HTML error pages (e.g. 502/503 Cloudflare pages)
+    if (errBody.trim().startsWith('<') || errBody.includes('<html')) {
+      if (status === 502) return 'Bad Gateway — model provider unreachable (HTTP 502)';
+      if (status === 503) return 'Service Unavailable — provider overloaded (HTTP 503)';
+      if (status === 504) return 'Gateway Timeout (HTTP 504)';
+      return `Provider returned an HTML error page (HTTP ${status})`;
+    }
+
+    try {
+      const parsed = JSON.parse(errBody);
+      if (typeof parsed.error?.message === 'string') {
+        message = parsed.error.message;
+      } else if (typeof parsed.error === 'string') {
+        message = parsed.error;
+      } else if (typeof parsed.message === 'string') {
+        message = parsed.message;
+      } else if (typeof parsed.detail === 'string') {
+        message = parsed.detail;
+      }
+    } catch {
+      if (errBody.length < 300) {
+        message = errBody.trim();
+      }
+    }
+  }
+
+  // If message extracted still contains raw JSON object string, attempt to unwrap
+  if (message.includes('{"error":') || message.includes('{"message":')) {
+    try {
+      const match = message.match(/\{[\s\S]+\}/);
+      if (match) {
+        const inner = JSON.parse(match[0]);
+        message = inner.error?.message || inner.message || message;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Remove noisy repetitive prefixes
+  message = message.replace(/^API error \d+:\s*/i, '').trim();
+
+  // Provide clear human-readable fallbacks for empty messages
+  if (!message) {
+    if (status === 402) message = 'Insufficient API credits or payment required.';
+    else if (status === 401) message = 'Invalid or expired API key.';
+    else if (status === 429) message = 'Rate limit exceeded.';
+    else if (status === 404) message = 'Requested model or endpoint not found.';
+    else if (status >= 500) message = 'Provider server error.';
+    else message = `Request failed with HTTP status ${status}.`;
+  }
+
+  // Truncate excessively long error strings
+  if (message.length > 280) {
+    message = message.slice(0, 277) + '...';
+  }
+
+  return `${message} (HTTP ${status})`;
+}
+
 // Anthropic uses a different API format — handle it separately
 async function streamAnthropic(
   messages: { role: string; content: string }[],
@@ -115,7 +178,8 @@ async function streamAnthropic(
 
   if (!response.ok) {
     const errBody = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${errBody}`);
+    const cleanMsg = parseApiErrorResponse(response.status, errBody);
+    throw new Error(cleanMsg);
   }
 
   const reader = response.body!.getReader();
@@ -190,7 +254,8 @@ async function streamOpenAICompat(
 
   if (!response.ok) {
     const errBody = await response.text();
-    throw new Error(`API error ${response.status}: ${errBody}`);
+    const cleanMsg = parseApiErrorResponse(response.status, errBody);
+    throw new Error(cleanMsg);
   }
 
   const reader = response.body!.getReader();
@@ -365,7 +430,7 @@ export function useXChat() {
         }
         await tryStream(provider, model, apiKey);
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
           updateMessage(assistantId, { isStreaming: false });
           return;
         }
@@ -377,15 +442,21 @@ export function useXChat() {
         const groqKey = getEffectiveKey('groq');
 
         if (groqKey && selectedModelId !== fallbackModel.id) {
+          const fallbackNotice = `> ⚠️ **${provider.name} request failed:** ${errMsg}\n> *Falling back to ${fallbackModel.displayName}...*\n\n`;
           updateMessage(assistantId, {
-            content: `⚠️ ${provider.name} failed: ${errMsg}\n\nFalling back to ${fallbackModel.displayName}...\n\n`,
+            content: fallbackNotice,
             isStreaming: true,
           });
           try {
-            let acc2 = `⚠️ ${provider.name} failed: ${errMsg}\n\nFalling back to ${fallbackModel.displayName}...\n\n`;
+            let acc2 = fallbackNotice;
+            const messagesWithSystem = [
+              { role: 'system', content: systemPrompt },
+              ...history.slice(0, -1),
+              { role: 'user', content: finalText },
+            ];
             await streamOpenAICompat(
               groqProvider.apiEndpoint,
-              [{ role: 'system', content: systemPrompt }, ...history.slice(0, -1), { role: 'user', content: finalText }],
+              messagesWithSystem,
               fallbackModel.id,
               groqKey,
               (token) => {
@@ -398,14 +469,14 @@ export function useXChat() {
           } catch (fallbackErr) {
             const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
             updateMessage(assistantId, {
-              content: `Failed to get a response. Please check your connection and try again.\n\nError: ${fallbackErrMsg}`,
+              content: `> ⚠️ **Both ${provider.name} and Fallback (${fallbackModel.displayName}) failed.**\n> **Primary:** ${errMsg}\n> **Fallback:** ${fallbackErrMsg}\n\nPlease check your API key and credits in **X Settings**.`,
               isStreaming: false,
               error: fallbackErrMsg,
             });
           }
         } else {
           updateMessage(assistantId, {
-            content: `Failed to get a response.\n\n**Error:** ${errMsg}`,
+            content: `> ⚠️ **${provider.name} Request Failed**\n> ${errMsg}\n\nPlease check your API key / credits in **X Settings** or select a different model.`,
             isStreaming: false,
             error: errMsg,
           });
@@ -550,62 +621,55 @@ export function useXChat() {
         }
         await tryStream(provider, model, apiKey);
       } catch (err) {
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
           updateMessage(assistantId, { isStreaming: false });
-        } else {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          const isNetworkError =
-            err instanceof TypeError ||
-            errMsg.includes('failed to fetch') ||
-            errMsg.includes('NetworkError') ||
-            errMsg.includes('econnrefused');
+          return;
+        }
 
-          const hasFallback = provider.id === 'gemini' && getEffectiveKey('groq');
+        // Fallback to Groq free model
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const groqProvider = PROVIDERS.find(p => p.id === 'groq')!;
+        const fallbackModel = groqProvider.models[0];
+        const groqKey = getEffectiveKey('groq');
 
-          if (hasFallback && isNetworkError) {
-            updateMessage(assistantId, {
-              content: 'Gemini failed. Falling back to Llama 3.3 (Groq)...',
-              isStreaming: true,
-            });
-
-            try {
-              const fallbackProvider = PROVIDERS.find(pr => pr.id === 'groq')!;
-              const fallbackModel = fallbackProvider.models.find(mo => mo.id === 'llama-3.3-70b-versatile')!;
-              const fallbackKey = getEffectiveKey('groq')!;
-
-              let acc2 = '';
-              const onToken2 = (token: string) => {
+        if (groqKey && selectedModelId !== fallbackModel.id) {
+          const fallbackNotice = `> ⚠️ **${provider.name} request failed:** ${errMsg}\n> *Falling back to ${fallbackModel.displayName}...*\n\n`;
+          updateMessage(assistantId, {
+            content: fallbackNotice,
+            isStreaming: true,
+          });
+          try {
+            let acc2 = fallbackNotice;
+            const messagesWithSystem = [
+              { role: 'system', content: systemPrompt },
+              ...history,
+            ];
+            await streamOpenAICompat(
+              groqProvider.apiEndpoint,
+              messagesWithSystem,
+              fallbackModel.id,
+              groqKey,
+              (token) => {
                 acc2 += token;
                 updateMessage(assistantId, { content: acc2, isStreaming: true });
-              };
-
-              await streamOpenAICompat(
-                fallbackProvider.apiEndpoint,
-                [
-                  { role: 'system', content: systemPrompt },
-                  ...history,
-                ],
-                fallbackModel.id,
-                fallbackKey,
-                onToken2,
-                controller.signal
-              );
-              updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
-            } catch (fallbackErr) {
-              const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-              updateMessage(assistantId, {
-                content: `Failed to get a response. Please check your connection and try again.\n\nError: ${fallbackErrMsg}`,
-                isStreaming: false,
-                error: fallbackErrMsg,
-              });
-            }
-          } else {
+              },
+              controller.signal
+            );
+            updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
+          } catch (fallbackErr) {
+            const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
             updateMessage(assistantId, {
-              content: `Failed to get a response.\n\n**Error:** ${errMsg}`,
+              content: `> ⚠️ **Both ${provider.name} and Fallback (${fallbackModel.displayName}) failed.**\n> **Primary:** ${errMsg}\n> **Fallback:** ${fallbackErrMsg}\n\nPlease check your API key and credits in **X Settings**.`,
               isStreaming: false,
-              error: errMsg,
+              error: fallbackErrMsg,
             });
           }
+        } else {
+          updateMessage(assistantId, {
+            content: `> ⚠️ **${provider.name} Request Failed**\n> ${errMsg}\n\nPlease check your API key / credits in **X Settings** or select a different model.`,
+            isStreaming: false,
+            error: errMsg,
+          });
         }
       } finally {
         setIsStreaming(false);
