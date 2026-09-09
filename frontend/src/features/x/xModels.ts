@@ -51,8 +51,6 @@ export interface XProvider {
   platformApiKey?: string;
 }
 
-const IS_DEV = import.meta.env.DEV;
-
 // ─────────────────────────────────────────────────────────
 //  PLATFORM FREE KEYS  ←  paste your keys here
 // ─────────────────────────────────────────────────────────
@@ -68,8 +66,8 @@ export const PROVIDERS: XProvider[] = [
     color: '#f55036',
     requiresKey: true,
     platformApiKey: PLATFORM_GROQ_KEY,
-    apiEndpoint: IS_DEV ? '/proxy/groq/openai/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions',
-    verifyEndpoint: IS_DEV ? '/proxy/groq/openai/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions',
+    apiEndpoint: '/proxy/groq/openai/v1/chat/completions',
+    verifyEndpoint: '/proxy/groq/openai/v1/chat/completions',
     models: [
       {
         id: 'llama-3.3-70b-versatile',
@@ -110,8 +108,8 @@ export const PROVIDERS: XProvider[] = [
     color: '#4285f4',
     requiresKey: true,
     platformApiKey: PLATFORM_GEMINI_KEY,
-    apiEndpoint: IS_DEV ? '/proxy/gemini/v1beta/openai/chat/completions' : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-    verifyEndpoint: IS_DEV ? '/proxy/gemini/v1beta/openai/chat/completions' : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    apiEndpoint: '/proxy/gemini/v1beta/openai/chat/completions',
+    verifyEndpoint: '/proxy/gemini/v1beta/openai/chat/completions',
     models: [
       {
         id: 'gemini-2.0-flash',
@@ -142,8 +140,8 @@ export const PROVIDERS: XProvider[] = [
     color: '#4d6bfe',
     requiresKey: true,
     platformApiKey: PLATFORM_DEEPSEEK_KEY,
-    apiEndpoint: IS_DEV ? '/proxy/deepseek/chat/completions' : 'https://api.deepseek.com/chat/completions',
-    verifyEndpoint: IS_DEV ? '/proxy/deepseek/chat/completions' : 'https://api.deepseek.com/chat/completions',
+    apiEndpoint: '/proxy/deepseek/chat/completions',
+    verifyEndpoint: '/proxy/deepseek/chat/completions',
     models: [
       {
         id: 'deepseek-chat',
@@ -173,12 +171,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'GPT-4o and o-series models via your personal OpenAI API key.',
     color: '#10a37f',
     requiresKey: true,
-    apiEndpoint: IS_DEV
-      ? '/proxy/openai/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions',
-    verifyEndpoint: IS_DEV
-      ? '/proxy/openai/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions',
+    apiEndpoint: '/proxy/openai/v1/chat/completions',
+    verifyEndpoint: '/proxy/openai/v1/chat/completions',
     models: [
       {
         id: 'gpt-4o',
@@ -215,8 +209,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'Claude — best-in-class for code understanding and reasoning.',
     color: '#d97706',
     requiresKey: true,
-    apiEndpoint: IS_DEV ? '/proxy/anthropic/v1/messages' : 'https://api.anthropic.com/v1/messages',
-    verifyEndpoint: IS_DEV ? '/proxy/anthropic/v1/messages' : 'https://api.anthropic.com/v1/messages',
+    apiEndpoint: '/proxy/anthropic/v1/messages',
+    verifyEndpoint: '/proxy/anthropic/v1/messages',
     models: [
       {
         id: 'claude-3-5-sonnet-20241022',
@@ -244,12 +238,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'Alibaba\'s Qwen models via personal API key.',
     color: '#6366f1',
     requiresKey: true,
-    apiEndpoint: IS_DEV
-      ? '/proxy/qwen/compatible-mode/v1/chat/completions'
-      : 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-    verifyEndpoint: IS_DEV
-      ? '/proxy/qwen/compatible-mode/v1/chat/completions'
-      : 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    apiEndpoint: '/proxy/qwen/compatible-mode/v1/chat/completions',
+    verifyEndpoint: '/proxy/qwen/compatible-mode/v1/chat/completions',
     models: [
       {
         id: 'qwen-turbo',
@@ -277,8 +267,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'Access 200+ models via one API key. Includes free models with automatic fallback.',
     color: '#7c3aed',
     requiresKey: true,
-    apiEndpoint: IS_DEV ? '/proxy/openrouter/api/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions',
-    verifyEndpoint: IS_DEV ? '/proxy/openrouter/api/v1/auth/key' : 'https://openrouter.ai/api/v1/auth/key',
+    apiEndpoint: '/proxy/openrouter/api/v1/chat/completions',
+    verifyEndpoint: '/proxy/openrouter/api/v1/auth/key',
     models: [
       {
         id: 'meta-llama/llama-3.1-8b-instruct:free',
@@ -342,12 +332,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'Kimi models with extremely long context windows.',
     color: '#8b5cf6',
     requiresKey: true,
-    apiEndpoint: IS_DEV
-      ? '/proxy/moonshot/v1/chat/completions'
-      : 'https://api.moonshot.cn/v1/chat/completions',
-    verifyEndpoint: IS_DEV
-      ? '/proxy/moonshot/v1/chat/completions'
-      : 'https://api.moonshot.cn/v1/chat/completions',
+    apiEndpoint: '/proxy/moonshot/v1/chat/completions',
+    verifyEndpoint: '/proxy/moonshot/v1/chat/completions',
     models: [
       {
         id: 'moonshot-v1-32k',
@@ -366,12 +352,8 @@ export const PROVIDERS: XProvider[] = [
     description: 'Doubao models from ByteDance via personal API key.',
     color: '#ec4899',
     requiresKey: true,
-    apiEndpoint: IS_DEV
-      ? '/proxy/bytedance/api/v3/chat/completions'
-      : 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-    verifyEndpoint: IS_DEV
-      ? '/proxy/bytedance/api/v3/chat/completions'
-      : 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+    apiEndpoint: '/proxy/bytedance/api/v3/chat/completions',
+    verifyEndpoint: '/proxy/bytedance/api/v3/chat/completions',
     models: [
       {
         id: 'doubao-lite-4k',

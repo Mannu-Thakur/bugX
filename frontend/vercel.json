@@ -6,6 +6,9 @@
     { "source": "/proxy/openrouter/(.*)", "destination": "https://openrouter.ai/$1" },
     { "source": "/proxy/openai/(.*)", "destination": "https://api.openai.com/$1" },
     { "source": "/proxy/anthropic/(.*)", "destination": "https://api.anthropic.com/$1" },
+    { "source": "/proxy/qwen/(.*)", "destination": "https://dashscope.aliyuncs.com/$1" },
+    { "source": "/proxy/moonshot/(.*)", "destination": "https://api.moonshot.cn/$1" },
+    { "source": "/proxy/bytedance/(.*)", "destination": "https://ark.cn-beijing.volces.com/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
