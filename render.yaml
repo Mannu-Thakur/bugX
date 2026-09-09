@@ -1,4 +1,4 @@
-﻿databases:
+databases:
   - name: bugx-db
     databaseName: bugx
     user: bugx
@@ -74,6 +74,8 @@ services:
         value: "false"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "1440"
+      - key: EMBEDDED_WORKERS
+        value: "true"
       - key: MAX_SUBMISSIONS_PER_MINUTE
         value: "20"
       - key: MAX_REQUESTS_PER_MINUTE_IP
@@ -81,62 +83,3 @@ services:
       - key: PYTHONUTF8
         value: "1"
 
-  # ── Submission Worker ────────────────────────────────────────────────────────
-  - type: worker
-    name: bugx-submission-worker
-    region: oregon
-    plan: free
-    rootDir: backend
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    startCommand: python -m app.workers.submission_worker
-    envVars:
-      - key: ENV
-        value: development
-      - key: SECRET_KEY
-        fromService:
-          name: bugx-api
-          type: web
-          envVarKey: SECRET_KEY
-      - key: DATABASE_URL
-        fromDatabase:
-          name: bugx-db
-          property: connectionString
-      - key: REDIS_URL
-        sync: false
-      - key: USE_LOCAL_JUDGE
-        value: "true"
-      - key: JUDGE0_URL
-        value: "http://localhost:2358"
-      - key: RATE_LIMIT_FAIL_OPEN
-        value: "true"
-      - key: PYTHONUTF8
-        value: "1"
-
-  # ── Import Worker ────────────────────────────────────────────────────────────
-  - type: worker
-    name: bugx-import-worker
-    region: oregon
-    plan: free
-    rootDir: backend
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    startCommand: python -m app.workers.import_worker
-    envVars:
-      - key: ENV
-        value: development
-      - key: SECRET_KEY
-        fromService:
-          name: bugx-api
-          type: web
-          envVarKey: SECRET_KEY
-      - key: DATABASE_URL
-        fromDatabase:
-          name: bugx-db
-          property: connectionString
-      - key: REDIS_URL
-        sync: false
-      - key: RATE_LIMIT_FAIL_OPEN
-        value: "true"
-      - key: PYTHONUTF8
-        value: "1"
