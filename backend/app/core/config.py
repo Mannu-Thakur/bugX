@@ -35,10 +35,28 @@ class Settings(BaseSettings):
             return scheme + url[len("postgresql://"):]
         return url
 
+    @staticmethod
+    def _fix_redis_url(url: str) -> str:
+        """Sanitize REDIS_URL to ensure proper scheme and strip extraneous quotes or prefixes."""
+        if not url:
+            return "redis://localhost:6379/0"
+        url = url.strip().strip('"\'')
+        if url.startswith("REDIS_URL="):
+            url = url.split("=", 1)[1].strip().strip('"\'')
+        if not (url.startswith("redis://") or url.startswith("rediss://") or url.startswith("unix://")):
+            if url.startswith("https://"):
+                url = "rediss://" + url[len("https://"):]
+            elif url.startswith("http://"):
+                url = "redis://" + url[len("http://"):]
+            else:
+                url = f"rediss://{url}"
+        return url
+
     @model_validator(mode="after")
     def fix_database_urls(self) -> "Settings":
         self.DATABASE_URL = self._fix_db_url(self.DATABASE_URL, async_driver=True)
         self.ALEMBIC_DATABASE_URL = self._fix_db_url(self.ALEMBIC_DATABASE_URL, async_driver=False)
+        self.REDIS_URL = self._fix_redis_url(self.REDIS_URL)
         return self
 
 

@@ -19,26 +19,39 @@ class RateLimitService:
     """
 
     def __init__(self, redis_url: str = None, redis_client: Redis = None) -> None:
+        self.redis = None
+        self._external_client = False
         if redis_client is not None:
             self.redis = redis_client
             self._external_client = True
-        else:
-            self.redis = Redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_connect_timeout=0.2,
-                socket_timeout=0.2,
-                retry_on_timeout=False,
-            )
-            self._external_client = False
+        elif redis_url:
+            try:
+                self.redis = Redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=0.5,
+                    socket_timeout=0.5,
+                    retry_on_timeout=False,
+                )
+            except Exception as e:
+                logger.error("[RateLimit] Failed to initialize Redis from url '%s': %s", redis_url, e)
+                self.redis = None
 
     async def close(self) -> None:
-        if not getattr(self, "_external_client", False):
-            await self.redis.aclose()
+        if self.redis is not None and not getattr(self, "_external_client", False):
+            try:
+                await self.redis.aclose()
+            except Exception:
+                pass
 
     async def ping(self) -> bool:
-        await self.redis.ping()
-        return True
+        if self.redis is None:
+            return False
+        try:
+            await self.redis.ping()
+            return True
+        except Exception:
+            return False
 
     async def check_ip(
         self,
@@ -64,6 +77,8 @@ class RateLimitService:
         max_requests: int,
         window_seconds: int,
     ) -> bool:
+        if self.redis is None:
+            return self._on_redis_failure(key, Exception("Redis client is not available"))
         try:
             request_count = await self.redis.incr(key)
             if request_count == 1:

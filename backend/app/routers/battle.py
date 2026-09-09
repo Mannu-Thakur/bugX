@@ -1082,9 +1082,14 @@ async def start_redis_listener(redis_url: str):
   logger.info("[RedisListener] Starting redis battle_events pubsub listener...")
   import redis.asyncio as aioredis
   import json
-  r = aioredis.from_url(redis_url, decode_responses=True)
-  pubsub = r.pubsub()
-  await pubsub.subscribe("battle_events")
+  try:
+    r = aioredis.from_url(redis_url, decode_responses=True)
+    pubsub = r.pubsub()
+    await pubsub.subscribe("battle_events")
+  except Exception as e:
+    logger.warning("[RedisListener] Could not connect to Redis at '%s': %s. PubSub disabled.", redis_url, e)
+    return
+
   try:
     while True:
       message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -1099,6 +1104,11 @@ async def start_redis_listener(redis_url: str):
       await asyncio.sleep(0.1)
   except asyncio.CancelledError:
     logger.info("[RedisListener] Redis listener task cancelled.")
+  except Exception as e:
+    logger.warning("[RedisListener] Redis connection lost: %s", e)
   finally:
-    await pubsub.unsubscribe("battle_events")
-    await r.aclose()
+    try:
+      await pubsub.unsubscribe("battle_events")
+      await r.aclose()
+    except Exception:
+      pass
