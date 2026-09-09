@@ -94,6 +94,7 @@ class Settings(BaseSettings):
 
     # ── Worker ────────────────────────────────────────────────────────────────
     RECLAIM_ALL_RUNNING_ON_START: bool = False
+    EMBEDDED_WORKERS: bool = True
 
     # ── Problem Import ────────────────────────────────────────────────────────
     IMPORT_CACHE_TTL: int = 3600

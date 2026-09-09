@@ -48,7 +48,7 @@ const LinkedInIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 // ─── Animated Particle Component ───
-const FloatingOrb: React.FC<{ style: React.CSSProperties; className?: string }> = ({ style, className }) => (
+export const FloatingOrb: React.FC<{ style: React.CSSProperties; className?: string }> = ({ style, className }) => (
   <div
     className={cn('absolute rounded-full pointer-events-none', className)}
     style={{ filter: 'blur(60px)', ...style }}
@@ -56,12 +56,13 @@ const FloatingOrb: React.FC<{ style: React.CSSProperties; className?: string }> 
 );
 
 // ─── Glass Card ───
-const GlassCard: React.FC<{
+export const GlassCard: React.FC<{
   children: React.ReactNode;
   className?: string;
   glow?: 'blue' | 'purple' | 'emerald' | 'amber' | 'rose' | 'none';
   hover?: boolean;
-}> = ({ children, className, glow = 'none', hover = false }) => {
+  style?: React.CSSProperties;
+}> = ({ children, className, glow = 'none', hover = false, style }) => {
   const glowMap: Record<string, { border: string; shadow: string }> = {
     blue:    { border: 'hover:border-[#6c9aff]/60', shadow: 'hover:shadow-[0_0_40px_rgba(79,125,255,0.25),inset_0_0_30px_rgba(79,125,255,0.05)]' },
     purple:  { border: 'hover:border-[#9b7fff]/60', shadow: 'hover:shadow-[0_0_40px_rgba(122,95,255,0.25),inset_0_0_30px_rgba(122,95,255,0.05)]' },
@@ -74,6 +75,7 @@ const GlassCard: React.FC<{
 
   return (
     <div
+      style={style}
       className={cn(
         'relative rounded-2xl overflow-hidden transition-all duration-500',
         // true frosted glass: visible white frost + strong blur
@@ -490,7 +492,7 @@ const DonutChart: React.FC<{
 };
 
 // ─── Stat Glass Card ───
-const StatCard: React.FC<{
+export const StatCard: React.FC<{
   label: string;
   value: string | number;
   unit?: string;

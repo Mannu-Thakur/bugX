@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, CheckCircle2, AlertCircle, RefreshCw, Plus, Trophy, ArrowRight, X } from 'lucide-react';
+import { ExternalLink, CheckCircle2, AlertCircle, RefreshCw, Plus, Trophy, ArrowRight } from 'lucide-react';
 import type { PlatformStats, PlatformStatItem } from '../api';
 import { useAuth } from '../../auth/useAuth';
 import { RatingSparkline } from './RatingSparkline';
@@ -20,7 +20,7 @@ export const ConnectedPlatforms: React.FC<ConnectedPlatformsProps> = ({
   const [handleInput, setHandleInput] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
 
-  const getRankColor = (rankStr?: string, rating?: number) => {
+  const getRankColor = (_rankStr?: string, rating?: number) => {
     if (rating) {
       if (rating >= 2400) return 'text-red-500 shadow-red-500/50';
       if (rating >= 2100) return 'text-orange-400 shadow-orange-400/50';

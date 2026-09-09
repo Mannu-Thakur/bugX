@@ -141,6 +141,9 @@ services:
       USE_LOCAL_JUDGE: "true"
       RATE_LIMIT_FAIL_OPEN: "true"
       PYTHONUTF8: "1"
+      # LAN_HOST is injected by start-lan.ps1 at runtime via `docker compose -e LAN_HOST=...`
+      # or set directly here / in backend/.env for a fixed IP.
+      LAN_HOST: "${LAN_HOST:-}"
 
   worker:
     build:
@@ -169,6 +172,7 @@ services:
       USE_LOCAL_JUDGE: "true"
       RATE_LIMIT_FAIL_OPEN: "true"
       PYTHONUTF8: "1"
+      LAN_HOST: "${LAN_HOST:-}"
 
   import-worker:
     build:
@@ -191,6 +195,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       RATE_LIMIT_FAIL_OPEN: "true"
       PYTHONUTF8: "1"
+      LAN_HOST: "${LAN_HOST:-}"
 
   # ── Frontend (Vite dev server) ────────────────────────────────────────────────
 
@@ -205,7 +210,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      VITE_API_URL: http://localhost:8000/api/v1
+      BACKEND_INTERNAL_URL: http://api:8000
+      VITE_API_URL: /api/v1
       VITE_APP_NAME: bugX
       # Feature flags
       VITE_FEATURE_PUBLIC_PROFILES: "true"

@@ -61,7 +61,7 @@ def _get_client_credentials(provider: str) -> tuple[str, str]:
 
 def _redirect_uri(provider: str) -> str:
     """Build the OAuth callback redirect URI."""
-    return f"{settings.BACKEND_URL}{settings.API_V1_PREFIX}/auth/oauth/{provider}/callback"
+    return f"{settings.effective_backend_url}{settings.API_V1_PREFIX}/auth/oauth/{provider}/callback"
 
 
 # ─── Stateless CSRF state token (HMAC-based, no server storage needed) ───────

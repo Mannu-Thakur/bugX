@@ -39,7 +39,7 @@ async def oauth_callback(
     Exchanges the authorization code for a token, finds or creates the user,
     then redirects to the frontend with the JWT.
     """
-    frontend_url = settings.FRONTEND_URL
+    frontend_url = settings.effective_frontend_url
 
     # Provider returned an error (e.g. user denied access)
     if error:

@@ -54,9 +54,37 @@ def create_app() -> FastAPI:
         from app.routers.battle import start_redis_listener
         redis_listener_task = asyncio.create_task(start_redis_listener(settings.REDIS_URL))
 
+        # Embedded workers for single-service deployments
+        worker_tasks = []
+        sub_worker = None
+        imp_worker = None
+        if getattr(settings, "EMBEDDED_WORKERS", True):
+            try:
+                from app.workers.submission_worker import SubmissionWorker
+                from app.workers.import_worker import ImportWorker
+                sub_worker = SubmissionWorker()
+                imp_worker = ImportWorker()
+                worker_tasks.append(asyncio.create_task(sub_worker.run()))
+                worker_tasks.append(asyncio.create_task(imp_worker.run()))
+                logger.info("Embedded submission and import workers started successfully.")
+            except Exception as w_err:
+                logger.warning(f"Could not start embedded workers: {w_err}")
+
         yield
 
-        # Shutdown redis listener
+        # Shutdown workers and redis listener
+        if sub_worker:
+            sub_worker.stop()
+        if imp_worker:
+            imp_worker.stop()
+        for wt in worker_tasks:
+            wt.cancel()
+        if worker_tasks:
+            try:
+                await asyncio.gather(*worker_tasks, return_exceptions=True)
+            except Exception:
+                pass
+
         redis_listener_task.cancel()
         try:
             await redis_listener_task
@@ -119,7 +147,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_origin_regex=r"^https?://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

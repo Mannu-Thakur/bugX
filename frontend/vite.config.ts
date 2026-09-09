@@ -1,13 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const backendTarget = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:8000'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
     host: true,        // bind 0.0.0.0 so Docker exposes the port
     port: 5173,
+    allowedHosts: true,
     proxy: {
+      '/api': {
+        target: backendTarget,
+        changeOrigin: true,
+        ws: true,
+      },
+      '/uploads': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
       '/proxy/groq': {
         target: 'https://api.groq.com',
         changeOrigin: true,
