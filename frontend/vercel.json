@@ -1,3 +1,11 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/proxy/groq/(.*)", "destination": "https://api.groq.com/$1" },
+    { "source": "/proxy/gemini/(.*)", "destination": "https://generativelanguage.googleapis.com/$1" },
+    { "source": "/proxy/deepseek/(.*)", "destination": "https://api.deepseek.com/$1" },
+    { "source": "/proxy/openrouter/(.*)", "destination": "https://openrouter.ai/$1" },
+    { "source": "/proxy/openai/(.*)", "destination": "https://api.openai.com/$1" },
+    { "source": "/proxy/anthropic/(.*)", "destination": "https://api.anthropic.com/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
