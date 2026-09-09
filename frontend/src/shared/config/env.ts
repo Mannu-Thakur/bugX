@@ -17,6 +17,11 @@ const resolveApiUrl = (): string => {
     return envUrl || 'http://127.0.0.1:8000/api/v1';
   }
 
+  // Fallback for Vercel production and preview deployments
+  if (window.location.hostname.includes('vercel.app')) {
+    return 'https://bugx-api.onrender.com/api/v1';
+  }
+
   // LAN access (non-localhost, no absolute VITE_API_URL set):
   // derive backend URL from browser hostname so other devices on the same
   // Wi-Fi network reach the correct backend port.
