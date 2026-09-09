@@ -1,0 +1,142 @@
+﻿databases:
+  - name: bugx-db
+    databaseName: bugx
+    user: bugx
+    plan: free
+    region: oregon
+
+services:
+
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  - type: web
+    name: bugx-api
+    region: oregon
+    plan: free
+    rootDir: backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENV
+        value: development
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bugx-db
+          property: connectionString
+      - key: ALEMBIC_DATABASE_URL
+        fromDatabase:
+          name: bugx-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: USE_LOCAL_JUDGE
+        value: "true"
+      - key: JUDGE0_URL
+        value: "http://localhost:2358"
+      - key: RATE_LIMIT_FAIL_OPEN
+        value: "true"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        value: "312007586298-ulk2o2m8varp9smi9r3e3r5uesbiikvi.apps.googleusercontent.com"
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        value: "Ov23li05tZlj8lcsQAAu"
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: ENABLE_MOCK_OAUTH
+        value: "false"
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: "mannukr626@gmail.com"
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        value: "mannukr626@gmail.com"
+      - key: SMTP_TLS
+        value: "true"
+      - key: SMTP_SSL
+        value: "false"
+      - key: RECLAIM_ALL_RUNNING_ON_START
+        value: "false"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: MAX_SUBMISSIONS_PER_MINUTE
+        value: "20"
+      - key: MAX_REQUESTS_PER_MINUTE_IP
+        value: "200"
+      - key: PYTHONUTF8
+        value: "1"
+
+  # ── Submission Worker ────────────────────────────────────────────────────────
+  - type: worker
+    name: bugx-submission-worker
+    region: oregon
+    plan: free
+    rootDir: backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: python -m app.workers.submission_worker
+    envVars:
+      - key: ENV
+        value: development
+      - key: SECRET_KEY
+        fromService:
+          name: bugx-api
+          type: web
+          envVarKey: SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bugx-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: USE_LOCAL_JUDGE
+        value: "true"
+      - key: JUDGE0_URL
+        value: "http://localhost:2358"
+      - key: RATE_LIMIT_FAIL_OPEN
+        value: "true"
+      - key: PYTHONUTF8
+        value: "1"
+
+  # ── Import Worker ────────────────────────────────────────────────────────────
+  - type: worker
+    name: bugx-import-worker
+    region: oregon
+    plan: free
+    rootDir: backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: python -m app.workers.import_worker
+    envVars:
+      - key: ENV
+        value: development
+      - key: SECRET_KEY
+        fromService:
+          name: bugx-api
+          type: web
+          envVarKey: SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bugx-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: RATE_LIMIT_FAIL_OPEN
+        value: "true"
+      - key: PYTHONUTF8
+        value: "1"

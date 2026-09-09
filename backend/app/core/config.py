@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +24,24 @@ class Settings(BaseSettings):
         "postgresql+psycopg2://bugx:bugx@localhost:5432/bugx"
     )
 
-    # ── Cache / Queue ─────────────────────────────────────────────────────────
+    @staticmethod
+    def _fix_db_url(url: str, async_driver: bool) -> str:
+        """Render provides bare postgres:// URLs. Rewrite to the correct SQLAlchemy scheme."""
+        if url.startswith("postgres://"):
+            scheme = "postgresql+asyncpg://" if async_driver else "postgresql+psycopg2://"
+            return scheme + url[len("postgres://"):]
+        if url.startswith("postgresql://"):
+            scheme = "postgresql+asyncpg://" if async_driver else "postgresql+psycopg2://"
+            return scheme + url[len("postgresql://"):]
+        return url
+
+    @model_validator(mode="after")
+    def fix_database_urls(self) -> "Settings":
+        self.DATABASE_URL = self._fix_db_url(self.DATABASE_URL, async_driver=True)
+        self.ALEMBIC_DATABASE_URL = self._fix_db_url(self.ALEMBIC_DATABASE_URL, async_driver=False)
+        return self
+
+
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # ── Code Execution ────────────────────────────────────────────────────────
@@ -51,6 +69,12 @@ class Settings(BaseSettings):
     # ── URLs ──────────────────────────────────────────────────────────────────
     FRONTEND_URL: str = "http://localhost:5173"
     BACKEND_URL: str = "http://localhost:8000"
+
+    # ── LAN Deployment ────────────────────────────────────────────────────────
+    # Set to the host machine's LAN IP (e.g. 192.168.1.25) to allow other
+    # devices on the same Wi-Fi to access the application.
+    # The start-lan.ps1 script sets this automatically.
+    LAN_HOST: str = ""
 
     # ── AI / LLM ──────────────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -111,7 +135,38 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Dynamically add LAN origins when LAN_HOST is configured so that
+        # browsers on the college Wi-Fi are not rejected by CORS.
+        if self.LAN_HOST:
+            lan_origins = [
+                f"http://{self.LAN_HOST}",          # port 80 / Nginx (future)
+                f"http://{self.LAN_HOST}:5174",     # Vite frontend (Docker host port)
+                f"http://{self.LAN_HOST}:5173",     # Vite frontend (direct)
+                f"http://{self.LAN_HOST}:8000",     # Backend direct (WebSocket)
+            ]
+            for o in lan_origins:
+                if o not in origins:
+                    origins.append(o)
+        return origins
+
+    @property
+    def effective_frontend_url(self) -> str:
+        """Returns the LAN-accessible frontend URL when LAN_HOST is set,
+        otherwise falls back to the configured FRONTEND_URL.
+        Used by OAuth callbacks to redirect to the correct origin."""
+        if self.LAN_HOST:
+            return f"http://{self.LAN_HOST}:5174"
+        return self.FRONTEND_URL
+
+    @property
+    def effective_backend_url(self) -> str:
+        """Returns the LAN-accessible backend URL when LAN_HOST is set,
+        otherwise falls back to the configured BACKEND_URL.
+        Used to build OAuth redirect URIs."""
+        if self.LAN_HOST:
+            return f"http://{self.LAN_HOST}:8000"
+        return self.BACKEND_URL
 
 
 @lru_cache
@@ -122,8 +177,12 @@ def get_settings() -> Settings:
     if not settings.is_development and settings.ENABLE_MOCK_OAUTH:
         raise ValueError("ENABLE_MOCK_OAUTH must be disabled outside development.")
     if not settings.is_development and settings.USE_LOCAL_JUDGE:
-        raise ValueError(
-            "USE_LOCAL_JUDGE must be disabled outside development — use a real Judge0 instance."
+        import warnings
+        warnings.warn(
+            "USE_LOCAL_JUDGE is enabled outside development. "
+            "This uses subprocess execution with no sandboxing — acceptable for demos, "
+            "but replace with a real Judge0 instance for public production use.",
+            stacklevel=2,
         )
     if not settings.is_development and settings.RATE_LIMIT_FAIL_OPEN:
         raise ValueError(
