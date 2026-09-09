@@ -46,7 +46,7 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
-        value: "312007586298-ulk2o2m8varp9smi9r3e3r5uesbiikvi.apps.googleusercontent.com"
+        value: "979526440474-bjnskd85ku8h97kgbn355mvcivjedo95.apps.googleusercontent.com"
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GITHUB_CLIENT_ID
