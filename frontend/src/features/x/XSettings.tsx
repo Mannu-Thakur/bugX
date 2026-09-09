@@ -35,11 +35,31 @@ export const XSettings: React.FC = () => {
   const [newDesc, setNewDesc] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
 
+  const handleSaveKey = (providerId: string) => {
+    const provider = getProviderById(providerId as ProviderId);
+    if (!provider) return;
+
+    const rawKey = tempKeys[providerId] !== undefined ? tempKeys[providerId] : (apiKeys[providerId as ProviderId] || '');
+    const cleanKey = rawKey.trim();
+    if (!cleanKey) {
+      error(`Please enter an API key for ${provider.name} first.`);
+      return;
+    }
+
+    setApiKey(providerId as ProviderId, cleanKey);
+    setTestResult(prev => ({
+      ...prev,
+      [providerId]: { status: 'success', message: 'Saved' },
+    }));
+    success(`${provider.name} API key saved.`);
+  };
+
   const handleTestConnection = async (providerId: string) => {
     const provider = getProviderById(providerId as ProviderId);
     if (!provider) return;
 
-    const enteredKey = tempKeys[providerId] || apiKeys[providerId as ProviderId];
+    const rawKey = tempKeys[providerId] !== undefined ? tempKeys[providerId] : (apiKeys[providerId as ProviderId] || '');
+    const enteredKey = rawKey.trim();
     if (!enteredKey) {
       error(`Please enter an API key for ${provider.name} first.`);
       return;
@@ -52,142 +72,133 @@ export const XSettings: React.FC = () => {
       return next;
     });
 
-    try {
-      // Test key by requesting a minimal model completion
-      const testModel = provider.models[0]?.id;
-      if (!testModel) throw new Error('No test model available');
+    const testModel = provider.verifyModel || provider.models[0]?.id;
+    const isGet = provider.id === 'openrouter';
 
+    const buildRequest = (key: string) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
-      let body: Record<string, unknown> = {
+      const body: Record<string, unknown> | undefined = {
         model: testModel,
         messages: [{ role: 'user', content: 'Say OK' }],
         max_tokens: 5,
       };
 
       if (provider.id === 'anthropic') {
-        headers['x-api-key'] = enteredKey;
+        headers['x-api-key'] = key;
         headers['anthropic-version'] = '2023-06-01';
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
-        body = {
-          model: testModel,
-          messages: [{ role: 'user', content: 'Say OK' }],
-          max_tokens: 5,
-        };
       } else {
-        headers['Authorization'] = `Bearer ${enteredKey}`;
+        headers['Authorization'] = `Bearer ${key}`;
         if (provider.id === 'openrouter') {
           headers['HTTP-Referer'] = 'https://bugx.dev';
           headers['X-Title'] = 'BugX';
         }
       }
 
-      const isGet = provider.id === 'openrouter';
-
-      // Use verifyEndpoint (routes via Vite dev proxy in development to bypass CORS)
-      const res = await fetch(provider.verifyEndpoint, {
-        method: isGet ? 'GET' : 'POST',
+      return {
         headers,
         body: isGet ? undefined : JSON.stringify(body),
-      });
+      };
+    };
 
-      if (!res.ok) {
-        const errText = await res.text();
-        // Always embed the HTTP status so our pattern-matchers below can
-        // reliably detect 401 / 403 even when the body text is unexpected.
-        throw new Error(`[${res.status}] ${errText || `API returned status ${res.status}`}`);
+    const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 8000) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...init, credentials: 'omit', signal: ctrl.signal });
+        return res;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    const reqData = buildRequest(enteredKey);
+
+    // Dual-target approach: try primary verify endpoint, then direct verify endpoint if network fails
+    const targets = [
+      provider.verifyEndpoint,
+      provider.directVerifyEndpoint !== provider.verifyEndpoint ? provider.directVerifyEndpoint : null,
+    ].filter(Boolean) as string[];
+
+    let lastRes: Response | null = null;
+    let successEndpoint = false;
+
+    for (const endpoint of targets) {
+      try {
+        const res = await fetchWithTimeout(endpoint, {
+          method: isGet ? 'GET' : 'POST',
+          headers: reqData.headers,
+          body: reqData.body,
+        }, 7000);
+
+        lastRes = res;
+        if (res.ok) {
+          successEndpoint = true;
+          break;
+        } else if (res.status === 401 || res.status === 403 || res.status === 400 || res.status === 429) {
+          // Authentic response from provider, no need to retry another endpoint
+          break;
+        }
+      } catch {
+        // Network / CORS / timeout error, try next target
+      }
+    }
+
+    try {
+      if (successEndpoint && lastRes?.ok) {
+        setTestResult(prev => ({
+          ...prev,
+          [providerId]: { status: 'success', message: 'Verified' },
+        }));
+        setApiKey(providerId as ProviderId, enteredKey);
+        success(`${provider.name} API key verified and saved.`);
+        return;
       }
 
-      setTestResult(prev => ({
-        ...prev,
-        [providerId]: { status: 'success', message: 'Verified' },
-      }));
-      // Auto save the verified key
-      setApiKey(providerId as ProviderId, enteredKey);
-      success(`${provider.name} API key verified and saved.`);
-    } catch (err) {
-      let msg = 'Network error — check your connection';
-      const errMsg = err instanceof Error ? err.message : String(err);
-      let lower = errMsg.toLowerCase();
+      if (lastRes && !lastRes.ok) {
+        const status = lastRes.status;
+        const errText = await lastRes.text().catch(() => '');
+        const lower = errText.toLowerCase();
 
-      // ── Network / CORS / proxy errors ───────────────────────────────────
-      // TypeError means fetch() itself failed (CORS block, no internet, etc.)
-      const isNetworkError =
-        err instanceof TypeError ||
-        lower.includes('failed to fetch') ||
-        lower.includes('networkerror') ||
-        lower.includes('network error') ||
-        lower.includes('load failed') ||
-        lower.includes('econnrefused') ||
-        errMsg.includes('502') ||
-        errMsg.includes('503') ||
-        errMsg.includes('504');
-
-      if (!isNetworkError) {
-        // Attempt to extract structured error message if API returned JSON.
-        // The JSON may be embedded after the [status] prefix we added above.
-        const jsonStart = errMsg.indexOf('{');
-        const rawJson = jsonStart >= 0 ? errMsg.slice(jsonStart) : errMsg;
-        try {
-          const parsed = JSON.parse(rawJson);
-          const nestedMsg = parsed?.error?.message || parsed?.message || '';
-          if (nestedMsg) {
-            lower += ' ' + nestedMsg.toLowerCase();
-          }
-        } catch {
-          // Not a JSON error string, continue with raw string matching
-        }
-
-        // ── Quota / rate-limit errors ────────────────────────────────────────
-        // A 429 means the provider ACCEPTED the key — it's valid, just
-        // rate-limited. Save it and show an amber warning instead of an error.
-        if (
-          lower.includes('resource_exhausted') ||
-          lower.includes('quota') ||
-          lower.includes('rate_limit') ||
-          lower.includes('insufficient_quota') ||
-          lower.includes('too many requests') ||
-          errMsg.includes('429')
-        ) {
-          // Key is valid — save it despite the quota error
+        if (status === 429 || lower.includes('quota') || lower.includes('rate_limit')) {
           setApiKey(providerId as ProviderId, enteredKey);
           setTestResult(prev => ({
             ...prev,
             [providerId]: { status: 'warning', message: 'Quota exceeded — key saved' },
           }));
-          warning(`${provider.name} key saved — quota currently exceeded, try again later.`);
-          setTestingProvider(null);
+          warning(`${provider.name} key saved — quota currently exceeded.`);
           return;
-        } else if (
-          lower.includes('api_key_invalid') ||
-          lower.includes('invalid_api_key') ||
-          lower.includes('invalid api') ||
-          lower.includes('not valid') ||
-          lower.includes('bad_api_key') ||
-          lower.includes('invalidapikey') ||
-          lower.includes('unauthorized') ||
-          lower.includes('unauthenticated') ||
-          lower.includes('user not found') ||
-          lower.includes('permission denied') ||
-          lower.includes('invalid_argument') ||   // Gemini 400 for bad keys
-          lower.includes('api key') ||              // catches "API key not valid", "API key missing", etc.
-          lower.includes('authentication') ||
-          lower.includes('auth_error') ||
-          errMsg.includes('401') ||
-          errMsg.includes('403') ||
-          errMsg.includes('400')                    // Some providers (Gemini, Qwen) use 400 for bad keys
-        ) {
-          msg = 'Invalid API Key';
         }
+
+        if (status === 401 || status === 403 || lower.includes('invalid_api_key') || lower.includes('unauthorized')) {
+          setTestResult(prev => ({
+            ...prev,
+            [providerId]: { status: 'error', message: 'Invalid API Key' },
+          }));
+          error(`Failed to verify key: Invalid API Key`);
+          return;
+        }
+
+        // Other HTTP status (e.g. 500, 503)
+        setApiKey(providerId as ProviderId, enteredKey);
+        setTestResult(prev => ({
+          ...prev,
+          [providerId]: { status: 'warning', message: `HTTP ${status} — saved` },
+        }));
+        warning(`${provider.name} key saved (API status ${status}).`);
+        return;
       }
 
+      // If both endpoints failed due to network / CORS / adblocker:
+      // Auto-save the key locally anyway so the user is never blocked!
+      setApiKey(providerId as ProviderId, enteredKey);
       setTestResult(prev => ({
         ...prev,
-        [providerId]: { status: 'error', message: msg },
+        [providerId]: { status: 'warning', message: 'Saved (Unverified)' },
       }));
-      error(`Failed to verify key: ${msg}`);
+      warning(`${provider.name} key saved locally. API verification was unreachable.`);
     } finally {
       setTestingProvider(null);
     }
@@ -333,23 +344,39 @@ export const XSettings: React.FC = () => {
                 </div>
 
                 <div className="flex-1 w-full flex items-center gap-2">
-                  <input
-                    type="password"
-                    value={displayValue}
-                    placeholder="Enter API Key"
-                    onChange={(e) => setTempKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
-                    className="w-full bg-[#161618] border border-white/[0.08] rounded-xl px-3.5 py-2 text-xs font-mono text-white outline-none placeholder-gray-700"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="password"
+                      value={displayValue}
+                      placeholder="Enter API Key"
+                      onChange={(e) => setTempKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveKey(provider.id);
+                      }}
+                      className="w-full bg-[#161618] border border-white/[0.08] focus:border-white/20 rounded-xl px-3.5 py-2 text-xs font-mono text-white outline-none placeholder-gray-700 transition-colors"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveKey(provider.id)}
+                    className="px-3.5 py-2 bg-white text-black hover:bg-gray-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0"
+                    title="Save API key directly"
+                  >
+                    Save
+                  </button>
 
                   {testingProvider === provider.id ? (
-                    <button disabled className="px-4 py-2 bg-gray-800 text-gray-500 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed">
+                    <button disabled className="px-3 py-2 bg-gray-800 text-gray-500 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed shrink-0">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       Testing
                     </button>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => handleTestConnection(provider.id)}
-                      className="px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.08] hover:border-white/[0.15] rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      className="px-3 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 hover:text-white border border-white/[0.08] hover:border-white/[0.15] rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0"
+                      title="Test connection"
                     >
                       Verify
                     </button>
@@ -379,7 +406,7 @@ export const XSettings: React.FC = () => {
                   {savedKey && !result && (
                     <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                       <ShieldCheck className="w-4 h-4" />
-                      ✓ Active
+                      ✓ Ready
                     </div>
                   )}
 
@@ -388,6 +415,11 @@ export const XSettings: React.FC = () => {
                       onClick={() => {
                         removeApiKey(provider.id);
                         setTempKeys(prev => ({ ...prev, [provider.id]: '' }));
+                        setTestResult(prev => {
+                          const next = { ...prev };
+                          delete next[provider.id];
+                          return next;
+                        });
                         success(`Removed ${provider.name} API key.`);
                       }}
                       className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"

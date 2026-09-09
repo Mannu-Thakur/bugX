@@ -42,10 +42,10 @@ export interface XProvider {
   color: string; // accent color hex
   models: XModel[];
   apiEndpoint: string;
-  // Direct external URL used ONLY for key verification — bypasses the Vite
-  // proxy so browser-to-API CORS (which works) is used instead of
-  // Node.js-to-API (which can fail on some networks/OS proxy configs).
+  directEndpoint: string;
   verifyEndpoint: string;
+  directVerifyEndpoint: string;
+  verifyModel?: string;
   requiresKey: boolean;
   // Platform-level key (only for free providers). Replace placeholder with real key.
   platformApiKey?: string;
@@ -67,7 +67,10 @@ export const PROVIDERS: XProvider[] = [
     requiresKey: true,
     platformApiKey: PLATFORM_GROQ_KEY,
     apiEndpoint: '/proxy/groq/openai/v1/chat/completions',
+    directEndpoint: 'https://api.groq.com/openai/v1/chat/completions',
     verifyEndpoint: '/proxy/groq/openai/v1/chat/completions',
+    directVerifyEndpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    verifyModel: 'llama-3.1-8b-instant',
     models: [
       {
         id: 'llama-3.3-70b-versatile',
@@ -109,7 +112,10 @@ export const PROVIDERS: XProvider[] = [
     requiresKey: true,
     platformApiKey: PLATFORM_GEMINI_KEY,
     apiEndpoint: '/proxy/gemini/v1beta/openai/chat/completions',
+    directEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     verifyEndpoint: '/proxy/gemini/v1beta/openai/chat/completions',
+    directVerifyEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    verifyModel: 'gemini-2.0-flash',
     models: [
       {
         id: 'gemini-2.0-flash',
@@ -141,7 +147,10 @@ export const PROVIDERS: XProvider[] = [
     requiresKey: true,
     platformApiKey: PLATFORM_DEEPSEEK_KEY,
     apiEndpoint: '/proxy/deepseek/chat/completions',
+    directEndpoint: 'https://api.deepseek.com/chat/completions',
     verifyEndpoint: '/proxy/deepseek/chat/completions',
+    directVerifyEndpoint: 'https://api.deepseek.com/chat/completions',
+    verifyModel: 'deepseek-chat',
     models: [
       {
         id: 'deepseek-chat',
@@ -172,7 +181,10 @@ export const PROVIDERS: XProvider[] = [
     color: '#10a37f',
     requiresKey: true,
     apiEndpoint: '/proxy/openai/v1/chat/completions',
+    directEndpoint: 'https://api.openai.com/v1/chat/completions',
     verifyEndpoint: '/proxy/openai/v1/chat/completions',
+    directVerifyEndpoint: 'https://api.openai.com/v1/chat/completions',
+    verifyModel: 'gpt-4o-mini',
     models: [
       {
         id: 'gpt-4o',
@@ -210,7 +222,10 @@ export const PROVIDERS: XProvider[] = [
     color: '#d97706',
     requiresKey: true,
     apiEndpoint: '/proxy/anthropic/v1/messages',
+    directEndpoint: 'https://api.anthropic.com/v1/messages',
     verifyEndpoint: '/proxy/anthropic/v1/messages',
+    directVerifyEndpoint: 'https://api.anthropic.com/v1/messages',
+    verifyModel: 'claude-3-haiku-20240307',
     models: [
       {
         id: 'claude-3-5-sonnet-20241022',
@@ -239,7 +254,10 @@ export const PROVIDERS: XProvider[] = [
     color: '#6366f1',
     requiresKey: true,
     apiEndpoint: '/proxy/qwen/compatible-mode/v1/chat/completions',
+    directEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     verifyEndpoint: '/proxy/qwen/compatible-mode/v1/chat/completions',
+    directVerifyEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    verifyModel: 'qwen-turbo',
     models: [
       {
         id: 'qwen-turbo',
@@ -268,7 +286,9 @@ export const PROVIDERS: XProvider[] = [
     color: '#7c3aed',
     requiresKey: true,
     apiEndpoint: '/proxy/openrouter/api/v1/chat/completions',
+    directEndpoint: 'https://openrouter.ai/api/v1/chat/completions',
     verifyEndpoint: '/proxy/openrouter/api/v1/auth/key',
+    directVerifyEndpoint: 'https://openrouter.ai/api/v1/auth/key',
     models: [
       {
         id: 'meta-llama/llama-3.1-8b-instruct:free',
@@ -333,7 +353,9 @@ export const PROVIDERS: XProvider[] = [
     color: '#8b5cf6',
     requiresKey: true,
     apiEndpoint: '/proxy/moonshot/v1/chat/completions',
+    directEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
     verifyEndpoint: '/proxy/moonshot/v1/chat/completions',
+    directVerifyEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
     models: [
       {
         id: 'moonshot-v1-32k',
@@ -353,7 +375,9 @@ export const PROVIDERS: XProvider[] = [
     color: '#ec4899',
     requiresKey: true,
     apiEndpoint: '/proxy/bytedance/api/v3/chat/completions',
+    directEndpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
     verifyEndpoint: '/proxy/bytedance/api/v3/chat/completions',
+    directVerifyEndpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
     models: [
       {
         id: 'doubao-lite-4k',

@@ -167,25 +167,60 @@ async function streamAnthropic(
   modelId: string,
   apiKey: string,
   onToken: (token: string) => void,
-  signal: AbortSignal
+  signal: AbortSignal,
+  endpoint = '/proxy/anthropic/v1/messages',
+  directEndpoint = 'https://api.anthropic.com/v1/messages'
 ): Promise<void> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-      stream: true,
-    }),
-    signal,
+  const reqHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey.trim(),
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+  const body = JSON.stringify({
+    model: modelId,
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages,
+    stream: true,
   });
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: reqHeaders,
+      body,
+      signal,
+    });
+  } catch (err) {
+    if (directEndpoint && directEndpoint !== endpoint && !signal.aborted) {
+      response = await fetch(directEndpoint, {
+        method: 'POST',
+        headers: reqHeaders,
+        body,
+        signal,
+      });
+    } else {
+      throw err;
+    }
+  }
+
+  if (!response.ok) {
+    if (directEndpoint && directEndpoint !== endpoint && (response.status >= 500 || response.status === 404) && !signal.aborted) {
+      try {
+        const fallbackRes = await fetch(directEndpoint, {
+          method: 'POST',
+          headers: reqHeaders,
+          body,
+          signal,
+        });
+        if (fallbackRes.ok) {
+          response = fallbackRes;
+        }
+      } catch { /* proceed with original response */ }
+    }
+  }
 
   if (!response.ok) {
     const errBody = await response.text();
@@ -237,7 +272,8 @@ async function streamOpenAICompat(
   onToken: (token: string) => void,
   signal: AbortSignal,
   extraHeaders?: Record<string, string>,
-  fallbackModels?: string[]
+  fallbackModels?: string[],
+  directEndpoint?: string
 ): Promise<void> {
   const body: Record<string, unknown> = {
     model: modelId,
@@ -252,16 +288,48 @@ async function streamOpenAICompat(
     body.models = [modelId, ...fallbackModels];
   }
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      ...extraHeaders,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
+  const reqHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey.trim()}`,
+    ...extraHeaders,
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: reqHeaders,
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (directEndpoint && directEndpoint !== endpoint && !signal.aborted) {
+      response = await fetch(directEndpoint, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify(body),
+        signal,
+      });
+    } else {
+      throw err;
+    }
+  }
+
+  if (!response.ok) {
+    if (directEndpoint && directEndpoint !== endpoint && (response.status >= 500 || response.status === 404) && !signal.aborted) {
+      try {
+        const fallbackRes = await fetch(directEndpoint, {
+          method: 'POST',
+          headers: reqHeaders,
+          body: JSON.stringify(body),
+          signal,
+        });
+        if (fallbackRes.ok) {
+          response = fallbackRes;
+        }
+      } catch { /* proceed with original response */ }
+    }
+  }
 
   if (!response.ok) {
     const errBody = await response.text();
@@ -395,7 +463,9 @@ export function useXChat() {
             m.id,
             key,
             onToken,
-            controller.signal
+            controller.signal,
+            p.apiEndpoint,
+            p.directEndpoint
           );
         } else {
           // Build OpenRouter-specific extras
@@ -428,7 +498,8 @@ export function useXChat() {
             onToken,
             controller.signal,
             extraHeaders,
-            fallbackModels
+            fallbackModels,
+            p.directEndpoint
           );
         }
 
@@ -473,7 +544,10 @@ export function useXChat() {
                 acc2 += token;
                 updateMessage(assistantId, { content: acc2, isStreaming: true });
               },
-              controller.signal
+              controller.signal,
+              undefined,
+              undefined,
+              groqProvider.directEndpoint
             );
             updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
           } catch (fallbackErr) {
@@ -584,7 +658,9 @@ export function useXChat() {
             m.id,
             key,
             onToken,
-            controller.signal
+            controller.signal,
+            p.apiEndpoint,
+            p.directEndpoint
           );
         } else {
           const extraHeaders: Record<string, string> = {};
@@ -618,7 +694,8 @@ export function useXChat() {
             onToken,
             controller.signal,
             extraHeaders,
-            fallbackModels
+            fallbackModels,
+            p.directEndpoint
           );
         }
 
@@ -662,7 +739,10 @@ export function useXChat() {
                 acc2 += token;
                 updateMessage(assistantId, { content: acc2, isStreaming: true });
               },
-              controller.signal
+              controller.signal,
+              undefined,
+              undefined,
+              groqProvider.directEndpoint
             );
             updateMessage(assistantId, { content: acc2, isStreaming: false, modelId: fallbackModel.id });
           } catch (fallbackErr) {
