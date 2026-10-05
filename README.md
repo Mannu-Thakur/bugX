@@ -21,7 +21,7 @@ Practice coding, compete in real-time battles, prepare for interviews, and learn
 
 **bugX** is a modern full-stack coding platform that makes competitive programming and interview preparation more interactive, engaging, and intelligent.
 
-It combines **coding practice**, **real-time multiplayer battles**, **AI-powered learning**, **company-wise interview preparation**, **daily challenges**, an **interactive algorithm visualization playground**, and an **AI chat assistant (X)** — all in one seamless experience.
+It combines **coding practice**, **real-time multiplayer battles**, **AI-powered learning**, **company-wise interview preparation**, **daily challenges**, an **interactive algorithm visualization playground**, an **AI chat assistant (X)**, and a structured **AI Coach** — all in one seamless experience.
 
 ---
 
@@ -44,6 +44,27 @@ It combines **coding practice**, **real-time multiplayer battles**, **AI-powered
 - **Inline *Apply Code* Button**: Push AI solution suggestions directly into the Monaco editor with one click.
 - Real-time online user count tracking via **WebSocket** sessions.
 - Customizable system prompt, temperature controls, and model persistence.
+
+---
+
+### 🎓 AI Coach — Structured Problem-Solving Guide
+A dedicated coaching panel that teaches you *how to think*, not just *what to code*. Triggered via the **"Ask AI"** button on the problem description pane.
+
+| Mode | What it does |
+|---|---|
+| 💡 **Hint** | A single concise nudge — no spoilers |
+| 🧠 **Intuition** | Builds the mental model and pattern recognition |
+| 📐 **Approach** | High-level algorithm walkthrough with data-structure rationale |
+| ⚠️ **Edge Cases** | Lists tricky corner cases and why they break naive solutions |
+| ⏱️ **Complexity** | Big-O time & space analysis with optimization suggestions |
+| 🐛 **Debug My Reasoning** | Finds logical flaws and off-by-one errors in your code |
+
+**Key design details:**
+- **Conversation isolation** — Coach conversations are stored under a `_coach_:` namespace, fully separate from X chat history. Switching panels never bleeds messages.
+- **Race-condition-safe dispatch** — Prompts are queued via a `pendingPromptRef` + `useEffect` pattern and fired only after the conversation is cleanly reset.
+- **Context snapshot bar** — Shows the coach what language you're coding in and whether any errors are detected, automatically.
+- **Free-form conversation** — Each coaching session ends with an open chat input so you can follow up on anything.
+- **Mobile-ready** — Accessible via a dedicated "Coach" tab on mobile alongside Description / Editor / Submissions / X AI.
 
 ---
 
@@ -239,6 +260,7 @@ npm run dev
 ## 📌 Project Highlights
 
 - 🤖 AI chat assistant (X) with multi-model support & KaTeX math
+- 🎓 Structured AI Coach (Hint, Intuition, Approach, Edge Cases, Complexity, Debug My Reasoning)
 - 🧠 AI interview simulator & AI code review
 - 📊 Interactive algorithm visualization playground
 - ⚔️ Real-time WebSocket multiplayer coding battles

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Terminal, Lightbulb, Clock, ChevronRight, ChevronLeft, Lock, BookOpen, Layout } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Terminal, Lightbulb, Clock, ChevronRight, ChevronLeft, Lock, BookOpen, Layout, Sparkles } from 'lucide-react';
 import { api } from '../../shared/lib/api';
 import { BugXLogo } from '../../shared/ui/logo/BugXLogo';
 import { userStorage } from '../../shared/lib/userState';
@@ -18,16 +18,20 @@ import { ProblemDescription } from './components/ProblemDescription';
 import { cn } from '../../shared/lib/cn';
 import { XProvider, useX } from '../x/XContext';
 import { XPanel } from '../x/XPanel';
+import { AiCoachProvider, useAiCoach } from '../coach/AiCoachContext';
+import { AiCoachPanel } from '../coach/AiCoachPanel';
 
 // Inner component that consumes XContext
 const ProblemDetailInner: React.FC = () => {
   const { isOpen: isXOpen, togglePanel: toggleX, closePanel: closeX } = useX();
+  const { isCoachOpen, closeCoach, toggleCoach } = useAiCoach();
   const { slug } = useParams<{ slug: string }>();
 
   // Ensure AI panel is closed by default when opening any problem (showing Question & Code panels)
   useEffect(() => {
     closeX();
-  }, [slug, closeX]);
+    closeCoach();
+  }, [slug, closeX, closeCoach]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -399,14 +403,14 @@ const [isRunning, setIsRunning] = useState(false);
 
   // Responsive state
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
-  const [mobileTab, setMobileTabState] = useState<'description' | 'submissions' | 'editor' | 'x'>(() => {
+  const [mobileTab, setMobileTabState] = useState<'description' | 'submissions' | 'editor' | 'x' | 'coach'>(() => {
     const saved = localStorage.getItem('bugx_mobile_tab');
-    if (saved === 'description' || saved === 'submissions' || saved === 'editor' || saved === 'x') {
+    if (saved === 'description' || saved === 'submissions' || saved === 'editor' || saved === 'x' || saved === 'coach') {
       return saved;
     }
     return 'description';
   });
-  const setMobileTab = useCallback((tab: 'description' | 'submissions' | 'editor' | 'x') => {
+  const setMobileTab = useCallback((tab: 'description' | 'submissions' | 'editor' | 'x' | 'coach') => {
     setMobileTabState(tab);
     localStorage.setItem('bugx_mobile_tab', tab);
   }, []);
@@ -1033,6 +1037,24 @@ const [isRunning, setIsRunning] = useState(false);
           Submissions
           {activeTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
         </button>
+
+        {/* Spacer — pushes Ask AI to the right */}
+        <div className="flex-1" />
+
+        {/* Ask AI (Coach) button */}
+        <button
+          onClick={toggleCoach}
+          className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border",
+            isCoachOpen
+              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+              : "bg-white/[0.04] text-gray-400 border-white/[0.08] hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/25"
+          )}
+          title="Open AI Coach"
+        >
+          <Sparkles className="w-3 h-3" />
+          Ask AI
+        </button>
       </div>
 
       {/* Content Panel */}
@@ -1163,6 +1185,27 @@ const [isRunning, setIsRunning] = useState(false);
           </div>
         );
       })()}
+    </div>
+  );
+
+  // AI Coach panel (used in layout branches below)
+  const renderCoachPanel = () => (
+    <div
+      className="h-full overflow-hidden rounded-xl bg-[#1a1a1d]"
+      style={{ border: 'none' }}
+    >
+      <AiCoachPanel
+        code={code}
+        language={language}
+        problemTitle={problem.title}
+        problemStatement={problem.description || ''}
+        constraints={problem.constraints || ''}
+        compilerError={activeSubmission?.status === 'COMPILE_ERROR' ? activeSubmission.error_message || '' : ''}
+        runtimeError={activeSubmission?.status === 'RUNTIME_ERROR' ? activeSubmission.error_message || '' : ''}
+        sampleInput={problem.sample_test_cases?.[0]?.input || ''}
+        problemSlug={problem.slug}
+        onClose={closeCoach}
+      />
     </div>
   );
 
@@ -1315,14 +1358,32 @@ const [isRunning, setIsRunning] = useState(false);
           </div>
         ) : isLargeScreen ? (
           isDescOpen ? (
-            !isXOpen ? (
+            // Description pane is visible
+            !isXOpen && !isCoachOpen ? (
+              // Plain 2-pane: description | editor
               <SplitPane
                 id="description-editor-split"
                 left={renderDescriptionPane()}
                 right={renderEditorWorkspace()}
                 initialLeftWidthPercent={42}
               />
-            ) : (
+            ) : !isXOpen && isCoachOpen ? (
+              // 3-pane: (description | editor) | coach
+              <SplitPane
+                id="coach-panel-split"
+                left={
+                  <SplitPane
+                    id="description-editor-split"
+                    left={renderDescriptionPane()}
+                    right={renderEditorWorkspace()}
+                    initialLeftWidthPercent={42}
+                  />
+                }
+                right={renderCoachPanel()}
+                initialLeftWidthPercent={72}
+              />
+            ) : isXOpen && !isCoachOpen ? (
+              // 3-pane: (description | editor) | X
               <SplitPane
                 id="x-panel-split"
                 left={
@@ -1354,13 +1415,36 @@ const [isRunning, setIsRunning] = useState(false);
                 }
                 initialLeftWidthPercent={75}
               />
+            ) : (
+              // Both open: (description | editor) | coach (coach wins)
+              <SplitPane
+                id="coach-panel-split"
+                left={
+                  <SplitPane
+                    id="description-editor-split"
+                    left={renderDescriptionPane()}
+                    right={renderEditorWorkspace()}
+                    initialLeftWidthPercent={42}
+                  />
+                }
+                right={renderCoachPanel()}
+                initialLeftWidthPercent={72}
+              />
             )
           ) : (
-            !isXOpen ? (
+            // No description pane
+            !isXOpen && !isCoachOpen ? (
               <div className="flex-1 h-full min-w-0">
                 {renderEditorWorkspace()}
               </div>
-            ) : (
+            ) : !isXOpen && isCoachOpen ? (
+              <SplitPane
+                id="coach-panel-split"
+                left={renderEditorWorkspace()}
+                right={renderCoachPanel()}
+                initialLeftWidthPercent={70}
+              />
+            ) : isXOpen && !isCoachOpen ? (
               <SplitPane
                 id="x-panel-split"
                 left={renderEditorWorkspace()}
@@ -1383,6 +1467,14 @@ const [isRunning, setIsRunning] = useState(false);
                     />
                   </div>
                 }
+                initialLeftWidthPercent={70}
+              />
+            ) : (
+              // Both open: editor | coach (coach wins)
+              <SplitPane
+                id="coach-panel-split"
+                left={renderEditorWorkspace()}
+                right={renderCoachPanel()}
                 initialLeftWidthPercent={70}
               />
             )
@@ -1431,6 +1523,17 @@ const [isRunning, setIsRunning] = useState(false);
                 X AI
                 {mobileTab === 'x' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-violet-500 rounded-full" />}
               </button>
+              <button
+                onClick={() => setMobileTab('coach')}
+                className={cn(
+                  "flex-1 py-2 text-[13px] font-medium transition-all relative cursor-pointer text-center flex items-center justify-center gap-1",
+                  mobileTab === 'coach' ? "text-emerald-400 font-bold" : "text-[#eff1f6bf]"
+                )}
+              >
+                <Sparkles className="w-3 h-3" />
+                Coach
+                {mobileTab === 'coach' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-500 rounded-full" />}
+              </button>
             </div>
 
             <div className={cn("flex-1 bg-[#1e1e1e] min-h-0", mobileTab !== 'editor' ? "overflow-y-auto" : "overflow-hidden")} style={{ border: 'none', borderRadius: '0 0 18px 18px' }}>
@@ -1451,6 +1554,21 @@ const [isRunning, setIsRunning] = useState(false);
                     sampleInput={problem.sample_test_cases?.[0]?.input || ''}
                     problemSlug={problem.slug}
                     onClose={() => setMobileTab('editor')}
+                  />
+                </div>
+              ) : mobileTab === 'coach' ? (
+                <div className="h-full bg-[#1a1a1d]">
+                  <AiCoachPanel
+                    code={code}
+                    language={language}
+                    problemTitle={problem.title}
+                    problemStatement={problem.description || ''}
+                    constraints={problem.constraints || ''}
+                    compilerError={activeSubmission?.status === 'COMPILE_ERROR' ? activeSubmission.error_message || '' : ''}
+                    runtimeError={activeSubmission?.status === 'RUNTIME_ERROR' ? activeSubmission.error_message || '' : ''}
+                    sampleInput={problem.sample_test_cases?.[0]?.input || ''}
+                    problemSlug={problem.slug}
+                    onClose={() => setMobileTab('description')}
                   />
                 </div>
               ) : (
@@ -1520,7 +1638,9 @@ const [isRunning, setIsRunning] = useState(false);
 export const ProblemDetailPage: React.FC = () => {
   return (
     <XProvider>
-      <ProblemDetailInner />
+      <AiCoachProvider>
+        <ProblemDetailInner />
+      </AiCoachProvider>
     </XProvider>
   );
 };
