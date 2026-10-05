@@ -1037,17 +1037,16 @@ const [isRunning, setIsRunning] = useState(false);
         {/* Ask AI — always visible, pinned to right, never clipped */}
         <div className="shrink-0 pr-1.5 pl-1">
           <button
-            onClick={toggleCoach}
+            onClick={toggleX}
             className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer border whitespace-nowrap",
-              isCoachOpen
-                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                : "bg-white/[0.04] text-gray-500 border-white/[0.07] hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/25"
+              "w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer",
+              isXOpen
+                ? "text-amber-400"
+                : "text-gray-600 hover:text-amber-400"
             )}
-            title="AI Coach"
+            title="Open AI Chatbot"
           >
-            <Sparkles className="w-3 h-3 shrink-0" />
-            <span>Ask AI</span>
+            <BugXLogo className="w-4 h-4" />
           </button>
         </div>
       </div>
