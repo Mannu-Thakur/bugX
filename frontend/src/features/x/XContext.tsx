@@ -432,13 +432,17 @@ export const XProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     });
   }, []);
 
-  // Returns the effective key to use: user-provided key takes priority over platform key
+  // Returns the effective key to use: user-provided key takes priority over platform key.
+  // For platform-free providers, the backend proxy injects the real key — we return a
+  // sentinel so the frontend doesn't block the request with a "no key" error.
   const getEffectiveKey = useCallback((provider: ProviderId): string | null => {
     const p = PROVIDERS.find(pr => pr.id === provider);
     if (!p) return null;
     const userKey = apiKeys[provider];
     if (userKey && userKey.length > 0) return userKey;
     if (p.platformApiKey && !p.platformApiKey.startsWith('YOUR_')) return p.platformApiKey;
+    // Platform-free providers: the backend proxy has the key — return sentinel so call proceeds
+    if (p.models.some(m => m.isPlatformFree)) return 'platform';
     return null;
   }, [apiKeys]);
 

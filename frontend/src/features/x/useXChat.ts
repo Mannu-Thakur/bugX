@@ -507,10 +507,11 @@ export function useXChat() {
       };
 
       try {
-        if (!apiKey) {
+        const isPlatformFreeModel = model.isPlatformFree;
+        if (!apiKey && !isPlatformFreeModel) {
           throw new Error(`No API key available for ${provider.name}. Add your key in X Settings.`);
         }
-        await tryStream(provider, model, apiKey);
+        await tryStream(provider, model, apiKey || '');
       } catch (err) {
         if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
           updateMessage(assistantId, { isStreaming: false });
