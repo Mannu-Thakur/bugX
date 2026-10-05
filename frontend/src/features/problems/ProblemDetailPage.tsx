@@ -992,69 +992,64 @@ const [isRunning, setIsRunning] = useState(false);
 
   const renderDescriptionPane = () => (
     <div className="flex flex-col h-full overflow-hidden bg-[#1e1e1e]">
-      {/* Tab navigation pills at the top of description pane */}
-      <div className="flex items-center bg-[#252526] select-none h-[38px] px-1" style={{ borderBottom: 'none' }}>
-        <button
-          onClick={() => setActiveTab('description')}
-          className={cn(
-            "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
-            activeTab === 'description'
-              ? "text-white"
-              : "text-[#eff1f6bf] hover:text-white"
-          )}
-        >
-          <Layout className="w-3.5 h-3.5" />
-          Description
-          {activeTab === 'description' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
-        </button>
-        <button
-          onClick={() => { setComingSoonFeature('Editorial'); setShowComingSoon(true); }}
-          className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          Editorial
-        </button>
-        <button
-          onClick={() => { setComingSoonFeature('Solutions'); setShowComingSoon(true); }}
-          className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
-        >
-          <Lightbulb className="w-3.5 h-3.5" />
-          Solutions
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('submissions');
-            if (user) refetchSubmissions();
-          }}
-          className={cn(
-            "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5",
-            activeTab === 'submissions'
-              ? "text-white"
-              : "text-[#eff1f6bf] hover:text-white"
-          )}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          Submissions
-          {activeTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
-        </button>
+      {/* Tab navigation — scrollable tabs + fixed Ask AI */}
+      <div className="flex items-center bg-[#252526] select-none h-[38px]" style={{ borderBottom: 'none' }}>
+        {/* Scrollable tabs — shrink and scroll before Ask AI disappears */}
+        <div className="flex items-center flex-1 min-w-0 overflow-x-auto x-scroll-hide px-1">
+          <button
+            onClick={() => setActiveTab('description')}
+            className={cn(
+              "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5 shrink-0",
+              activeTab === 'description' ? "text-white" : "text-[#eff1f6bf] hover:text-white"
+            )}
+          >
+            <Layout className="w-3.5 h-3.5" />
+            Description
+            {activeTab === 'description' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
+          </button>
+          <button
+            onClick={() => { setComingSoonFeature('Editorial'); setShowComingSoon(true); }}
+            className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Editorial
+          </button>
+          <button
+            onClick={() => { setComingSoonFeature('Solutions'); setShowComingSoon(true); }}
+            className="px-4 py-2 text-[13px] font-medium text-[#eff1f6bf] hover:text-white transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            <Lightbulb className="w-3.5 h-3.5" />
+            Solutions
+          </button>
+          <button
+            onClick={() => { setActiveTab('submissions'); if (user) refetchSubmissions(); }}
+            className={cn(
+              "px-4 py-2 text-[13px] font-medium transition-all relative cursor-pointer flex items-center gap-1.5 shrink-0",
+              activeTab === 'submissions' ? "text-white" : "text-[#eff1f6bf] hover:text-white"
+            )}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Submissions
+            {activeTab === 'submissions' && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />}
+          </button>
+        </div>
 
-        {/* Spacer — pushes Ask AI to the right */}
-        <div className="flex-1" />
-
-        {/* Ask AI (Coach) button */}
-        <button
-          onClick={toggleCoach}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border",
-            isCoachOpen
-              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-              : "bg-white/[0.04] text-gray-400 border-white/[0.08] hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/25"
-          )}
-          title="Open AI Coach"
-        >
-          <Sparkles className="w-3 h-3" />
-          Ask AI
-        </button>
+        {/* Ask AI — always visible, pinned to right, never clipped */}
+        <div className="shrink-0 pr-1.5 pl-1">
+          <button
+            onClick={toggleCoach}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer border whitespace-nowrap",
+              isCoachOpen
+                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                : "bg-white/[0.04] text-gray-500 border-white/[0.07] hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/25"
+            )}
+            title="AI Coach"
+          >
+            <Sparkles className="w-3 h-3 shrink-0" />
+            <span>Ask AI</span>
+          </button>
+        </div>
       </div>
 
       {/* Content Panel */}
