@@ -24,7 +24,7 @@ import { AiCoachPanel } from '../coach/AiCoachPanel';
 // Inner component that consumes XContext
 const ProblemDetailInner: React.FC = () => {
   const { isOpen: isXOpen, togglePanel: toggleX, closePanel: closeX } = useX();
-  const { isCoachOpen, closeCoach, toggleCoach } = useAiCoach();
+  const { isCoachOpen, closeCoach } = useAiCoach();
   const { slug } = useParams<{ slug: string }>();
 
   // Ensure AI panel is closed by default when opening any problem (showing Question & Code panels)
