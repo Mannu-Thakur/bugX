@@ -1039,14 +1039,14 @@ const [isRunning, setIsRunning] = useState(false);
           <button
             onClick={toggleX}
             className={cn(
-              "w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer",
+              "w-8 h-8 flex items-center justify-center rounded-full transition-all cursor-pointer overflow-hidden",
               isXOpen
-                ? "text-amber-400"
-                : "text-gray-600 hover:text-amber-400"
+                ? "ring-2 ring-amber-500/60 ring-offset-1 ring-offset-[#252526]"
+                : "opacity-70 hover:opacity-100"
             )}
             title="Open AI Chatbot"
           >
-            <BugXLogo className="w-4 h-4" />
+            <img src="/logo_icon.svg" alt="AI" className="w-full h-full" />
           </button>
         </div>
       </div>
