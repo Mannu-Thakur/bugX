@@ -102,29 +102,33 @@ class AuthService:
                     detail="Password reset is temporarily unavailable. Please try again shortly.",
                 )
 
-            # Send real email if SMTP is configured
+            # Send real email if SMTP is configured.
             email_sent = False
             if settings.smtp_configured:
                 from app.services.email_service import send_otp_email
                 email_sent = await send_otp_email(to=req.email, otp=otp)
                 if not email_sent:
-                    logger.error(
-                        "[ForgotPassword] SMTP configured but email failed to send to %s. "
-                        "OTP is in the server logs for manual recovery.",
-                        req.email,
-                    )
+                    logger.error("[ForgotPassword] SMTP delivery failed.")
+            elif not settings.is_development:
+                logger.error("[ForgotPassword] SMTP is not configured.")
 
-            # Always log OTP server-side (useful in all environments for ops / debugging)
-            logger.info(
-                "[ForgotPassword] OTP for %s (username=%s): %s  [email_sent=%s]",
-                req.email, req.username, otp, email_sent,
-            )
+            if not email_sent and not settings.is_development:
+                from redis.asyncio import Redis
+                redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+                try:
+                    await redis.delete(otp_key)
+                finally:
+                    await redis.aclose()
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Password reset email is unavailable. Please try again later.",
+                )
 
             response: dict = {
                 "message": (
                     "A verification code has been sent to your email."
                     if email_sent
-                    else "Verification code generated. Check server logs."
+                    else "Verification code generated. Check the development response."
                 ),
                 "code_required": True,
                 "email_sent": email_sent,
@@ -133,11 +137,11 @@ class AuthService:
             # In development without SMTP, surface the OTP in the response so the
             # API remains testable without needing a real mailbox.
             # NEVER exposed in production.
-            if settings.is_development and not settings.smtp_configured:
+            if settings.is_development and not email_sent:
                 response["dev_code"] = otp
                 response["dev_note"] = (
-                    "OTP returned only because ENV=development and SMTP is not configured. "
-                    "Configure SMTP_HOST/USER/PASSWORD in .env to enable real email."
+                    "OTP returned only because ENV=development and email delivery did not succeed. "
+                    "This response field is never exposed in production."
                 )
 
             return response
@@ -167,7 +171,7 @@ class AuthService:
 
         user.password_hash = hash_password(req.new_password)
         await self.db.commit()
-        logger.info("[ForgotPassword] Password reset successfully for %s", req.email)
+        logger.info("[ForgotPassword] Password reset completed successfully.")
         return {"message": "Password has been reset successfully."}
 
 
@@ -193,7 +197,7 @@ async def _store_otp(key: str, otp: str, settings) -> bool:
         finally:
             await redis.aclose()
     except (RedisError, Exception) as exc:
-        logger.error("[ForgotPassword] Redis unavailable, cannot store OTP: %s", exc)
+        logger.error("[ForgotPassword] Redis unavailable, cannot store OTP (%s)", type(exc).__name__)
         return False
 
 
@@ -218,5 +222,5 @@ async def _retrieve_and_delete_otp(key: str, settings) -> str | None:
         finally:
             await redis.aclose()
     except (RedisError, Exception) as exc:
-        logger.error("[ForgotPassword] Redis unavailable, cannot retrieve OTP: %s", exc)
+        logger.error("[ForgotPassword] Redis unavailable, cannot retrieve OTP (%s)", type(exc).__name__)
         return None

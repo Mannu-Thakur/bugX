@@ -25,7 +25,6 @@ export const useBattleRoom = (roomId: string | undefined) => {
   const startCountdownRef = useRef<(secs: number) => void>(() => {});
 
   const onTimerExpire = useCallback(() => {
-    setRoom(prev => prev ? { ...prev, status: 'finished' } : null);
     sendRef.current?.({ type: 'timer_expired' });
   }, []);
 
@@ -40,6 +39,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
       is_active: p.is_active ?? false,
       score: p.score ?? 0,
       solved: p.solved ?? false,
+      forfeited: p.forfeited ?? false,
       solved_at: p.solved_at ?? null,
       attempts: p.attempts ?? 0,
       code: p.code ?? '',
@@ -207,6 +207,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
             is_active: true,
             score: 0,
             solved: false,
+            forfeited: false,
             solved_at: null,
             attempts: 0,
             code: '',
@@ -241,6 +242,7 @@ export const useBattleRoom = (roomId: string | undefined) => {
                   ...p,
                   score: msg.score !== undefined ? msg.score : p.score,
                   solved: msg.solved !== undefined ? msg.solved : p.solved,
+                  forfeited: msg.forfeited !== undefined ? msg.forfeited : p.forfeited,
                   attempts: msg.attempts !== undefined ? msg.attempts : p.attempts,
                   code: updatedCode,
                   lang: updatedLang,
@@ -276,12 +278,13 @@ export const useBattleRoom = (roomId: string | undefined) => {
             ...prev,
             status: 'finished',
             players: prev.players.map(p => {
-              const matched = msg.players?.find((x: { player_index: number; score: number; solved: boolean; attempts: number; solved_at: string | null }) => x.player_index === p.player_index);
+              const matched = msg.players?.find((x: { player_index: number; score: number; solved: boolean; forfeited?: boolean; attempts: number; solved_at: string | null }) => x.player_index === p.player_index);
               if (matched) {
                 return {
                   ...p,
                   score: matched.score,
                   solved: matched.solved,
+                  forfeited: matched.forfeited ?? false,
                   attempts: matched.attempts,
                   solved_at: matched.solved_at,
                 };
@@ -406,42 +409,14 @@ export const useBattleRoom = (roomId: string | undefined) => {
     });
   }, [myPlayerIndex, send]);
 
-  // Concede problem
+  // Concede the match through an explicit server-side action.
   const concedeProblem = useCallback(() => {
     if (myPlayerIndex === null) return;
-
-    setRoom(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        players: prev.players.map(p => {
-          if (p.player_index === myPlayerIndex) {
-            const prog = p.progress ? { ...p.progress } : {};
-            prog[activeProblemIndex] = {
-              ...(prog[activeProblemIndex] || { code: p.code, lang: p.lang, attempts: p.attempts, solved_at: null }),
-              solved: true,
-              score: 0
-            };
-            return {
-              ...p,
-              progress: prog,
-              score: Object.values(prog).reduce((acc, curr) => acc + (curr.score || 0), 0)
-            };
-          }
-          return p;
-        }),
-      };
-    });
-
     send({
-      type: 'update',
+      type: 'concede',
       player_index: myPlayerIndex,
-      solved: true,
-      score: 0,
-      problem_index: activeProblemIndex,
-      active_problem_index: activeProblemIndex,
     });
-  }, [myPlayerIndex, send, activeProblemIndex]);
+  }, [myPlayerIndex, send]);
 
   // Cleanup intervals on unmount
   useEffect(() => {

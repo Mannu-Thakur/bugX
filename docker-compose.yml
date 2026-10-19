@@ -30,8 +30,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -74,10 +77,12 @@ services:
       POSTGRES_HOST: judge0-db
       REDIS_PASSWORD: judge0_redis_password
       REDIS_HOST: judge0-redis
-      JUDGE0_ALLOW_ENABLE_NETWORK: "true"
-      JUDGE0_ENABLE_WAIT_RESULT: "true"
+      ALLOW_ENABLE_NETWORK: "false"
+      ENABLE_NETWORK: "false"
+      ENABLE_WAIT_RESULT: "true"
       ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
-      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
+      ALLOW_ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
       JAVA_TOOL_OPTIONS: "-Xmx128m"
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
@@ -100,7 +105,10 @@ services:
       REDIS_PASSWORD: judge0_redis_password
       REDIS_HOST: judge0-redis
       ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT: "true"
-      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
+      ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "true"
+      ALLOW_ENABLE_NETWORK: "false"
+      ENABLE_NETWORK: "false"
+      ALLOW_ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT: "false"
       JAVA_TOOL_OPTIONS: "-Xmx128m"
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
@@ -236,3 +244,4 @@ services:
 volumes:
   judge0-data:
   postgres-data:
+  redis-data:

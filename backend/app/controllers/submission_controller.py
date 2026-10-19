@@ -1,8 +1,6 @@
 import json
-import logging
 from uuid import UUID
 
-logger = logging.getLogger(__name__)
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +11,9 @@ from app.models.user import User
 from app.repositories.submission_repo import SubmissionRepo
 from app.schemas.submission import SubmissionCreate
 from app.services.rate_limit_service import RateLimitService
-from app.services.scoring_service import ScoringService
 from app.core.config import get_settings
 from redis.asyncio import Redis
+from app.models.submission import SubmissionStatus
 
 class SubmissionController:
     @staticmethod
@@ -34,7 +32,14 @@ class SubmissionController:
         if not is_allowed:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
 
-        if len(payload.source_code.encode('utf-8')) > settings.MAX_SOURCE_BYTES:
+        try:
+            source_size = len(payload.source_code.encode('utf-8'))
+        except UnicodeEncodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Source code contains invalid Unicode characters",
+            ) from exc
+        if source_size > settings.MAX_SOURCE_BYTES:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Source code too large")
 
         # Spectator / participant check if battle_id is present
@@ -50,10 +55,34 @@ class SubmissionController:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Battle not found"
                 )
-            if battle.status == "finished":
+            if battle.status != "active":
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Battle is already finished"
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Battle is not active"
+                )
+            if battle.start_time:
+                from datetime import datetime, timezone
+                started = battle.start_time
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - started).total_seconds() >= battle.time_limit * 60:
+                    from app.services.scoring_service import ScoringService
+                    await ScoringService.finish_battle(session, battle.id)
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Battle time has expired"
+                    )
+            if battle.problem_ids:
+                try:
+                    battle_problem_ids = {str(value) for value in json.loads(battle.problem_ids)}
+                except (TypeError, ValueError):
+                    battle_problem_ids = {str(battle.problem_id)} if battle.problem_id else set()
+            else:
+                battle_problem_ids = {str(battle.problem_id)} if battle.problem_id else set()
+            if str(payload.problem_id) not in battle_problem_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Problem is not part of this battle",
                 )
 
             player_stmt = select(BattlePlayer).where(
@@ -65,6 +94,11 @@ class SubmissionController:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Forbidden: You are not a registered participant in this battle"
+                )
+            if player.forfeited:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="You forfeited this battle and cannot submit more solutions",
                 )
             is_battle_submission = True
 
@@ -117,44 +151,16 @@ class SubmissionController:
         try:
             await redis_client.lpush("submission_queue", queue_payload)
         except Exception as queue_err:
-            # Redis is offline — run judging as a background asyncio task so
-            # the endpoint returns 202 immediately and the frontend can poll.
-            logger.warning(f"[Redis Fallback] Redis lpush failed: {queue_err}. Spawning background judge task.")
-
-            sub_id = submission.id  # capture before session closes
-
-            async def _run_offline(submission_id):
-                """Background task: open own DB session, judge, then score."""
-                from app.core.database import AsyncSessionLocal
-                from app.services.judge0_client import Judge0Client
-                from app.services.judge_service import JudgeService
-                from app.models.submission import SubmissionStatus
-
-                async with AsyncSessionLocal() as bg_session:
-                    try:
-                        # Mark RUNNING
-                        sub_row = await SubmissionRepo.get_by_id(bg_session, submission_id)
-                        if sub_row:
-                            sub_row.status = SubmissionStatus.RUNNING
-                            await bg_session.flush()
-
-                        judge_client = Judge0Client(settings.JUDGE0_URL)
-                        judge_service = JudgeService(judge_client)
-                        await judge_service.run(bg_session, submission_id)
-                        await bg_session.commit()
-
-                        # Score
-                        fresh_sub = await SubmissionRepo.get_by_id(bg_session, submission_id)
-                        if fresh_sub:
-                            scoring_service = ScoringService(redis=None)
-                            await scoring_service.on_submission_complete(bg_session, fresh_sub)
-                            await bg_session.commit()
-                    except Exception as err:
-                        logger.warning(f"[Redis Fallback] Background judge/score failed: {err}")
-                        await bg_session.rollback()
-
-            import asyncio as _asyncio
-            _asyncio.create_task(_run_offline(sub_id))
+            # The row is durable in Postgres, but there is no reliable worker
+            # path while Redis is unavailable. Mark it terminal instead of
+            # returning a job that may remain PENDING forever.
+            submission.status = SubmissionStatus.RUNTIME_ERROR
+            submission.error_message = "Submission queue unavailable. Please retry shortly."
+            await session.commit()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Submission queue is temporarily unavailable. Please retry shortly.",
+            ) from queue_err
 
         return {"id": submission.id, "status": submission.status}
 
@@ -186,7 +192,7 @@ class SubmissionController:
         tcs = (await session.execute(stmt)).scalars().all()
         tc_map = {tc.id: tc for tc in tcs}
 
-        # Find the first failing hidden case so we can reveal its details
+        # Identify a hidden failure for the UI without disclosing its data.
         first_failing_hidden_id = None
         for r in results:
             if not r.passed:
@@ -199,8 +205,7 @@ class SubmissionController:
         for r in results:
             tc = tc_map.get(r.test_case_id)
             is_sample = tc.is_sample if tc else False
-            # Reveal details for samples AND the first failing hidden case
-            reveal = is_sample or (r.test_case_id == first_failing_hidden_id)
+            reveal = is_sample
             out.append({
                 "id": r.id,
                 "test_case_id": r.test_case_id,

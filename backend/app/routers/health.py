@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -12,21 +13,22 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health(request: Request) -> dict[str, str]:
+async def health(request: Request) -> JSONResponse:
     db_status = await _check_database()
     redis_status = await _check_redis(request)
     judge0_status = await _check_judge0()
 
-    # "Backend Core" means the API can serve data. Redis/Judge0 are still
-    # reported separately because they affect submissions, not catalog access.
-    overall = "ok" if db_status == "ok" else "degraded"
+    settings = get_settings()
+    dependencies_ok = db_status == "ok" and redis_status == "ok"
+    if not settings.is_development:
+        dependencies_ok = dependencies_ok and judge0_status == "ok"
 
-    return {
-        "status": overall,
+    return JSONResponse(status_code=200 if dependencies_ok else 503, content={
+        "status": "ok" if dependencies_ok else "degraded",
         "db": db_status,
         "redis": redis_status,
         "judge0": judge0_status,
-    }
+    })
 
 
 async def _check_database() -> str:

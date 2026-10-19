@@ -33,7 +33,6 @@ export const BattleRoomPage: React.FC = () => {
     updateLanguage,
     changeActiveProblemIndex,
     concedeProblem,
-    setRoom,
   } = useBattleRoom(battleId);
 
   // UI Panels state
@@ -382,31 +381,6 @@ export const BattleRoomPage: React.FC = () => {
             attempts={activeProblemProgress.attempts}
             myPlayerIndex={myPlayerIndex || 0}
             battleId={room.id}
-            onSolve={(score) => {
-              // Submit solution updates score
-              setRoom(prev => {
-                if (!prev) return null;
-                return {
-                  ...prev,
-                  players: prev.players.map(p => {
-                    if (p.player_index === myPlayerIndex) {
-                      const prog = p.progress ? { ...p.progress } : {};
-                      prog[activeProblemIndex] = {
-                        ...(prog[activeProblemIndex] || { code: p.code, lang: p.lang, attempts: p.attempts, solved_at: null }),
-                        solved: true,
-                        score: score
-                      };
-                      return {
-                        ...p,
-                        progress: prog,
-                        score: Object.values(prog).reduce((acc, curr) => acc + (curr.score || 0), 0)
-                      };
-                    }
-                    return p;
-                  })
-                };
-              });
-            }}
             soundEnabled={soundEnabled}
             isFinished={room.status === 'finished'}
           />

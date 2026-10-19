@@ -2,12 +2,15 @@ from dataclasses import dataclass
 from email.parser import BytesParser
 from email.policy import default
 from pathlib import Path
+import logging
 import re
 import unicodedata
 
 from fastapi import HTTPException, Request, status
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,7 +25,17 @@ def storage_root() -> Path:
     root = Path(settings.STORAGE_DIR)
     if not root.is_absolute():
         root = Path(__file__).resolve().parents[2] / root
+    root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
+
+    if not settings.is_development:
+        mount_points = [candidate for candidate in (root, *root.parents) if candidate.is_mount()]
+        if not mount_points or mount_points[0] == Path(root.anchor):
+            logger.warning(
+                "STORAGE_DIR=%s is on an ephemeral filesystem; uploaded files may be lost on restart. "
+                "Attach persistent storage at this path or configure external object storage.",
+                root,
+            )
     return root
 
 
@@ -57,12 +70,20 @@ async def read_multipart_file(
             detail=f"File is too large. Maximum size is {max_bytes // (1024 * 1024)} MB.",
         )
 
-    body = await request.body()
-    if len(body) > max_bytes + 8192:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File is too large. Maximum size is {max_bytes // (1024 * 1024)} MB.",
-        )
+    # Stream into a bounded buffer so a missing or dishonest Content-Length
+    # cannot force an unbounded request.body() allocation.
+    body_parts: list[bytes] = []
+    body_size = 0
+    max_body_bytes = max_bytes + 65536
+    async for chunk in request.stream():
+        body_size += len(chunk)
+        if body_size > max_body_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File is too large. Maximum size is {max_bytes // (1024 * 1024)} MB.",
+            )
+        body_parts.append(chunk)
+    body = b"".join(body_parts)
 
     message = BytesParser(policy=default).parsebytes(
         f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body

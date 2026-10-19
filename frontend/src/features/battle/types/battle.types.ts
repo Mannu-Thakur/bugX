@@ -42,6 +42,7 @@ export interface BattlePlayerState {
   is_active: boolean;
   score: number;
   solved: boolean;
+  forfeited?: boolean;
   solved_at: string | null;
   attempts: number;
   code: string;
@@ -53,6 +54,7 @@ export interface BattlePlayerState {
     code: string;
     lang: 'python' | 'javascript' | 'cpp' | 'java';
     solved: boolean;
+    forfeited?: boolean;
     solved_at: string | null;
     attempts: number;
     score: number;

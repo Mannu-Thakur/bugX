@@ -44,9 +44,7 @@ async def send_email(
     if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         # SMTP is not configured — log and return False so callers can fallback gracefully
         logger.warning(
-            "[Email] SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in .env. "
-            "Email to %s was NOT sent (subject: %s).",
-            to, subject,
+            "[Email] SMTP is not configured; email delivery is unavailable."
         )
         return False
 
@@ -81,7 +79,7 @@ async def send_email(
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, _send_blocking)
-        logger.info("[Email] Sent '%s' → %s", subject, to)
+        logger.info("[Email] Message sent successfully.")
         return True
     except smtplib.SMTPAuthenticationError:
         logger.error(
@@ -89,10 +87,10 @@ async def send_email(
         )
         return False
     except smtplib.SMTPException as exc:
-        logger.error("[Email] SMTP error sending to %s: %s", to, exc)
+        logger.error("[Email] SMTP delivery failed (%s).", type(exc).__name__)
         return False
     except Exception as exc:
-        logger.error("[Email] Unexpected error sending to %s: %s", to, exc)
+        logger.error("[Email] Unexpected delivery error (%s).", type(exc).__name__)
         return False
 
 

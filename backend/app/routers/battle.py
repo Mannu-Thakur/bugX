@@ -2,6 +2,7 @@ import uuid
 import json
 import asyncio
 import logging
+import secrets
 from typing import Any, Optional, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,6 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.core.deps import get_current_active_user
-from app.core.security import decode_token
 from app.models.battle import Battle
 from app.models.battle_player import BattlePlayer
 from app.models.problem import Problem
@@ -69,6 +69,22 @@ def _ensure_aware(dt: datetime) -> datetime:
   return dt
 
 
+async def _finish_battle_if_expired(battle_id: uuid.UUID) -> bool:
+  """Finish a match only after its server-side deadline has elapsed."""
+  async with AsyncSessionLocal() as db:
+    battle = (await db.execute(select(Battle).where(Battle.id == battle_id))).scalar_one_or_none()
+    if (
+        not battle
+        or battle.status != "active"
+        or not battle.start_time
+        or (datetime.now(timezone.utc) - _ensure_aware(battle.start_time)).total_seconds() < battle.time_limit * 60
+    ):
+      return False
+    from app.services.scoring_service import ScoringService
+    await ScoringService.finish_battle(db, battle.id)
+    return True
+
+
 def _player_dict(p: BattlePlayer, now: datetime) -> dict:
   is_active = p.is_active or (p.last_active is not None and (now - _ensure_aware(p.last_active)).total_seconds() < 12)
   progress_dict = {}
@@ -94,6 +110,7 @@ def _player_dict(p: BattlePlayer, now: datetime) -> dict:
       "is_active": is_active,
       "score": p.score,
       "solved": p.solved,
+      "forfeited": p.forfeited,
       "solved_at": p.solved_at.isoformat() if p.solved_at else None,
       "attempts": p.attempts,
       "code": p.code,
@@ -244,10 +261,7 @@ class BattleJoinRequest(BaseModel):
 
 class BattleUpdateRequest(BaseModel):
   player_index: int
-  score: Optional[int] = None
-  solved: Optional[bool] = None
-  attempts: Optional[int] = None
-  code: Optional[str] = None
+  code: Optional[str] = Field(None, max_length=65536)
   lang: Optional[str] = None
   problem_index: Optional[int] = None
   active_problem_index: Optional[int] = None
@@ -609,6 +623,38 @@ async def update_battle(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
+  battle_stmt = select(Battle).where(Battle.id == battle_id)
+  battle = (await db.execute(battle_stmt)).scalar_one_or_none()
+  if not battle:
+    raise HTTPException(status_code=404, detail="Battle not found")
+  now = datetime.now(timezone.utc)
+  if battle.status != "active":
+    raise HTTPException(status_code=409, detail="Battle is not active")
+  if battle.start_time and (now - _ensure_aware(battle.start_time)).total_seconds() >= battle.time_limit * 60:
+    from app.services.scoring_service import ScoringService
+    await ScoringService.finish_battle(db, battle.id)
+    raise HTTPException(status_code=409, detail="Battle time has expired")
+
+  problem_count = 1
+  if battle.problem_ids:
+    try:
+      problem_count = len(json.loads(battle.problem_ids))
+    except (TypeError, ValueError):
+      pass
+  if req.problem_index is not None and not 0 <= req.problem_index < problem_count:
+    raise HTTPException(status_code=422, detail="Invalid problem index")
+  if req.active_problem_index is not None and not 0 <= req.active_problem_index < problem_count:
+    raise HTTPException(status_code=422, detail="Invalid active problem index")
+  if req.lang is not None and req.lang.lower() not in {"python", "javascript", "cpp", "java"}:
+    raise HTTPException(status_code=422, detail="Unsupported language")
+  if req.code is not None:
+    try:
+      code_size = len(req.code.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+      raise HTTPException(status_code=422, detail="Code contains invalid Unicode characters") from exc
+    if code_size > 65536:
+      raise HTTPException(status_code=422, detail="Code is too large")
+
   stmt = select(BattlePlayer).where(
       BattlePlayer.battle_id == battle_id,
       BattlePlayer.player_index == req.player_index,
@@ -619,8 +665,9 @@ async def update_battle(
     raise HTTPException(status_code=404, detail="Player not found in this battle")
   if player.username != current_user.username:
     raise HTTPException(status_code=403, detail="Cannot update another player's state")
+  if player.forfeited:
+    raise HTTPException(status_code=409, detail="You forfeited this battle")
 
-  now = datetime.now(timezone.utc)
   player.last_active = now
   player.is_active = True
 
@@ -658,69 +705,26 @@ async def update_battle(
       "score": 0
     }
 
-  if req.attempts is not None:
-    progress_dict[p_idx]["attempts"] = req.attempts
   if req.code is not None:
     progress_dict[p_idx]["code"] = req.code
   if req.lang is not None:
-    progress_dict[p_idx]["lang"] = req.lang
-  if req.solved is not None:
-    progress_dict[p_idx]["solved"] = req.solved
-    if req.solved:
-      progress_dict[p_idx]["solved_at"] = now.isoformat()
-  if req.score is not None:
-    progress_dict[p_idx]["score"] = req.score
+    progress_dict[p_idx]["lang"] = req.lang.lower()
 
   # Keep old base attributes synced to problem 0 for compatibility
   if p_idx == "0":
-    if req.attempts is not None: player.attempts = req.attempts
     if req.code is not None: player.code = req.code
-    if req.lang is not None: player.lang = req.lang
+    if req.lang is not None: player.lang = req.lang.lower()
 
   player.progress = json.dumps(progress_dict)
 
-  # Check all-solved finish condition
-  battle_stmt = (
-      select(Battle)
-      .where(Battle.id == battle_id)
-      .options(selectinload(Battle.players))
-  )
-  battle_result = await db.execute(battle_stmt)
-  battle = battle_result.scalars().first()
-  if battle:
-    # Update total score & solved on player base object
-    player.score = sum(int(item.get("score", 0)) for item in progress_dict.values())
-
-    # Check if all problems are solved by player
-    pids_len = 1
-    if battle.problem_ids:
-      try:
-        pids_len = len(json.loads(battle.problem_ids))
-      except Exception:
-        pass
-
-    all_solved = len([k for k, v in progress_dict.items() if v.get("solved")]) >= pids_len
-    player.solved = all_solved
-    if all_solved and not player.solved_at:
-      player.solved_at = now
-
-    should_finish = False
-    if len(battle.players) <= 2:
-      if any(p.solved for p in battle.players):
-        should_finish = True
-    else:
-      if all(p.solved for p in battle.players):
-        should_finish = True
-    if should_finish and battle.status != "finished":
-      from app.services.scoring_service import ScoringService
-      await ScoringService.finish_battle(db, battle.id)
+  await db.commit()
 
   await manager.broadcast(str(battle_id), {
       "type": "state_update",
       "player_index": player.player_index,
       "score": player.score,
       "solved": player.solved,
-      "attempts": req.attempts if req.attempts is not None else progress_dict[p_idx]["attempts"],
+      "attempts": progress_dict[p_idx]["attempts"],
       "code": req.code if req.code is not None else progress_dict[p_idx]["code"],
       "lang": req.lang if req.lang is not None else progress_dict[p_idx]["lang"],
       "problem_index": req.problem_index,
@@ -728,26 +732,78 @@ async def update_battle(
       "progress": progress_dict,
   })
 
-  await db.commit()
   return {"status": "ok"}
 
 
-async def _authenticate_ws_token(token: str) -> Optional[User]:
-  """Validate a JWT token and return the User, or None."""
-  from jose import JWTError
+@router.post("/{battle_id}/ws-ticket")
+async def create_ws_ticket(
+    battle_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+  """Issue a short-lived, single-use WebSocket credential without exposing JWTs in URLs."""
+  participant = (await db.execute(select(BattlePlayer).where(
+      BattlePlayer.battle_id == battle_id,
+      BattlePlayer.username == current_user.username,
+  ))).scalar_one_or_none()
+  if not participant:
+    raise HTTPException(status_code=403, detail="Not a participant in this battle")
+
+  from redis.asyncio import Redis
+  from app.core.config import get_settings
+  ticket = secrets.token_urlsafe(32)
+  redis = Redis.from_url(get_settings().REDIS_URL, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
   try:
-    payload = decode_token(token)
-    user_id_str = payload.get("sub")
-    if not user_id_str:
+    stored = await redis.set(
+        f"battle_ws_ticket:{ticket}",
+        json.dumps({"user_id": str(current_user.id), "battle_id": str(battle_id)}),
+        ex=30,
+        nx=True,
+    )
+    if not stored:
+      raise HTTPException(status_code=503, detail="Could not issue WebSocket ticket")
+  except HTTPException:
+    raise
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Battle connection service is unavailable") from exc
+  finally:
+    await redis.aclose()
+  return {"ticket": ticket}
+
+
+async def _authenticate_ws_ticket(ticket: str, battle_id: uuid.UUID) -> Optional[User]:
+  """Atomically consume a one-time ticket and resolve its active participant."""
+  from redis.asyncio import Redis
+  from app.core.config import get_settings
+
+  redis = Redis.from_url(get_settings().REDIS_URL, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
+  try:
+    # GETDEL prevents a ticket from opening more than one socket.
+    ticket_data = await redis.getdel(f"battle_ws_ticket:{ticket}")
+  except Exception:
+    return None
+  finally:
+    await redis.aclose()
+  if not ticket_data:
+    return None
+  try:
+    payload = json.loads(ticket_data)
+    if payload.get("battle_id") != str(battle_id):
       return None
-    user_id = uuid.UUID(user_id_str)
-  except (JWTError, ValueError):
+    user_id = uuid.UUID(payload["user_id"])
+  except (ValueError, KeyError, TypeError, json.JSONDecodeError):
     return None
 
   async with AsyncSessionLocal() as db:
     repo = UserRepo(db)
     user = await repo.get_by_id(user_id)
-    if user and user.is_active:
+    if not user or not user.is_active:
+      return None
+    participant = (await db.execute(select(BattlePlayer).where(
+        BattlePlayer.battle_id == battle_id,
+        BattlePlayer.username == user.username,
+    ))).scalar_one_or_none()
+    if participant:
       return user
   return None
 
@@ -756,22 +812,21 @@ async def _authenticate_ws_token(token: str) -> Optional[User]:
 async def websocket_endpoint(
     websocket: WebSocket,
     battle_id: str,
-    token: Optional[str] = Query(None),
-    player_index: Optional[int] = Query(None, ge=0),
+    ticket: Optional[str] = Query(None),
 ):
-  if not token:
-    await websocket.close(code=4001, reason="Missing authentication token")
+  if not ticket:
+    await websocket.close(code=4001, reason="Missing WebSocket ticket")
     return
-  user = await _authenticate_ws_token(token)
-  if not user:
-    await websocket.close(code=4001, reason="Invalid or expired token")
-    return
-
   ping_task = None
   try:
     battle_uuid = uuid.UUID(battle_id)
   except ValueError:
     await websocket.close(code=4004, reason="Invalid battle ID format")
+    return
+
+  user = await _authenticate_ws_ticket(ticket, battle_uuid)
+  if not user:
+    await websocket.close(code=4001, reason="Invalid or expired WebSocket ticket")
     return
 
   # Spectator protection on connect & Resolve secure player index
@@ -873,11 +928,8 @@ async def websocket_endpoint(
       if msg_type == "update":
         p_idx = resolved_player_index
 
-        attempts = data.get("attempts")
         code = data.get("code")
         lang = data.get("lang")
-        solved = data.get("solved")
-        score = data.get("score")
         prob_index = data.get("problem_index")
         act_prob_index = data.get("active_problem_index")
 
@@ -889,7 +941,57 @@ async def websocket_endpoint(
           result = await db.execute(stmt)
           player = result.scalars().first()
           if player:
+            if player.forfeited:
+              await websocket.send_json({"type": "error", "detail": "You forfeited this battle"})
+              continue
             now = datetime.now(timezone.utc)
+            battle_stmt = select(Battle).where(Battle.id == battle_uuid)
+            battle_res = await db.execute(battle_stmt)
+            battle = battle_res.scalar_one_or_none()
+            if not battle or battle.status != "active":
+              await websocket.send_json({"type": "error", "detail": "Battle is not active"})
+              continue
+            if battle.start_time and (now - _ensure_aware(battle.start_time)).total_seconds() >= battle.time_limit * 60:
+              from app.services.scoring_service import ScoringService
+              await ScoringService.finish_battle(db, battle_uuid)
+              await websocket.send_json({"type": "error", "detail": "Battle time has expired"})
+              continue
+
+            problem_count = 1
+            if battle.problem_ids:
+              try:
+                problem_count = len(json.loads(battle.problem_ids))
+              except (TypeError, ValueError):
+                pass
+            if prob_index is not None and (
+                not isinstance(prob_index, int) or isinstance(prob_index, bool)
+                or not 0 <= prob_index < problem_count
+            ):
+              await websocket.send_json({"type": "error", "detail": "Invalid problem index"})
+              continue
+            if act_prob_index is not None and (
+                not isinstance(act_prob_index, int) or isinstance(act_prob_index, bool)
+                or not 0 <= act_prob_index < problem_count
+            ):
+              await websocket.send_json({"type": "error", "detail": "Invalid active problem index"})
+              continue
+            if code is not None and not isinstance(code, str):
+              await websocket.send_json({"type": "error", "detail": "Code must be text"})
+              continue
+            try:
+              code_size = len(code.encode("utf-8")) if code is not None else 0
+            except UnicodeEncodeError:
+              await websocket.send_json({"type": "error", "detail": "Code contains invalid Unicode characters"})
+              continue
+            if code_size > 65536:
+              await websocket.send_json({"type": "error", "detail": "Code is too large"})
+              continue
+            if lang is not None and (
+                not isinstance(lang, str) or lang.lower() not in {"python", "javascript", "cpp", "java"}
+            ):
+              await websocket.send_json({"type": "error", "detail": "Unsupported language"})
+              continue
+
             player.last_active = now
             player.is_active = True
 
@@ -924,60 +1026,16 @@ async def websocket_endpoint(
                 "score": 0
               }
 
-            if attempts is not None:
-              progress_dict[q_idx]["attempts"] = attempts
             if code is not None:
               progress_dict[q_idx]["code"] = code
             if lang is not None:
-              progress_dict[q_idx]["lang"] = lang
-            if solved is not None:
-              progress_dict[q_idx]["solved"] = solved
-              if solved:
-                progress_dict[q_idx]["solved_at"] = now.isoformat()
-            if score is not None:
-              progress_dict[q_idx]["score"] = score
+              progress_dict[q_idx]["lang"] = lang.lower()
 
             if q_idx == "0":
-              if attempts is not None: player.attempts = attempts
               if code is not None: player.code = code
-              if lang is not None: player.lang = lang
+              if lang is not None: player.lang = lang.lower()
 
             player.progress = json.dumps(progress_dict)
-
-            # Check all-solved finish condition
-            battle_stmt = (
-                select(Battle)
-                .where(Battle.id == battle_uuid)
-                .options(selectinload(Battle.players))
-            )
-            battle_result = await db.execute(battle_stmt)
-            battle = battle_result.scalars().first()
-            if battle:
-              # Update player score/solved
-              player.score = sum(int(item.get("score", 0)) for item in progress_dict.values())
-
-              pids_len = 1
-              if battle.problem_ids:
-                try:
-                  pids_len = len(json.loads(battle.problem_ids))
-                except Exception:
-                  pass
-
-              all_solved = len([k for k, v in progress_dict.items() if v.get("solved")]) >= pids_len
-              player.solved = all_solved
-              if all_solved and not player.solved_at:
-                player.solved_at = now
-
-              should_finish = False
-              if len(battle.players) <= 2:
-                if any(p.solved for p in battle.players):
-                  should_finish = True
-              else:
-                if all(p.solved for p in battle.players):
-                  should_finish = True
-              if should_finish and battle.status != "finished":
-                from app.services.scoring_service import ScoringService
-                await ScoringService.finish_battle(db, battle_uuid)
 
             await db.commit()
             db_score = player.score
@@ -990,7 +1048,7 @@ async def websocket_endpoint(
             "player_index": p_idx,
             "score": db_score,
             "solved": db_solved,
-            "attempts": attempts if attempts is not None else (progress_dict.get(q_idx, {}).get("attempts", 0)),
+            "attempts": progress_dict.get(q_idx, {}).get("attempts", 0),
             "code": code,
             "lang": lang,
             "problem_index": prob_index,
@@ -999,23 +1057,54 @@ async def websocket_endpoint(
         })
 
       elif msg_type == "timer_expired":
-        from app.services.scoring_service import ScoringService
-        from app.core.config import get_settings
-        settings = get_settings()
-        redis_client = None
-        if settings.REDIS_URL:
-          try:
-            import redis.asyncio as aioredis
-            redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-          except Exception:
-            pass
-        async with AsyncSessionLocal() as db:
-          await ScoringService.finish_battle(db, battle_uuid, redis_client=redis_client)
-        if redis_client:
-          await redis_client.aclose()
+        await _finish_battle_if_expired(battle_uuid)
 
       elif msg_type == "ping":
         await websocket.send_json({"type": "pong"})
+        await _finish_battle_if_expired(battle_uuid)
+
+      elif msg_type == "concede":
+        async with AsyncSessionLocal() as db:
+          stmt = (
+              select(Battle)
+              .where(Battle.id == battle_uuid)
+              .options(selectinload(Battle.players))
+              .with_for_update()
+          )
+          battle = (await db.execute(stmt)).scalar_one_or_none()
+          if not battle or battle.status != "active":
+            await websocket.send_json({"type": "error", "detail": "Battle is not active"})
+            continue
+          now = datetime.now(timezone.utc)
+          if battle.start_time and (now - _ensure_aware(battle.start_time)).total_seconds() >= battle.time_limit * 60:
+            from app.services.scoring_service import ScoringService
+            await ScoringService.finish_battle(db, battle_uuid)
+            continue
+          player = next((p for p in battle.players if p.player_index == resolved_player_index), None)
+          if not player:
+            await websocket.send_json({"type": "error", "detail": "Player not found"})
+            continue
+          player.forfeited = True
+          player.last_active = now
+          player.is_active = True
+          await db.commit()
+          should_finish = (
+              any(p.forfeited or p.solved for p in battle.players)
+              if len(battle.players) <= 2
+              else all(p.forfeited or p.solved for p in battle.players)
+          )
+          await manager.broadcast(battle_id, {
+              "type": "state_update",
+              "player_index": player.player_index,
+              "score": player.score,
+              "solved": player.solved,
+              "forfeited": player.forfeited,
+              "attempts": player.attempts,
+              "active_problem_index": player.active_problem_index,
+          })
+          if should_finish:
+            from app.services.scoring_service import ScoringService
+            await ScoringService.finish_battle(db, battle_uuid)
 
   except WebSocketDisconnect:
     manager.disconnect(battle_id, user.username, websocket)
@@ -1079,36 +1168,56 @@ async def websocket_endpoint(
 
 async def start_redis_listener(redis_url: str):
   """Listens to 'battle_events' Redis channel and broadcasts messages to active WebSocket clients."""
-  logger.info("[RedisListener] Starting redis battle_events pubsub listener...")
   import redis.asyncio as aioredis
-  import json
-  try:
-    r = aioredis.from_url(redis_url, decode_responses=True)
-    pubsub = r.pubsub()
-    await pubsub.subscribe("battle_events")
-  except Exception as e:
-    logger.warning("[RedisListener] Could not connect to Redis at '%s': %s. PubSub disabled.", redis_url, e)
-    return
-
-  try:
-    while True:
-      message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-      if message:
-        try:
-          data = json.loads(message["data"])
-          b_id = data.get("battle_id")
-          if b_id:
-            await manager.broadcast(str(b_id), data)
-        except Exception as e:
-          logger.warning(f"[RedisListener] Error parsing or broadcasting message: {e}")
-      await asyncio.sleep(0.1)
-  except asyncio.CancelledError:
-    logger.info("[RedisListener] Redis listener task cancelled.")
-  except Exception as e:
-    logger.warning("[RedisListener] Redis connection lost: %s", e)
-  finally:
+  retry_delay = 1
+  while True:
+    r = None
+    pubsub = None
     try:
-      await pubsub.unsubscribe("battle_events")
-      await r.aclose()
-    except Exception:
-      pass
+      r = aioredis.from_url(
+          redis_url,
+          decode_responses=True,
+          socket_connect_timeout=2,
+          socket_timeout=2,
+      )
+      pubsub = r.pubsub()
+      await pubsub.subscribe("battle_events")
+      logger.info("[RedisListener] Subscribed to battle events.")
+      retry_delay = 1
+      while True:
+        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+        if message:
+          try:
+            data = json.loads(message["data"])
+            b_id = data.get("battle_id")
+            if b_id:
+              await manager.broadcast(str(b_id), data)
+          except Exception as e:
+            logger.warning("[RedisListener] Could not broadcast event (%s)", type(e).__name__)
+        await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+      logger.info("[RedisListener] Redis listener task cancelled.")
+      raise
+    except Exception as e:
+      logger.warning(
+          "[RedisListener] Redis pub/sub unavailable; retrying in %ss (%s)",
+          retry_delay,
+          type(e).__name__,
+      )
+    finally:
+      if pubsub is not None:
+        try:
+          await pubsub.unsubscribe("battle_events")
+        except Exception:
+          pass
+        try:
+          await pubsub.aclose()
+        except Exception:
+          pass
+      if r is not None:
+        try:
+          await r.aclose()
+        except Exception:
+          pass
+    await asyncio.sleep(retry_delay)
+    retry_delay = min(retry_delay * 2, 30)

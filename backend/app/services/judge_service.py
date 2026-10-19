@@ -187,7 +187,7 @@ class JudgeService:
                 # Priority: Compile (6) > Runtime > TLE > MLE.
                 terminal_status = tc_status
                 # Save the first error's stderr as the submission error_message
-                if stderr.strip():
+                if stderr.strip() and (submission.run_samples_only or tc.is_sample):
                     submission.error_message = stderr.strip()[:4000]
 
             if is_passed:

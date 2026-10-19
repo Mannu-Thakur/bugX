@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle, Terminal, Lightbulb, Clock, ChevronRight, ChevronLeft, Lock, BookOpen, Layout, Sparkles } from 'lucide-react';
@@ -12,7 +12,6 @@ import { Button } from '../../shared/ui/button/Button';
 import { useAuth } from '../auth/useAuth';
 import { useToast } from '../../shared/ui/toast/ToastProvider';
 import { SplitPane } from './components/SplitPane';
-import { CodeEditor } from './components/CodeEditor';
 import { TestCasePanel } from './components/TestCasePanel';
 import { ProblemDescription } from './components/ProblemDescription';
 import { cn } from '../../shared/lib/cn';
@@ -20,6 +19,8 @@ import { XProvider, useX } from '../x/XContext';
 import { XPanel } from '../x/XPanel';
 import { AiCoachProvider, useAiCoach } from '../coach/AiCoachContext';
 import { AiCoachPanel } from '../coach/AiCoachPanel';
+
+const CodeEditor = lazy(() => import('./components/CodeEditor').then(module => ({ default: module.CodeEditor })));
 
 // Inner component that consumes XContext
 const ProblemDetailInner: React.FC = () => {
@@ -1063,36 +1064,38 @@ const [isRunning, setIsRunning] = useState(false);
     <div ref={workspaceRef} className="flex flex-col h-full overflow-hidden">
       {/* Code Editor */}
       <div className="flex-1 min-h-[120px]">
-        <CodeEditor
-          problemSlug={problem.slug}
-          templates={problem.templates}
-          code={code}
-          onChangeCode={handleCodeChange}
-          language={language}
-          onChangeLanguage={handleLanguageChange}
-          onReset={handleReset}
-          onLoadLastSubmission={user ? handleLoadLastSubmission : undefined}
-          isLoadingLastSubmission={isLoadingLastSub}
-          isRunning={isRunning}
-          isSubmitting={isSubmitting}
-          // eslint-disable-next-line react-hooks/refs
-          onRun={() => handleRun(code, language)}
-          // eslint-disable-next-line react-hooks/refs
-          onSubmit={() => handleSubmit(code, language)}
-          focusMode={focusMode}
-          onShowComingSoon={(feat) => {
-            setComingSoonFeature(feat);
-            setShowComingSoon(true);
-          }}
-          onShowHints={handleShowHints}
-          submissionCooldown={submissionCooldown}
-          onToggleNotes={handleToggleNotes}
-          hasNotes={notes.trim().length > 0}
-          onToggleX={toggleX}
-          isXOpen={isXOpen}
-          onToggleDescription={() => setIsDescOpen(prev => !prev)}
-          isDescriptionOpen={isDescOpen}
-        />
+        <Suspense fallback={<div className="h-full animate-pulse bg-[#111318]" aria-label="Loading code editor" />}>
+          <CodeEditor
+            problemSlug={problem.slug}
+            templates={problem.templates}
+            code={code}
+            onChangeCode={handleCodeChange}
+            language={language}
+            onChangeLanguage={handleLanguageChange}
+            onReset={handleReset}
+            onLoadLastSubmission={user ? handleLoadLastSubmission : undefined}
+            isLoadingLastSubmission={isLoadingLastSub}
+            isRunning={isRunning}
+            isSubmitting={isSubmitting}
+            // eslint-disable-next-line react-hooks/refs
+            onRun={() => handleRun(code, language)}
+            // eslint-disable-next-line react-hooks/refs
+            onSubmit={() => handleSubmit(code, language)}
+            focusMode={focusMode}
+            onShowComingSoon={(feat) => {
+              setComingSoonFeature(feat);
+              setShowComingSoon(true);
+            }}
+            onShowHints={handleShowHints}
+            submissionCooldown={submissionCooldown}
+            onToggleNotes={handleToggleNotes}
+            hasNotes={notes.trim().length > 0}
+            onToggleX={toggleX}
+            isXOpen={isXOpen}
+            onToggleDescription={() => setIsDescOpen(prev => !prev)}
+            isDescriptionOpen={isDescOpen}
+          />
+        </Suspense>
       </div>
 
       {/* Guest warning banner */}

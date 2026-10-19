@@ -96,8 +96,8 @@ async def get_my_stats(
 
 @router.get("/me/submissions")
 async def get_my_submissions(
-    page: int = 1,
-    limit: int = 20,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     problem_id: uuid.UUID | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
@@ -153,7 +153,23 @@ async def get_public_profile(
         },
         "stats": stats,
         "platformStats": platform_stats,
-        "submissions": submissions["items"]
+        # Public profiles show activity summaries only. SubmissionResponse
+        # intentionally includes source_code and error_message for its owner.
+        "submissions": [
+            {
+                "id": str(item.id),
+                "problem_id": str(item.problem_id),
+                "problem_slug": item.problem_slug,
+                "problem_title": item.problem_title,
+                "language": item.language,
+                "status": item.status.value,
+                "score": item.score,
+                "runtime_ms": item.runtime_ms,
+                "run_samples_only": item.run_samples_only,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in submissions["items"]
+        ]
     }
 
 

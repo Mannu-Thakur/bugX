@@ -34,27 +34,6 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'cases' | 'result' | 'visualizer'>('cases');
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
-  const [customCases, setCustomCases] = useState<{ id: string; input: string }[]>([]);
-
-  const addCustomCase = () => {
-    const newCase = { id: `custom-${Date.now()}`, input: '' };
-    setCustomCases(prev => [...prev, newCase]);
-    // Switch to the new tab index (sample + firstFailing + existing customs)
-    const newIdx = testCases.length + customCases.length + (firstFailingHidden && !testCases.some(tc => tc.id === firstFailingHidden.test_case_id) ? 1 : 0);
-    setSelectedCaseIdx(newIdx);
-  };
-
-  const updateCustomCase = (id: string, input: string) => {
-    setCustomCases(prev => prev.map(c => c.id === id ? { ...c, input } : c));
-  };
-
-  const removeCustomCase = (id: string) => {
-    setCustomCases(prev => {
-      const updated = prev.filter(c => c.id !== id);
-      setSelectedCaseIdx(Math.max(0, selectedCaseIdx - 1));
-      return updated;
-    });
-  };
 
   // Auto-switch to result tab when execution starts
   useEffect(() => {
@@ -64,31 +43,10 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
     }
   }, [isPolling]);
 
-  // Build display cases: sample test cases + first failing hidden case (if any)
-  const firstFailingHidden = results?.find(r => r.is_first_failing_hidden && !r.passed);
-  const displayCases: { id: string; input: string | null; expected_output: string | null; is_sample: boolean; label: string; isCustom?: boolean }[] = [
+  // Only sample cases include inspectable inputs and expected output.
+  const displayCases: { id: string; input: string | null; expected_output: string | null; is_sample: boolean; label: string }[] = [
     ...testCases.map((tc, idx) => ({ ...tc, label: `Case ${idx + 1}` })),
   ];
-  if (firstFailingHidden && !testCases.some(tc => tc.id === firstFailingHidden.test_case_id)) {
-    displayCases.push({
-      id: firstFailingHidden.test_case_id,
-      input: firstFailingHidden.test_case_input,
-      expected_output: firstFailingHidden.expected_output,
-      is_sample: false,
-      label: 'Failing Hidden Case',
-    });
-  }
-  // Append custom user-added cases
-  customCases.forEach((cc, idx) => {
-    displayCases.push({
-      id: cc.id,
-      input: cc.input,
-      expected_output: null,
-      is_sample: false,
-      label: `Custom ${idx + 1}`,
-      isCustom: true,
-    });
-  });
 
   // Group results into sample and hidden
   const sampleResults = results?.filter(r =>
@@ -225,7 +183,6 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
             {/* Case selector */}
             <div className="flex flex-wrap items-center gap-2 select-none">
               {displayCases.map((tc, idx) => {
-                const isFailingHidden = !tc.is_sample && firstFailingHidden?.test_case_id === tc.id;
                 return (
                   <button
                     key={tc.id}
@@ -233,12 +190,8 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                     className={cn(
                       'px-3 py-1.5 rounded-md text-xs font-semibold flex items-center transition-all',
                       selectedCaseIdx === idx
-                        ? isFailingHidden
-                          ? 'bg-rose-950/20 text-rose-300'
-                          : 'bg-dark-hover text-dark-text font-bold shadow-sm'
-                        : isFailingHidden
-                          ? 'bg-transparent text-rose-450 hover:text-rose-350'
-                          : 'bg-transparent text-dark-text/50 hover:text-dark-text/80'
+                        ? 'bg-dark-hover text-dark-text font-bold shadow-sm'
+                        : 'bg-transparent text-dark-text/50 hover:text-dark-text/80'
                     )}
                   >
                     {tc.label}
@@ -246,14 +199,6 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                 );
               })}
               
-              {/* Plus Button */}
-              <button
-                onClick={addCustomCase}
-                className="px-2 py-1 rounded-md text-xs font-bold bg-transparent text-dark-text/40 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all cursor-pointer select-none"
-                title="Add custom test case"
-              >
-                +
-              </button>
             </div>
 
             {/* Selected case details */}
@@ -261,32 +206,6 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
               const selectedCase = displayCases[selectedCaseIdx];
               const res = results?.find(r => r.test_case_id === selectedCase.id);
               const inputLines = (selectedCase.input || res?.test_case_input || '').split('\n').filter(line => line.trim() !== '');
-
-              // Custom case — show editable textarea
-              if (selectedCase.isCustom) {
-                const customCase = customCases.find(c => c.id === selectedCase.id);
-                return (
-                  <div className="space-y-3 font-mono text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] text-dark-text/50 font-sans font-medium select-none">Custom Input</div>
-                      <button
-                        onClick={() => removeCustomCase(selectedCase.id)}
-                        className="text-[10px] text-rose-400/60 hover:text-rose-400 transition-colors cursor-pointer font-sans select-none"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                    <textarea
-                      value={customCase?.input ?? ''}
-                      onChange={(e) => updateCustomCase(selectedCase.id, e.target.value)}
-                      placeholder="Enter your custom input here..."
-                      className="w-full min-h-[100px] bg-[#252526] border-none px-3 py-2 rounded-lg text-dark-text font-mono text-xs resize-y placeholder:text-dark-text/30 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all"
-                      spellCheck={false}
-                    />
-                    <p className="text-[10px] text-dark-text/30 font-sans select-none">This custom case is only used for your local Run.</p>
-                  </div>
-                );
-              }
 
               return (
                 <div className="space-y-4 font-mono text-xs">
@@ -417,7 +336,7 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                     <div className="flex flex-wrap gap-1.5">
                       {results.map((r, idx) => {
                         const isSample = testCases.some(tc => tc.id === r.test_case_id);
-                        const canOpenDetails = isSample || r.is_first_failing_hidden;
+                        const canOpenDetails = isSample;
                         const hiddenIndex = hiddenResults.findIndex(hr => hr.id === r.id);
                         const caseLabel = isSample
                           ? `Sample ${testCases.findIndex(tc => tc.id === r.test_case_id) + 1}`
@@ -503,24 +422,14 @@ export const TestCasePanel: React.FC<TestCasePanelProps> = ({
                         <div
                           key={r.id}
                           onClick={() => {
-                            if (r.is_first_failing_hidden) {
-                              const caseIdx = displayCases.findIndex(dc => dc.id === r.test_case_id);
-                              if (caseIdx >= 0) {
-                                setSelectedCaseIdx(caseIdx);
-                                setActiveTab('cases');
-                              }
-                            }
                           }}
                           className={cn(
                             "flex items-center justify-between p-3 bg-white/[0.015] rounded-xl text-xs border-none",
-                            r.is_first_failing_hidden && !r.passed ? "cursor-pointer hover:bg-white/[0.035] bg-rose-950/10 text-rose-300 transition-colors" : ""
+                            r.is_first_failing_hidden && !r.passed ? "bg-rose-950/10 text-rose-300" : ""
                           )}
                         >
                           <span className="font-semibold text-gray-450">
                             Hidden Case {idx + 1}
-                            {r.is_first_failing_hidden && !r.passed && (
-                              <span className="ml-1.5 text-[10px] text-rose-450 font-normal">(click to view)</span>
-                            )}
                           </span>
                           <span className="flex items-center gap-2">
                             <span className="font-mono text-gray-500 text-[10px]">{r.runtime_ms}ms</span>

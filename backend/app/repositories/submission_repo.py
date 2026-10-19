@@ -61,6 +61,17 @@ class SubmissionRepo:
         return list(result.scalars().all())
 
     @staticmethod
+    async def get_pending(session: AsyncSession) -> List[Submission]:
+        """Return queued rows so startup can recover commit/enqueue gaps."""
+        stmt = (
+            select(Submission)
+            .where(Submission.status == SubmissionStatus.PENDING)
+            .order_by(Submission.created_at)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
     async def reset_to_pending(session: AsyncSession, submission_id: uuid.UUID) -> None:
         """Used by worker reclaim to reset a stalled RUNNING row back to PENDING."""
         stmt = (

@@ -16,6 +16,7 @@ class BattlePlayer(Base):
     last_active = Column(DateTime(timezone=True), nullable=True)
     score = Column(Integer, nullable=False, default=0)
     solved = Column(Boolean, nullable=False, default=False)
+    forfeited = Column(Boolean, nullable=False, default=False)
     solved_at = Column(DateTime(timezone=True), nullable=True)
     attempts = Column(Integer, nullable=False, default=0)
     code = Column(Text, nullable=True)

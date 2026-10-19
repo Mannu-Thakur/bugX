@@ -197,7 +197,7 @@ async def _fetch_github_email(access_token: str) -> Optional[str]:
     for e in emails:
         if e.get("verified"):
             return e["email"]
-    return emails[0]["email"] if emails else None
+    return None
 
 
 async def _fetch_user_profile(provider: str, access_token: str) -> dict:
@@ -218,16 +218,16 @@ async def _fetch_user_profile(provider: str, access_token: str) -> dict:
 
     if provider == "google":
         return {
-            "email": data.get("email", ""),
+            "email": data.get("email", "") if data.get("email_verified") is True else "",
             "name": data.get("name", ""),
             "picture": data.get("picture"),
             "provider_id": str(data.get("sub", data.get("id", ""))),
         }
 
     if provider == "github":
-        email = data.get("email")
-        if not email:
-            email = await _fetch_github_email(access_token)
+        # GitHub's profile email can be private or unverified. Always resolve
+        # through /user/emails and select a verified address.
+        email = await _fetch_github_email(access_token)
         return {
             "email": email or "",
             "name": data.get("login", ""),
@@ -238,7 +238,7 @@ async def _fetch_user_profile(provider: str, access_token: str) -> dict:
 
     if provider == "linkedin":
         return {
-            "email": data.get("email", ""),
+            "email": data.get("email", "") if data.get("email_verified") is True else "",
             "name": data.get("name", data.get("given_name", "")),
             "picture": data.get("picture"),
             "provider_id": str(data.get("sub", "")),

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import signal
+import time
 from datetime import datetime, timedelta, timezone
 import uuid
 
@@ -10,6 +11,7 @@ import redis.asyncio as aioredis
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.repositories.submission_repo import SubmissionRepo
+from app.models.submission import SubmissionStatus
 from app.services.judge0_client import Judge0Client
 from app.services.judge_service import JudgeService
 
@@ -40,6 +42,11 @@ class SubmissionWorker:
             stale_submissions = await SubmissionRepo.get_stale_running(session, threshold)
             count = 0
             for sub in stale_submissions:
+                # A live worker may legitimately run a job longer than the
+                # stale threshold. Its lease is the ownership signal; do not
+                # reset its database claim while that lease is present.
+                if await self.redis.exists(f"submission_lease:{sub.id}"):
+                    continue
                 await SubmissionRepo.reset_to_pending(session, sub.id)
                 await session.commit()
                 # Re-queue
@@ -47,24 +54,145 @@ class SubmissionWorker:
                 await self.redis.lpush("submission_queue", queue_payload)
                 count += 1
 
-            logger.info(f"Reclaimed {count} stale submissions")
+            # A process can die after committing a submission row but before
+            # pushing it to Redis. Re-enqueue all pending rows on worker start;
+            # the atomic PENDING -> RUNNING claim makes duplicates harmless.
+            pending_submissions = await SubmissionRepo.get_pending(session)
+            for sub in pending_submissions:
+                await self.redis.lpush(
+                    "submission_queue",
+                    json.dumps({"submission_id": str(sub.id)}),
+                )
+
+            logger.info(
+                "Reclaimed %s stale submissions and queued %s pending submissions",
+                count,
+                len(pending_submissions),
+            )
+
+    async def _refresh_lease(self, lease_key: str, owner: str):
+        refresh_script = (
+            "if redis.call('GET', KEYS[1]) == ARGV[1] "
+            "then return redis.call('EXPIRE', KEYS[1], ARGV[2]) else return 0 end"
+        )
+        while self.running:
+            await asyncio.sleep(30)
+            try:
+                refreshed = await self.redis.eval(refresh_script, 1, lease_key, owner, 180)
+                if not refreshed:
+                    return
+            except Exception as exc:
+                logger.warning("Could not refresh worker lease: %s", exc)
+
+    async def _release_lease(self, lease_key: str, owner: str):
+        release_script = (
+            "if redis.call('GET', KEYS[1]) == ARGV[1] "
+            "then return redis.call('DEL', KEYS[1]) else return 0 end"
+        )
+        try:
+            await self.redis.eval(release_script, 1, lease_key, owner)
+        except Exception as exc:
+            logger.warning("Could not release worker lease: %s", exc)
+
+    async def recover_inflight(self):
+        """Requeue in-flight jobs whose worker lease expired after a crash."""
+        items = await self.redis.lrange("submission_processing", 0, -1)
+        for payload_str in dict.fromkeys(items):
+            try:
+                payload = json.loads(payload_str)
+                submission_id = uuid.UUID(payload["submission_id"])
+            except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+                await self.redis.lrem("submission_processing", 1, payload_str)
+                continue
+
+            lease_key = f"submission_lease:{submission_id}"
+            recovery_owner = f"recovery:{uuid.uuid4().hex}"
+            if not await self.redis.set(lease_key, recovery_owner, ex=30, nx=True):
+                continue
+            try:
+                async with AsyncSessionLocal() as session:
+                    submission = await SubmissionRepo.get_by_id(session, submission_id)
+                    if not submission or submission.status not in (
+                        SubmissionStatus.PENDING,
+                        SubmissionStatus.RUNNING,
+                    ):
+                        await self.redis.lrem("submission_processing", 1, payload_str)
+                        continue
+                    if submission.status == SubmissionStatus.RUNNING:
+                        updated_at = submission.updated_at
+                        if updated_at and updated_at.tzinfo is None:
+                            updated_at = updated_at.replace(tzinfo=timezone.utc)
+                        # Match the ordinary stale-job threshold so a brief
+                        # Redis lease interruption cannot start a second judge
+                        # while the original worker is still executing.
+                        if updated_at and updated_at > datetime.now(timezone.utc) - timedelta(minutes=10):
+                            continue
+                        await SubmissionRepo.reset_to_pending(session, submission_id)
+                        await session.commit()
+                await self.redis.lrem("submission_processing", 1, payload_str)
+                await self.redis.lpush("submission_queue", payload_str)
+            finally:
+                await self._release_lease(lease_key, recovery_owner)
 
     async def run(self):
-        await self.reclaim_stale()
+        while self.running:
+            try:
+                await self.reclaim_stale()
+                await self.recover_inflight()
+                break
+            except Exception as e:
+                logger.error("Worker recovery could not connect to dependencies: %s", e)
+                await asyncio.sleep(5)
         logger.info("Worker started, waiting for jobs...")
+        next_recovery = time.monotonic() + 30
 
         while self.running:
             try:
-                # BRPOP blocks for 5 seconds
-                result = await self.redis.brpop("submission_queue", timeout=5)
-                if not result:
+                # Atomically move the job to an in-flight list so a worker
+                # crash does not silently discard the only queue copy.
+                payload_str = await self.redis.brpoplpush(
+                    "submission_queue", "submission_processing", timeout=5
+                )
+                if not payload_str:
+                    if time.monotonic() >= next_recovery:
+                        await self.recover_inflight()
+                        next_recovery = time.monotonic() + 30
                     continue
 
-                _, payload_str = result
-                payload = json.loads(payload_str)
-                submission_id = uuid.UUID(payload["submission_id"])
+                try:
+                    payload = json.loads(payload_str)
+                    submission_id = uuid.UUID(payload["submission_id"])
+                except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                    logger.error("Discarding malformed submission queue item: %s", exc)
+                    await self.redis.lrem("submission_processing", 1, payload_str)
+                    continue
 
-                await self.process_submission(submission_id)
+                lease_key = f"submission_lease:{submission_id}"
+                lease_owner = uuid.uuid4().hex
+                if not await self.redis.set(lease_key, lease_owner, ex=180, nx=True):
+                    # Another worker owns the in-flight copy; this is a safe
+                    # duplicate created by startup reconciliation.
+                    await self.redis.lrem("submission_processing", 1, payload_str)
+                    continue
+                lease_task = asyncio.create_task(self._refresh_lease(lease_key, lease_owner))
+                try:
+                    await self.process_submission(submission_id)
+                    await self.redis.lrem("submission_processing", 1, payload_str)
+                except Exception as e:
+                    logger.error("Worker error processing %s: %s", submission_id, e)
+                    await self.redis.lrem("submission_processing", 1, payload_str)
+                    await self.redis.lpush("submission_queue", payload_str)
+                    await asyncio.sleep(1)
+                finally:
+                    lease_task.cancel()
+                    try:
+                        await lease_task
+                    except asyncio.CancelledError:
+                        pass
+                    await self._release_lease(lease_key, lease_owner)
+                if time.monotonic() >= next_recovery:
+                    await self.recover_inflight()
+                    next_recovery = time.monotonic() + 30
 
             except Exception as e:
                 logger.error(f"Worker error: {e}")
@@ -80,7 +208,6 @@ class SubmissionWorker:
                     return
 
                 # Atomically set to RUNNING
-                from app.models.submission import SubmissionStatus
                 success = await SubmissionRepo.set_status(session, submission_id, SubmissionStatus.PENDING, SubmissionStatus.RUNNING)
                 await session.commit()
 
@@ -109,7 +236,6 @@ class SubmissionWorker:
             except Exception as e:
                 logger.error(f"Error processing submission {submission_id}: {e}")
                 # Set to RUNTIME_ERROR
-                from app.models.submission import SubmissionStatus
                 try:
                     await session.rollback() # clear failed transaction
                     sub = await SubmissionRepo.get_by_id(session, submission_id)
@@ -120,6 +246,7 @@ class SubmissionWorker:
                         await session.commit()
                 except Exception as inner_e:
                     logger.error(f"Failed to set RUNTIME_ERROR for {submission_id}: {inner_e}")
+                    raise
 
 
 def main():

@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -147,7 +148,6 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_origin_regex=r"^https?://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -285,6 +285,21 @@ async def _ensure_battle_columns(conn) -> None:
         except Exception:
             pass
 
+    def existing_battle_player_cols(sync_conn) -> set[str]:
+        try:
+            return {column["name"] for column in inspect(sync_conn).get_columns("battle_players")}
+        except Exception:
+            return set()
+
+    battle_player_existing = await conn.run_sync(existing_battle_player_cols)
+    if "forfeited" not in battle_player_existing and battle_player_existing:
+        try:
+            await conn.execute(
+                text("ALTER TABLE battle_players ADD COLUMN forfeited BOOLEAN NOT NULL DEFAULT FALSE")
+            )
+        except Exception:
+            pass
+
     # 2. Alter submissions table to add battle_id
     def existing_submission_cols(sync_conn) -> set[str]:
         try:
@@ -327,9 +342,16 @@ async def _ensure_problem_columns(conn) -> None:
 
 
 def _client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",", maxsplit=1)[0].strip()
+    # Render's public traffic passes through Cloudflare. CF-Connecting-IP is a
+    # single address added at the edge; X-Forwarded-For can retain values sent
+    # by the caller, so neither its leftmost nor rightmost item is safe to pick
+    # without a configured trusted-proxy chain.
+    cloudflare_client_ip = request.headers.get("cf-connecting-ip", "").strip()
+    if cloudflare_client_ip:
+        try:
+            return str(ipaddress.ip_address(cloudflare_client_ip))
+        except ValueError:
+            pass
 
     if request.client is None:
         return "unknown"

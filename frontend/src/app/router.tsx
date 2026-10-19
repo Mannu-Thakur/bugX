@@ -1,27 +1,34 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createBrowserRouter } from 'react-router-dom';
 import { PageShell } from '../shared/ui/layout/PageShell';
-import { ProblemListPage } from '../features/problems/ProblemListPage';
-import { ProblemDetailPage } from '../features/problems/ProblemDetailPage';
 import { XProvider } from '../features/x/XContext';
-import { SubmissionResultPage } from '../features/problems/SubmissionResultPage';
-import { LeaderboardPage } from '../features/leaderboard/LeaderboardPage';
-import { ProfilePage } from '../features/profile/ProfilePage';
-import { SettingsPage } from '../features/settings/SettingsPage';
-import { LoginPage } from '../features/auth/LoginPage';
-import { RegisterPage } from '../features/auth/RegisterPage';
-import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage';
-import { OAuthCallbackPage } from '../features/auth/OAuthCallbackPage';
-import { NotFoundPage } from '../pages/NotFoundPage';
-import { LandingPage } from '../pages/LandingPage';
-import { PrivacyPage } from '../pages/PrivacyPage';
-import { CookiePage } from '../pages/CookiePage';
-import { TermsPage } from '../pages/TermsPage';
 import { AnonymousRoute, ProtectedRoute, AdminRoute } from '../features/auth/ProtectedRoute';
-import { VisualizerPage } from '../pages/VisualizerPage';
-import { AdminDashboardPage } from '../features/admin/AdminDashboardPage';
-import { lazy, Suspense } from 'react';
-import { AppearancePage } from '../features/appearance/AppearancePage';
+import { lazy, Suspense, type ReactNode } from 'react';
+
+const LandingPage = lazy(() => import('../pages/LandingPage').then(module => ({ default: module.LandingPage })));
+const ProblemListPage = lazy(() => import('../features/problems/ProblemListPage').then(module => ({ default: module.ProblemListPage })));
+const ProblemDetailPage = lazy(() => import('../features/problems/ProblemDetailPage').then(module => ({ default: module.ProblemDetailPage })));
+const SubmissionResultPage = lazy(() => import('../features/problems/SubmissionResultPage').then(module => ({ default: module.SubmissionResultPage })));
+const LeaderboardPage = lazy(() => import('../features/leaderboard/LeaderboardPage').then(module => ({ default: module.LeaderboardPage })));
+const ProfilePage = lazy(() => import('../features/profile/ProfilePage').then(module => ({ default: module.ProfilePage })));
+const SettingsPage = lazy(() => import('../features/settings/SettingsPage').then(module => ({ default: module.SettingsPage })));
+const LoginPage = lazy(() => import('../features/auth/LoginPage').then(module => ({ default: module.LoginPage })));
+const RegisterPage = lazy(() => import('../features/auth/RegisterPage').then(module => ({ default: module.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import('../features/auth/ForgotPasswordPage').then(module => ({ default: module.ForgotPasswordPage })));
+const OAuthCallbackPage = lazy(() => import('../features/auth/OAuthCallbackPage').then(module => ({ default: module.OAuthCallbackPage })));
+const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
+const PrivacyPage = lazy(() => import('../pages/PrivacyPage').then(module => ({ default: module.PrivacyPage })));
+const CookiePage = lazy(() => import('../pages/CookiePage').then(module => ({ default: module.CookiePage })));
+const TermsPage = lazy(() => import('../pages/TermsPage').then(module => ({ default: module.TermsPage })));
+const VisualizerPage = lazy(() => import('../pages/VisualizerPage').then(module => ({ default: module.VisualizerPage })));
+const AdminDashboardPage = lazy(() => import('../features/admin/AdminDashboardPage').then(module => ({ default: module.AdminDashboardPage })));
+const AppearancePage = lazy(() => import('../features/appearance/AppearancePage').then(module => ({ default: module.AppearancePage })));
+
+const routeContent = (children: ReactNode) => (
+  <Suspense fallback={<div className="min-h-screen bg-[#07090e]" aria-label="Loading page" />}>
+    {children}
+  </Suspense>
+);
 
 const BattleLobbyPage = lazy(() => import('../features/battle/BattleLobbyPage').then(module => ({ default: module.BattleLobbyPage })));
 const BattleArenaPage = lazy(() => import('../features/battle/pages/BattleArenaPage').then(module => ({ default: module.BattleArenaPage })));
@@ -38,7 +45,7 @@ export const router = createBrowserRouter([
     path: '/',
     element: (
       <PageShell fullWidth>
-        <LandingPage />
+        {routeContent(<LandingPage />)}
       </PageShell>
     ),
   },
@@ -46,7 +53,7 @@ export const router = createBrowserRouter([
     path: '/problems',
     element: (
       <PageShell>
-        <ProblemListPage />
+        {routeContent(<ProblemListPage />)}
       </PageShell>
     ),
   },
@@ -54,7 +61,7 @@ export const router = createBrowserRouter([
     path: '/problems/:slug',
     element: (
       <PageShell fullWidth hideFooter>
-        <ProblemDetailPage />
+        {routeContent(<ProblemDetailPage />)}
       </PageShell>
     ),
   },
@@ -63,7 +70,7 @@ export const router = createBrowserRouter([
     element: (
       <PageShell>
         <XProvider>
-          <SubmissionResultPage />
+          {routeContent(<SubmissionResultPage />)}
         </XProvider>
       </PageShell>
     ),
@@ -72,7 +79,7 @@ export const router = createBrowserRouter([
     path: '/leaderboard',
     element: (
       <PageShell fullWidth>
-        <LeaderboardPage />
+        {routeContent(<LeaderboardPage />)}
       </PageShell>
     ),
   },
@@ -80,7 +87,7 @@ export const router = createBrowserRouter([
     path: '/visualizer',
     element: (
       <PageShell fullWidth>
-        <VisualizerPage />
+        {routeContent(<VisualizerPage />)}
       </PageShell>
     ),
   },
@@ -89,7 +96,7 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <PageShell fullWidth>
-          <ProfilePage />
+          {routeContent(<ProfilePage />)}
         </PageShell>
       </ProtectedRoute>
     ),
@@ -98,7 +105,7 @@ export const router = createBrowserRouter([
     path: '/settings',
     element: (
       <PageShell fullWidth>
-        <SettingsPage />
+        {routeContent(<SettingsPage />)}
       </PageShell>
     ),
   },
@@ -107,7 +114,7 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <PageShell fullWidth>
-          <AppearancePage />
+          {routeContent(<AppearancePage />)}
         </PageShell>
       </ProtectedRoute>
     ),
@@ -117,7 +124,7 @@ export const router = createBrowserRouter([
     element: (
       <AnonymousRoute>
         <PageShell>
-          <LoginPage />
+          {routeContent(<LoginPage />)}
         </PageShell>
       </AnonymousRoute>
     ),
@@ -127,7 +134,7 @@ export const router = createBrowserRouter([
     element: (
       <AnonymousRoute>
         <PageShell>
-          <RegisterPage />
+          {routeContent(<RegisterPage />)}
         </PageShell>
       </AnonymousRoute>
     ),
@@ -137,20 +144,20 @@ export const router = createBrowserRouter([
     element: (
       <AnonymousRoute>
         <PageShell>
-          <ForgotPasswordPage />
+          {routeContent(<ForgotPasswordPage />)}
         </PageShell>
       </AnonymousRoute>
     ),
   },
   {
     path: '/auth/callback',
-    element: <OAuthCallbackPage />,
+    element: routeContent(<OAuthCallbackPage />),
   },
   {
     path: '/privacy',
     element: (
       <PageShell>
-        <PrivacyPage />
+        {routeContent(<PrivacyPage />)}
       </PageShell>
     ),
   },
@@ -158,7 +165,7 @@ export const router = createBrowserRouter([
     path: '/cookies',
     element: (
       <PageShell>
-        <CookiePage />
+        {routeContent(<CookiePage />)}
       </PageShell>
     ),
   },
@@ -166,7 +173,7 @@ export const router = createBrowserRouter([
     path: '/terms',
     element: (
       <PageShell>
-        <TermsPage />
+        {routeContent(<TermsPage />)}
       </PageShell>
     ),
   },
@@ -176,7 +183,7 @@ export const router = createBrowserRouter([
     element: (
       <AdminRoute>
         <PageShell>
-          <AdminDashboardPage />
+          {routeContent(<AdminDashboardPage />)}
         </PageShell>
       </AdminRoute>
     ),
@@ -298,7 +305,7 @@ export const router = createBrowserRouter([
     path: '*',
     element: (
       <PageShell>
-        <NotFoundPage />
+        {routeContent(<NotFoundPage />)}
       </PageShell>
     ),
   },

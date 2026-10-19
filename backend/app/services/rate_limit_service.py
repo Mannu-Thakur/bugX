@@ -34,7 +34,7 @@ class RateLimitService:
                     retry_on_timeout=False,
                 )
             except Exception as e:
-                logger.error("[RateLimit] Failed to initialize Redis from url '%s': %s", redis_url, e)
+                logger.error("[RateLimit] Failed to initialize Redis client (%s)", type(e).__name__)
                 self.redis = None
 
     async def close(self) -> None:

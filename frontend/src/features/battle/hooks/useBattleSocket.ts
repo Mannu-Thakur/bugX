@@ -31,7 +31,6 @@ export const useBattleSocket = (
 
     const socketService = new BattleSocketService(
       roomId,
-      playerIndex,
       (msg) => onMessageRef.current(msg),
       onConnect,
       onDisconnect

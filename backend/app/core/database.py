@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
@@ -25,19 +26,12 @@ class Base(DeclarativeBase):
 settings = get_settings()
 
 def is_postgres_reachable(db_url: str) -> bool:
-    # Extract host and port
-    host = "localhost"
-    port = 5432
     try:
-        if "@" in db_url:
-            netloc = db_url.split("@")[1].split("/")[0]
-            if ":" in netloc:
-                host, port_str = netloc.split(":")
-                port = int(port_str)
-            else:
-                host = netloc
+        parsed_url = make_url(db_url)
+        host = parsed_url.host or "localhost"
+        port = parsed_url.port or 5432
     except Exception:
-        pass
+        return False
         
     try:
         with socket.create_connection((host, port), timeout=0.8):
@@ -68,10 +62,10 @@ IS_ALEMBIC = "alembic" in " ".join(sys.argv).lower()
 
 if IS_TESTING or IS_ALEMBIC:
     db_url = settings.DATABASE_URL
-    logger.info("[Database] Testing environment detected. Using database URL: %s", db_url)
+    logger.info("[Database] Testing or migration environment detected; using configured database.")
 else:
     if not settings.DATABASE_URL.startswith("postgresql"):
-        raise ValueError(f"Only PostgreSQL is allowed in production/development runtime. Found: {settings.DATABASE_URL}")
+        raise ValueError("Only PostgreSQL is allowed in production/development runtime.")
 
     logger.info("[Database] Waiting for PostgreSQL database to be reachable...")
     if not wait_for_postgres(settings.DATABASE_URL, timeout=15.0):

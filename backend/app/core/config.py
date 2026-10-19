@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -191,20 +192,24 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
-    if not settings.is_development and settings.SECRET_KEY == "change-me-32-chars-min":
-        raise ValueError("SECRET_KEY must be set in production.")
+    if not settings.is_development and len(settings.SECRET_KEY.strip()) < 32:
+        raise ValueError("SECRET_KEY must be set to at least 32 characters in production.")
     if not settings.is_development and settings.ENABLE_MOCK_OAUTH:
         raise ValueError("ENABLE_MOCK_OAUTH must be disabled outside development.")
     if not settings.is_development and settings.USE_LOCAL_JUDGE:
-        import warnings
-        warnings.warn(
-            "USE_LOCAL_JUDGE is enabled outside development. "
-            "This uses subprocess execution with no sandboxing — acceptable for demos, "
-            "but replace with a real Judge0 instance for public production use.",
-            stacklevel=2,
+        raise ValueError(
+            "USE_LOCAL_JUDGE must be disabled outside development. "
+            "The local subprocess runner is not a security sandbox."
         )
     if not settings.is_development and settings.RATE_LIMIT_FAIL_OPEN:
         raise ValueError(
             "RATE_LIMIT_FAIL_OPEN must be False outside development for strict enforcement."
         )
+    if not settings.is_development:
+        redis_host = urlparse(settings.REDIS_URL).hostname
+        if not redis_host or redis_host in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("REDIS_URL must point to a reachable production Redis service.")
+        judge_host = urlparse(settings.JUDGE0_URL).hostname
+        if not judge_host or judge_host in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("JUDGE0_URL must point to an external Judge0 service in production.")
     return settings

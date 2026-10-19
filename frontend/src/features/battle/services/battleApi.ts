@@ -21,9 +21,6 @@ export const battleApi = {
 
   update: (id: string, body: {
     player_index: number;
-    score?: number;
-    solved?: boolean;
-    attempts?: number;
     code?: string;
     lang?: string;
     active_problem_index?: number;

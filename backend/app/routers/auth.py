@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
@@ -42,7 +42,6 @@ async def logout(
     from app.core.security import decode_token
     from app.core.config import get_settings
     from redis.asyncio import Redis
-    from redis.exceptions import RedisError
 
     settings = get_settings()
 
@@ -62,8 +61,12 @@ async def logout(
                 await redis.set(f"token_blocklist:{token}", "1", ex=remaining_ttl)
             finally:
                 await redis.aclose()
-    except (RedisError, Exception) as e:
-        # Log but don't fail the logout — the token will expire naturally
-        logger.warning(f"[Logout] Failed to blocklist token in Redis: {e}")
+    except Exception as e:
+        logger.warning("[Logout] Failed to blocklist token in Redis (%s)", type(e).__name__)
+        if not settings.is_development:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Logout could not be confirmed. Please retry shortly.",
+            ) from e
 
     return {"message": "Logged out successfully."}

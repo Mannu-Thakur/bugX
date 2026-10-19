@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Optional
 
@@ -12,14 +13,13 @@ from app.models.user import RoleEnum, User
 from app.repositories.user_repo import UserRepo
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 async def _is_token_blocklisted(token: str) -> bool:
     """Check if a token has been blocklisted (logged out) in Redis."""
     from app.core.config import get_settings
     from redis.asyncio import Redis
-    from redis.exceptions import RedisError
-
     settings = get_settings()
     try:
         redis = Redis.from_url(
@@ -33,8 +33,14 @@ async def _is_token_blocklisted(token: str) -> bool:
             return result is not None
         finally:
             await redis.aclose()
-    except (RedisError, Exception):
-        # If Redis is down, allow the request through — the token will expire naturally
+    except Exception as exc:
+        if not settings.is_development:
+            logger.error("[Auth] Token revocation check unavailable (%s).", type(exc).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication is temporarily unavailable. Please try again shortly.",
+            ) from exc
+        logger.warning("[Auth] Token revocation check unavailable in development (%s).", type(exc).__name__)
         return False
 
 

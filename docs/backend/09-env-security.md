@@ -32,6 +32,7 @@ SEED_ADMIN_PASSWORD=Admin12345
 | Submission code | **Owner only** in v1 (`GET /submissions/{id}`); no admin read-other-user route |
 | Rate limit submit | Redis: 10/min/user — Phase 4 `SubmissionService` (Run + Submit both) |
 | Rate limit IP | Redis: 100/min/IP — Phase 1 middleware |
+| Client IP | On Render, parse the single `CF-Connecting-IP` address; otherwise use the direct peer and do not trust arbitrary `X-Forwarded-For` values |
 | CORS | Whitelist frontend origin |
 | Admin routes | `require_admin` on all `/admin/*` |
 | Seed admin | `SEED_ADMIN_*` env only in dev; rotate password in prod; never commit real prod secrets |
@@ -40,7 +41,14 @@ SEED_ADMIN_PASSWORD=Admin12345
 
 - API server never executes user code
 - Worker talks to Judge0 over internal Docker network
-- Use official Judge0 CE image; disable outbound network in judge config when possible
+- Use Judge0 with outbound network disabled for submissions and per-process memory limits enabled. The compose files set both defaults and disallow submissions from enabling network access.
+- The API rejects the local subprocess executor outside development. Production must use an external Judge0 service.
+
+## Render production requirements
+
+The Render blueprint uses ENV=production, strict Redis rate limiting, and remote Judge0. Set JUDGE0_URL to a reachable Judge0 service and REDIS_URL to persistent Redis before starting the service. Also configure CORS_ORIGINS, FRONTEND_URL, BACKEND_URL, SMTP_USER, SMTP_FROM, and SMTP_PASSWORD in the Render environment; the blueprint intentionally does not publish those deployment-specific values.
+
+Uploads and avatars are stored on local disk. The blueprint sets `STORAGE_DIR=/app/storage`, so the API can start on Render's free filesystem; the service logs a warning because those files can be lost on a restart or redeploy. Render persistent disks require a paid web service. For durable production uploads, attach a disk mounted at `/app/storage` or move uploads to external object storage. Do not treat local uploads on a free instance as durable.
 
 ## Judge0 docker-compose (v1)
 

@@ -22,7 +22,6 @@ export class BattleSocketService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pingIntervalId: any = null;
   private roomId: string;
-  private playerIndex: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onMessageCallback: (event: any) => void;
   private onConnectCallback?: () => void;
@@ -31,17 +30,16 @@ export class BattleSocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 2000;
+  private connectionGeneration = 0;
 
   constructor(
     roomId: string,
-    playerIndex: number,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onMessage: (event: any) => void,
     onConnect?: () => void,
     onDisconnect?: () => void
   ) {
     this.roomId = roomId;
-    this.playerIndex = playerIndex;
     this.onMessageCallback = onMessage;
     this.onConnectCallback = onConnect;
     this.onDisconnectCallback = onDisconnect;
@@ -59,6 +57,7 @@ export class BattleSocketService {
   };
 
   private closeSocket() {
+    this.connectionGeneration++;
     this.stopPingPong();
     if (this.socket) {
       try {
@@ -73,23 +72,34 @@ export class BattleSocketService {
     }
   }
 
-  public connect() {
+  public async connect() {
     this.isClosedIntentional = false;
     this.closeSocket();
 
     const apiURL = ENV.API_URL;
     const host = apiURL.replace(/^https?:\/\//, '').split('/')[0];
     const wsProtocol = apiURL.startsWith('https') ? 'wss' : 'ws';
-    const freshToken = getToken() || '';
-    
-    const wsUrl = `${wsProtocol}://${host}/api/v1/battle/ws/${this.roomId}?player_index=${this.playerIndex}&token=${encodeURIComponent(freshToken)}`;
-    
+    const generation = ++this.connectionGeneration;
+
     try {
+      const freshToken = getToken();
+      if (!freshToken) throw new Error('Authentication required');
+      const ticketResponse = await fetch(`${ENV.API_URL}/battle/${encodeURIComponent(this.roomId)}/ws-ticket`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${freshToken}` },
+      });
+      if (!ticketResponse.ok) throw new Error('Could not authorize battle connection');
+      const { ticket } = await ticketResponse.json() as { ticket: string };
+      if (this.isClosedIntentional || generation !== this.connectionGeneration) return;
+
+      const wsUrl = `${wsProtocol}://${host}/api/v1/battle/ws/${this.roomId}?ticket=${encodeURIComponent(ticket)}`;
       this.socket = new WebSocket(wsUrl);
       this.setupSocketHandlers();
     } catch (err) {
       console.error('[BattleSocket] Failed to create WebSocket connection:', err);
-      this.handleReconnect();
+      if (!this.isClosedIntentional && generation === this.connectionGeneration) {
+        this.handleReconnect();
+      }
     }
   }
 
